@@ -1,5 +1,6 @@
 # sales-management
 
+[仕様駆動開発](https://github.com/geibee/sdd-tutorial)のF#版実装のリポジトリ。  
 販売管理ドメインの PoC リポジトリ。F# (Giraffe) によるバックエンド API と React フロントエンドをモノレポで管理し、マルチエージェントオーケストレーション (`.harness/`) と RALPH ループ (`harness/ralph.sh`) による増分開発を前提とする。
 
 ## 構成
