@@ -1,0 +1,18 @@
+title = "gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "ダミー値・サンプル設定の許可"
+paths = [
+    '''.*\.gitleaks\.toml''',
+    '''.*docker-compose\.yml''',
+    '''.*launchSettings\.json''',
+    '''.*appsettings.*\.json''',
+]
+regexes = [
+    '''Password=app''',
+    '''Username=app''',
+    '''Host=localhost;Port=5432;Database=sales_management;Username=app;Password=app''',
+]

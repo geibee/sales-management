@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Domain/Types.fs" />
+    <Compile Include="Domain/SmartConstructors.fs" />
+    <Compile Include="Domain/Errors.fs" />
+    <Compile Include="Domain/Events.fs" />
+    <Compile Include="Domain/SalesCaseTypes.fs" />
+    <Compile Include="Domain/ReservationCaseTypes.fs" />
+    <Compile Include="Domain/LotWorkflows.fs" />
+    <Compile Include="Domain/SalesCaseWorkflows.fs" />
+    <Compile Include="Domain/ReservationCaseWorkflows.fs" />
+    <Compile Include="Domain/ConsignmentCaseWorkflows.fs" />
+    <Compile Include="Infrastructure/LotRepository.fs" />
+    <Compile Include="Infrastructure/LotListRepository.fs" />
+    <Compile Include="Infrastructure/SalesCaseRepository.fs" />
+    <Compile Include="Infrastructure/SalesCaseListRepository.fs" />
+    <Compile Include="Infrastructure/AppraisalRepository.fs" />
+    <Compile Include="Infrastructure/ReservationPriceRepository.fs" />
+    <Compile Include="Infrastructure/ConsignmentRepository.fs" />
+    <Compile Include="Infrastructure/ExternalPricingClient.fs" />
+    <Compile Include="Infrastructure/OutboxRepository.fs" />
+    <Compile Include="Infrastructure/OutboxProcessor.fs" />
+    <Compile Include="Api/ProblemDetails.fs" />
+    <Compile Include="Api/LotDtos.fs" />
+    <Compile Include="Api/Auth.fs" />
+    <Compile Include="Api/HealthChecks.fs" />
+    <Compile Include="Api/LotCsvExport.fs" />
+    <Compile Include="Infrastructure/ChunkProgressRepository.fs" />
+    <Compile Include="Infrastructure/BatchProcessing.fs" />
+    <Compile Include="Infrastructure/JobExecutionRepository.fs" />
+    <Compile Include="Infrastructure/MonthlyCloseBatch.fs" />
+    <Compile Include="Infrastructure/PartitionedBatch.fs" />
+    <Compile Include="Infrastructure/CloudWatchPublisher.fs" />
+    <Compile Include="Infrastructure/MonitoringBatch.fs" />
+    <Compile Include="Infrastructure/CsvImportBatch.fs" />
+    <Compile Include="Api/LotListRoutes.fs" />
+    <Compile Include="Api/LotRoutes.fs" />
+    <Compile Include="Api/SalesCaseDtos.fs" />
+    <Compile Include="Api/ReservationCaseDtos.fs" />
+    <Compile Include="Api/ConsignmentCaseDtos.fs" />
+    <Compile Include="Api/SalesCaseDetailRoutes.fs" />
+    <Compile Include="Api/SalesCaseRoutes.fs" />
+    <Compile Include="Api/ReservationCaseRoutes.fs" />
+    <Compile Include="Api/ConsignmentCaseRoutes.fs" />
+    <Compile Include="Api/ExternalApiRoutes.fs" />
+    <Compile Include="Api/AuthRoutes.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Donald" Version="10.1.0" />
+    <PackageReference Include="Giraffe" Version="8.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="9.0.0" />
+    <PackageReference Include="Npgsql" Version="10.0.2" />
+    <PackageReference Include="Npgsql.OpenTelemetry" Version="10.0.2" />
+    <PackageReference Include="OpenTelemetry.Api" Version="1.15.3" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
+    <PackageReference Include="Polly.Extensions.Http" Version="3.0.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\openapi.yaml" Link="openapi.yaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

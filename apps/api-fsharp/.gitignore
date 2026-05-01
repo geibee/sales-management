@@ -1,0 +1,12 @@
+bin/
+obj/
+*.user
+.vs/
+.vscode/
+.idea/
+coverage/
+TestResults/
+ci-results/
+zap-report.html
+zap-report.md
+zap-report.json

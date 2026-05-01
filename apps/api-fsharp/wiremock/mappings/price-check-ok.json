@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/api/pricing/.*"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "basePrice": 10000,
+      "adjustmentRate": 1.05,
+      "source": "external-pricing-api"
+    }
+  }
+}

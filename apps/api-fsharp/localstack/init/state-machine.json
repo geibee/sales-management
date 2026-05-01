@@ -1,0 +1,58 @@
+{
+  "Comment": "Batch job orchestrator - thin wrapper",
+  "StartAt": "RunBatch",
+  "States": {
+    "RunBatch": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "batch-runner",
+        "Payload": {
+          "jobName.$": "$.jobName",
+          "jobParams.$": "$.jobParams"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "NotifyFailure"
+        }
+      ],
+      "Next": "NotifySuccess"
+    },
+    "NotifySuccess": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "http://sqs.ap-northeast-1.localhost.localstack.cloud:4566/000000000000/batch-notifications",
+        "MessageBody": {
+          "status": "SUCCESS",
+          "jobName.$": "$.jobName",
+          "jobParams.$": "$.jobParams"
+        }
+      },
+      "End": true
+    },
+    "NotifyFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "http://sqs.ap-northeast-1.localhost.localstack.cloud:4566/000000000000/batch-notifications",
+        "MessageBody": {
+          "status": "FAILURE",
+          "jobName.$": "$.jobName",
+          "error.$": "$.Error"
+        }
+      },
+      "End": true
+    }
+  }
+}

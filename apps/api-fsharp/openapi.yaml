@@ -1,0 +1,1257 @@
+openapi: 3.0.3
+info:
+  title: Sales Management API
+  version: 1.0.0
+servers:
+  - url: http://localhost:5000
+    description: ローカル開発（直接起動）
+  - url: http://localhost:8080
+    description: ローカル開発（docker-compose 経由）
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Keycloak が発行する JWT。`viewer` または `operator` ロールが必要。
+  responses:
+    Conflict:
+      description: 楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    BadRequest:
+      description: 不正リクエスト。RFC 9457 Problem Details 形式
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFound:
+      description: リソースなし。RFC 9457 Problem Details 形式
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              message: { type: string }
+
+    LotStatus:
+      type: string
+      enum: [manufacturing, manufactured, shipping_instructed, shipped, conversion_instructed]
+
+    LotResponse:
+      type: object
+      required: [status, lotNumber, version]
+      properties:
+        status: { $ref: '#/components/schemas/LotStatus' }
+        lotNumber:
+          type: string
+          example: "2026-A-001"
+        version:
+          type: integer
+          description: 楽観的ロック用バージョン番号
+        manufacturingCompletedDate:
+          type: string
+          format: date
+          nullable: true
+        shippingDeadlineDate:
+          type: string
+          format: date
+          nullable: true
+        shippedDate:
+          type: string
+          format: date
+          nullable: true
+        destinationItem:
+          type: string
+          nullable: true
+          description: conversion_instructed 状態のときの品目変換先
+
+    CreateLotResponse:
+      type: object
+      required: [status, lotNumber, version]
+      properties:
+        status: { $ref: '#/components/schemas/LotStatus' }
+        lotNumber:
+          type: string
+          example: "2026-A-001"
+        version:
+          type: integer
+
+    LotSummary:
+      type: object
+      required: [status, lotNumber, version]
+      properties:
+        status: { $ref: '#/components/schemas/LotStatus' }
+        lotNumber: { type: string }
+        version: { type: integer }
+        manufacturingCompletedDate:
+          type: string
+          format: date
+          nullable: true
+
+    LotsListResponse:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/LotSummary' }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+
+    SalesCaseType:
+      type: string
+      enum: [direct, reservation, consignment]
+
+    SalesCaseResponse:
+      type: object
+      required: [salesCaseNumber, caseType, status]
+      properties:
+        salesCaseNumber:
+          type: string
+          example: "2026-01-001"
+        caseType: { $ref: '#/components/schemas/SalesCaseType' }
+        status: { type: string }
+        lots:
+          type: array
+          items: { type: string }
+        divisionCode: { type: integer }
+        salesDate:
+          type: string
+          format: date
+        version:
+          type: integer
+          description: 楽観的ロック用バージョン番号
+          nullable: true
+
+    CreatedSalesCaseResponse:
+      type: object
+      required: [salesCaseNumber, status, version]
+      properties:
+        salesCaseNumber:
+          type: string
+          example: "2026-01-001"
+        status: { type: string }
+        version: { type: integer, description: 楽観的ロック用バージョン番号 }
+
+    SalesCaseSummary:
+      type: object
+      required: [salesCaseNumber, caseType, status]
+      properties:
+        salesCaseNumber: { type: string }
+        caseType: { $ref: '#/components/schemas/SalesCaseType' }
+        status: { type: string }
+        salesDate:
+          type: string
+          format: date
+          nullable: true
+        divisionCode:
+          type: integer
+          nullable: true
+
+    SalesCasesListResponse:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SalesCaseSummary' }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+
+    ReservationCaseResponse:
+      type: object
+      required: [salesCaseNumber, status]
+      properties:
+        salesCaseNumber: { type: string }
+        status: { type: string }
+        appraisalDate:
+          type: string
+          format: date
+          nullable: true
+        reservedLotInfo:
+          type: string
+          nullable: true
+        reservedAmount:
+          type: integer
+          nullable: true
+        determinedDate:
+          type: string
+          format: date
+          nullable: true
+        determinedAmount:
+          type: integer
+          nullable: true
+        deliveryDate:
+          type: string
+          format: date
+          nullable: true
+
+    ReservationStatusResponse:
+      type: object
+      required: [status, version]
+      properties:
+        status: { type: string }
+        version: { type: integer, description: 楽観的ロック用バージョン番号 }
+
+    ConsignmentCaseResponse:
+      type: object
+      required: [salesCaseNumber, status]
+      properties:
+        salesCaseNumber: { type: string }
+        status: { type: string }
+        consignorName:
+          type: string
+          nullable: true
+        consignorCode:
+          type: string
+          nullable: true
+        designatedDate:
+          type: string
+          format: date
+          nullable: true
+        resultDate:
+          type: string
+          format: date
+          nullable: true
+        resultAmount:
+          type: integer
+          nullable: true
+
+    ConsignmentStatusResponse:
+      type: object
+      required: [status, version]
+      properties:
+        status: { type: string }
+        version: { type: integer, description: 楽観的ロック用バージョン番号 }
+
+    SalesCaseDetailResponse:
+      type: object
+      description: |
+        販売案件詳細レスポンス。`caseType` で direct / reservation / consignment を判別する
+        ポリモーフィックスキーマ。サブタイプ固有のフィールドは欠落 / null を許容するため
+        `additionalProperties: true` でパススルー扱いとする。
+      additionalProperties: true
+      required: [salesCaseNumber, caseType, status, lots, divisionCode, salesDate, version]
+      properties:
+        salesCaseNumber:
+          type: string
+          example: "2026-01-001"
+        caseType: { $ref: '#/components/schemas/SalesCaseType' }
+        status:
+          type: string
+          description: 案件ステータス (例 before_appraisal, appraised, contracted, reserved, reservation_confirmed, reservation_delivered, before_consignment, consignment_designated 等)
+        lots:
+          type: array
+          items: { type: string }
+          description: 関連するロット番号
+        divisionCode: { type: integer }
+        salesDate: { type: string, format: date }
+        version: { type: integer, description: 楽観的ロック用バージョン番号 }
+        # direct 案件向け
+        appraisal:
+          type: object
+          nullable: true
+          description: direct 案件の価格査定情報（未登録時は null）
+        contract:
+          type: object
+          nullable: true
+          description: direct 案件の売買契約情報（未登録時は null）
+        shippingInstruction:
+          type: object
+          nullable: true
+          description: direct 案件の出荷指示情報（未指示時は null）
+        shippingCompletion:
+          type: object
+          nullable: true
+          description: direct 案件の出荷完了情報（未完了時は null）
+        # reservation 案件向け
+        reservationPrice:
+          type: object
+          nullable: true
+          description: reservation 案件の予約価格（未登録時は null）
+        determination:
+          type: object
+          nullable: true
+          description: reservation 案件の確定情報（未確定時は null）
+        delivery:
+          type: object
+          nullable: true
+          description: reservation 案件の引き渡し情報（引き渡し前は null）
+        # consignment 案件向け
+        consignor:
+          type: object
+          nullable: true
+          description: consignment 案件の委託元情報（未指定時は null）
+        result:
+          type: object
+          nullable: true
+          description: consignment 案件の結果情報（未登録時は null）
+
+    PriceCheckResponse:
+      type: object
+      required: [basePrice, source]
+      properties:
+        basePrice:
+          type: number
+          format: double
+          description: 基準単価
+        adjustmentRate:
+          type: number
+          format: double
+          nullable: true
+          description: 期間調整率
+        source:
+          type: string
+          description: 価格情報の出所（外部 API 識別子）
+
+    AuthConfigResponse:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+          description: 認証が有効かどうか
+        authority:
+          type: string
+          nullable: true
+          description: IdP authority URL (Authentication.Enabled=true の時のみ)
+        audience:
+          type: string
+          nullable: true
+          description: JWT audience (Authentication.Enabled=true の時のみ)
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      operationId: healthCheck
+      summary: ヘルスチェック
+      security: []
+      responses:
+        '200':
+          description: OK
+
+  /auth/config:
+    get:
+      operationId: getAuthConfig
+      summary: 認証設定の取得 (公開エンドポイント)
+      description: |
+        フロントエンドが起動時に叩いて認証 ON/OFF と IdP authority を判定する公開エンドポイント。
+        認証 OFF の場合は `{ enabled: false }` のみ返す。
+        認証 ON の場合は `{ enabled, authority, audience }` を返す。
+      security: []
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthConfigResponse'
+
+  /lots:
+    get:
+      operationId: listLots
+      summary: 在庫ロット一覧
+      description: |
+        在庫ロットをページング付きで取得する。`status` クエリで状態フィルタ、
+        `limit` (1..200, default 50) と `offset` (>= 0, default 0) でページング。
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, enum: [manufacturing, manufactured, shipping_instructed, shipped, conversion_instructed] } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LotsListResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      operationId: createLot
+      summary: 在庫ロット作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lotNumber:
+                  type: object
+                  properties:
+                    year: { type: integer }
+                    location: { type: string }
+                    seq: { type: integer }
+                divisionCode: { type: integer }
+                departmentCode: { type: integer }
+                sectionCode: { type: integer }
+                processCategory: { type: integer }
+                inspectionCategory: { type: integer }
+                manufacturingCategory: { type: integer }
+                details:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      itemCategory: { type: string }
+                      premiumCategory: { type: string }
+                      productCategoryCode: { type: string }
+                      lengthSpecLower: { type: number }
+                      thicknessSpecLower: { type: number }
+                      thicknessSpecUpper: { type: number }
+                      qualityGrade: { type: string }
+                      count: { type: integer }
+                      quantity: { type: number }
+                      inspectionResultCategory: { type: string }
+      responses:
+        '200':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateLotResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /lots/export:
+    get:
+      operationId: exportLotsCsv
+      summary: 在庫ロット CSV エクスポート
+      description: |
+        在庫ロットを CSV ファイルとしてダウンロード（Windows-31J / CP932 エンコーディング）。
+        `viewer` ロール以上で利用可能。実装は `LotCsvExport.fs`。
+      parameters:
+        - { name: format, in: query, required: false, schema: { type: string, enum: [csv], default: csv }, description: 現状は csv のみ }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [manufacturing, manufactured, shipping_instructed, shipped, conversion_instructed] }, description: ロット状態フィルタ }
+      responses:
+        '200':
+          description: CSV ファイル本体
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+              description: 'attachment; filename="lots_yyyyMMdd.csv"'
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+                description: |
+                  CSV 本体 (Windows-31J / CP932 エンコーディング)。1行目はヘッダ（ロット番号,事業部,状態,製造完了日）。
+                  実 HTTP レスポンスの Content-Type ヘッダは `text/csv; charset=windows-31j` を返すが、
+                  OpenAPI 3.x の content-type キーには parameter を含めない (RFC 6838 / OpenAPI Spec) ため
+                  ここでは type/subtype のみ宣言。
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /lots/{id}:
+    get:
+      operationId: getLot
+      summary: 在庫ロット取得
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LotResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /lots/{id}/complete-manufacturing:
+    post:
+      operationId: completeManufacturing
+      summary: 製造完了
+      description: |
+        ロットを「製造完了」状態に遷移。`version` は楽観的ロック用の現在値。
+        DB 側は `UPDATE ... WHERE version = @expected RETURNING version` で実装され、
+        affected rows = 0 の場合は 409 Conflict を返す。
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date, version]
+              properties:
+                date: { type: string, format: date }
+                version: { type: integer, minimum: 1, description: 楽観的ロック用バージョン }
+      responses:
+        '200':
+          description: 遷移成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LotResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /lots/{id}/instruct-shipping:
+    post:
+      operationId: instructLotShipping
+      summary: 出荷指示
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deadline, version]
+              properties:
+                deadline: { type: string, format: date }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 遷移成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LotResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /lots/{id}/complete-shipping:
+    post:
+      operationId: completeLotShipping
+      summary: 出荷完了
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date, version]
+              properties:
+                date: { type: string, format: date }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 遷移成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LotResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /lots/{id}/cancel-manufacturing-completion:
+    post:
+      operationId: cancelManufacturingCompletion
+      summary: 製造完了取消
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 取消成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LotResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /lots/{id}/instruct-item-conversion:
+    post:
+      operationId: instructItemConversion
+      summary: 品目変換を指示
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [destinationItem, version]
+              properties:
+                destinationItem: { type: string }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 変換成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LotResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: cancelItemConversionInstruction
+      summary: 品目変換指示を取消
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 取消成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LotResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /sales-cases:
+    get:
+      operationId: listSalesCases
+      summary: 販売案件一覧
+      description: |
+        販売案件をページング付きで取得する。`status` / `caseType` クエリでフィルタ、
+        `limit` (1..200, default 50) と `offset` (>= 0, default 0) でページング。
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, description: 案件ステータス (例 before_appraisal, appraised, contracted など) } }
+        - { name: caseType, in: query, required: false, schema: { type: string, enum: [direct, reservation, consignment] } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesCasesListResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      operationId: createSalesCase
+      summary: 販売案件作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lots, divisionCode, salesDate, caseType]
+              properties:
+                lots:
+                  type: array
+                  items: { type: string }
+                  minItems: 1
+                divisionCode: { type: integer }
+                salesDate: { type: string, format: date }
+                caseType:
+                  type: string
+                  enum: [direct, reservation, consignment]
+      responses:
+        '200':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedSalesCaseResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /sales-cases/{id}:
+    get:
+      operationId: getSalesCase
+      summary: 販売案件詳細取得 (caseType でポリモーフィック)
+      description: |
+        販売案件 ID から詳細を取得する。`caseType` (direct / reservation / consignment) で
+        サブタイプ固有のフィールドが切り替わる。`viewer` ロール以上で利用可能。
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesCaseDetailResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteSalesCase
+      summary: 販売案件削除
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: 削除成功 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /sales-cases/{id}/appraisals:
+    post:
+      operationId: createSalesAppraisal
+      summary: 価格査定登録
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - appraisalDate
+                - deliveryDate
+                - salesMarket
+                - baseUnitPriceDate
+                - periodAdjustmentRateDate
+                - counterpartyAdjustmentRateDate
+                - taxExcludedEstimatedTotal
+                - lotAppraisals
+                - version
+              properties:
+                type:
+                  type: string
+                  enum: [normal, customer_contract]
+                appraisalDate: { type: string, format: date }
+                deliveryDate: { type: string, format: date }
+                salesMarket: { type: string }
+                baseUnitPriceDate: { type: string, format: date }
+                periodAdjustmentRateDate: { type: string, format: date }
+                counterpartyAdjustmentRateDate: { type: string, format: date }
+                taxExcludedEstimatedTotal: { type: integer }
+                customerContractNumber: { type: string, description: "type=customer_contract のとき必須" }
+                contractAdjustmentRate: { type: number, nullable: true, description: "type=customer_contract のとき必須" }
+                lotAppraisals:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [lotNumber, detailAppraisals]
+                    properties:
+                      lotNumber: { type: string }
+                      detailAppraisals:
+                        type: array
+                        minItems: 1
+                        items:
+                          type: object
+                          required:
+                            - detailIndex
+                            - baseUnitPrice
+                            - periodAdjustmentRate
+                            - counterpartyAdjustmentRate
+                          properties:
+                            detailIndex: { type: integer }
+                            baseUnitPrice: { type: integer }
+                            periodAdjustmentRate: { type: number }
+                            counterpartyAdjustmentRate: { type: number }
+                            exceptionalPeriodAdjustmentRate: { type: number, nullable: true }
+                version: { type: integer, minimum: 1, description: 楽観的ロック用バージョン }
+      responses:
+        '200':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedSalesCaseResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    put:
+      operationId: updateSalesAppraisal
+      summary: 価格査定更新
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - appraisalDate
+                - deliveryDate
+                - salesMarket
+                - baseUnitPriceDate
+                - periodAdjustmentRateDate
+                - counterpartyAdjustmentRateDate
+                - taxExcludedEstimatedTotal
+                - lotAppraisals
+                - version
+              properties:
+                type:
+                  type: string
+                  enum: [normal, customer_contract]
+                appraisalDate: { type: string, format: date }
+                deliveryDate: { type: string, format: date }
+                salesMarket: { type: string }
+                baseUnitPriceDate: { type: string, format: date }
+                periodAdjustmentRateDate: { type: string, format: date }
+                counterpartyAdjustmentRateDate: { type: string, format: date }
+                taxExcludedEstimatedTotal: { type: integer }
+                customerContractNumber: { type: string, description: "type=customer_contract のとき必須" }
+                contractAdjustmentRate: { type: number, nullable: true, description: "type=customer_contract のとき必須" }
+                lotAppraisals:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [lotNumber, detailAppraisals]
+                    properties:
+                      lotNumber: { type: string }
+                      detailAppraisals:
+                        type: array
+                        minItems: 1
+                        items:
+                          type: object
+                          required:
+                            - detailIndex
+                            - baseUnitPrice
+                            - periodAdjustmentRate
+                            - counterpartyAdjustmentRate
+                          properties:
+                            detailIndex: { type: integer }
+                            baseUnitPrice: { type: integer }
+                            periodAdjustmentRate: { type: number }
+                            counterpartyAdjustmentRate: { type: number }
+                            exceptionalPeriodAdjustmentRate: { type: number, nullable: true }
+                version: { type: integer, minimum: 1, description: 楽観的ロック用バージョン }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedSalesCaseResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteSalesAppraisal
+      summary: 価格査定削除
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: { type: integer, minimum: 1 }
+      responses:
+        '204': { description: 削除成功 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /sales-cases/{id}/contracts:
+    post:
+      operationId: createSalesContract
+      summary: 売買契約登録
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - contractDate
+                - person
+                - buyer
+                - salesType
+                - item
+                - deliveryMethod
+                - salesMethod
+                - taxExcludedContractAmount
+                - consumptionTax
+                - taxExcludedPaymentAmount
+                - paymentConsumptionTax
+                - version
+              properties:
+                contractDate: { type: string, format: date }
+                person: { type: string }
+                buyer:
+                  type: object
+                  required: [customerNumber]
+                  properties:
+                    customerNumber: { type: string }
+                    agentName: { type: string, nullable: true }
+                salesType: { type: integer }
+                item: { type: string }
+                deliveryMethod: { type: string }
+                paymentDeferralCondition: { type: string, nullable: true }
+                salesMethod: { type: integer }
+                usage: { type: string, nullable: true }
+                paymentDeferralAmount: { type: integer, nullable: true }
+                taxExcludedContractAmount: { type: integer }
+                consumptionTax: { type: integer }
+                taxExcludedPaymentAmount: { type: integer }
+                paymentConsumptionTax: { type: integer }
+                version: { type: integer, minimum: 1, description: 楽観的ロック用バージョン }
+      responses:
+        '200':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedSalesCaseResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteSalesContract
+      summary: 売買契約削除
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: { type: integer, minimum: 1 }
+      responses:
+        '204': { description: 削除成功 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /sales-cases/{id}/shipping-instruction:
+    post:
+      operationId: instructSalesCaseShipping
+      summary: 販売案件 出荷指示
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date, version]
+              properties:
+                date: { type: string, format: date, description: 出荷指示日 }
+                version: { type: integer, minimum: 1, description: 楽観的ロック用バージョン }
+      responses:
+        '200':
+          description: 遷移成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedSalesCaseResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: cancelSalesCaseShippingInstruction
+      summary: 販売案件 出荷指示解除
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: { type: integer, minimum: 1 }
+      responses:
+        '204': { description: 解除成功 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /sales-cases/{id}/shipping-completion:
+    post:
+      operationId: completeSalesCaseShipping
+      summary: 販売案件 出荷完了
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date, version]
+              properties:
+                date: { type: string, format: date }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 遷移成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedSalesCaseResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /sales-cases/{id}/reservation/appraisals:
+    post:
+      operationId: createReservationPrice
+      summary: 予約価格登録
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [appraisalDate, reservedLotInfo, reservedAmount, version]
+              properties:
+                appraisalDate: { type: string, format: date }
+                reservedLotInfo: { type: string }
+                reservedAmount: { type: integer }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationStatusResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /sales-cases/{id}/reservation/determine:
+    post:
+      operationId: confirmReservation
+      summary: 予約確定
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [determinedDate, determinedAmount, version]
+              properties:
+                determinedDate: { type: string, format: date }
+                determinedAmount: { type: integer }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 確定成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationStatusResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /sales-cases/{id}/reservation/determination:
+    delete:
+      operationId: cancelReservationConfirmation
+      summary: 予約確定取消
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 取消成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationStatusResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /sales-cases/{id}/reservation/delivery:
+    post:
+      operationId: deliverReservation
+      summary: 予約納品
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deliveryDate, version]
+              properties:
+                deliveryDate: { type: string, format: date }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 引き渡し成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationStatusResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /sales-cases/{id}/consignment/designate:
+    post:
+      operationId: designateConsignment
+      summary: 委託指定
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [consignorName, consignorCode, designatedDate, version]
+              properties:
+                consignorName: { type: string }
+                consignorCode: { type: string }
+                designatedDate: { type: string, format: date }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 指定成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsignmentStatusResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /sales-cases/{id}/consignment/designation:
+    delete:
+      operationId: cancelConsignmentDesignation
+      summary: 委託指定解除
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 解除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsignmentStatusResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /sales-cases/{id}/consignment/result:
+    post:
+      operationId: registerConsignmentResult
+      summary: 委託結果登録
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resultDate, resultAmount, version]
+              properties:
+                resultDate: { type: string, format: date }
+                resultAmount: { type: integer }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsignmentStatusResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/external/price-check:
+    get:
+      operationId: externalPriceCheck
+      summary: 外部価格 API 連携（参考価格取得）
+      description: |
+        WireMock スタブ等の外部価格 API から参考価格を取得。
+        リトライ・サーキットブレーカー（Polly）が前段にあり、上流障害時は 502/503 を返す。
+        `viewer` ロール以上で利用可能。
+      parameters:
+        - { name: lotId, in: query, required: true, schema: { type: string }, description: "ロット番号（例: 2024-A-001）" }
+      responses:
+        '200':
+          description: 価格取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceCheckResponse'
+        '400':
+          description: lotId 未指定など。Problem Details 形式
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '502':
+          description: 上流 API がタイムアウト / 異常応答 / パース失敗
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '503':
+          description: サーキットブレーカーが OPEN
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }

@@ -1,0 +1,22 @@
+# Claude Code local-only settings
+.claude/settings.local.json
+
+# Build artifacts (.NET)
+bin/
+obj/
+
+# Build artifacts (Node/Frontend)
+node_modules/
+dist/
+
+# Test / coverage outputs
+coverage/
+test-results/
+
+# CI aggregated results
+ci-results/
+
+# RALPH harness runtime state
+.harness/sessions/
+.harness/inbox/*/[!.]*
+.harness/outbox/*/[!.]*

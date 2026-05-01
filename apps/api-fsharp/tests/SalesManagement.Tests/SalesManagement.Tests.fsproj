@@ -1,0 +1,84 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <GenerateProgramFile>false</GenerateProgramFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="LotPropertyTests.fs" />
+    <Compile Include="SalesCasePropertyTests.fs" />
+    <Compile Include="Architecture/ArchitectureTests.fs" />
+    <Compile Include="Pact/StateHandlers.fs" />
+    <Compile Include="Pact/PactProviderTests.fs" />
+    <Compile Include="IntegrationTests/ConfigurationTests.fs" />
+    <Compile Include="IntegrationTests/LotErrorHandlingTests.fs" />
+    <Compile Include="IntegrationTests/JwtAuthenticationTests.fs" />
+    <Compile Include="IntegrationTests/HealthAndOpenApiTests.fs" />
+    <Compile Include="IntegrationTests/LotLifecycleTests.fs" />
+    <Compile Include="IntegrationTests/ExternalPricingTests.fs" />
+    <Compile Include="IntegrationTests/OutboxTests.fs" />
+    <Compile Include="IntegrationTests/AuditAndOtelTests.fs" />
+    <Compile Include="IntegrationTests/RateLimitAndCacheTests.fs" />
+    <Compile Include="IntegrationTests/LotCsvExportTests.fs" />
+    <Compile Include="IntegrationTests/SalesCaseRetrievalTests.fs" />
+    <Compile Include="IntegrationTests/OpenApiSchemaTests.fs" />
+    <Compile Include="IntegrationTests/SalesCaseProblemDetailsTests.fs" />
+    <Compile Include="IntegrationTests/SecurityHeaderTests.fs" />
+    <Compile Include="IntegrationTests/ListEndpointsTests.fs" />
+    <Compile Include="IntegrationTests/SalesCaseDetailTests.fs" />
+    <Compile Include="IntegrationTests/OptimisticLockConflictTests.fs" />
+    <Compile Include="IntegrationTests/CorsTests.fs" />
+    <Compile Include="IntegrationTests/DevTokenMintTests.fs" />
+    <Compile Include="IntegrationTests/AuthConfigEndpointTests.fs" />
+    <Compile Include="IntegrationTests/SalesCaseSubtypeRoutingTests.fs" />
+    <Compile Include="IntegrationTests/MiscEndpointTests.fs" />
+    <Compile Include="IntegrationTests/BatchMigrationTests.fs" />
+    <Compile Include="IntegrationTests/LotIdMigrationTests.fs" />
+    <Compile Include="IntegrationTests/BatchJobLifecycleTests.fs" />
+    <Compile Include="IntegrationTests/BatchChunkProgressTests.fs" />
+    <Compile Include="IntegrationTests/BatchSkipPolicyTests.fs" />
+    <Compile Include="IntegrationTests/BatchPartitioningTests.fs" />
+    <Compile Include="IntegrationTests/BatchStateMachineTests.fs" />
+    <Compile Include="IntegrationTests/BatchJobLogFormatTests.fs" />
+    <Compile Include="IntegrationTests/BatchInputParserTests.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="10.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FsCheck" Version="3.3.3" />
+    <PackageReference Include="FsCheck.Xunit" Version="3.3.3" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
+    <PackageReference Include="PactNet" Version="5.0.1" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.7.0" />
+    <PackageReference Include="dbup-postgresql" Version="7.0.1" />
+    <PackageReference Include="Npgsql" Version="10.0.2" />
+    <PackageReference Include="TngTech.ArchUnitNET.xUnit" Version="0.13.3" />
+    <PackageReference Include="WireMock.Net" Version="1.6.0" />
+    <!-- Pin to non-vulnerable version (transitive via WireMock.Net) -->
+    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.6.0.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SalesManagement\SalesManagement.fsproj" />
+    <ProjectReference Include="..\..\tools\DevTokenMint\DevTokenMint.fsproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,21 @@
+{
+  "typedChecks": {
+    "enabled": true
+  },
+  "conventions": {
+    "recursiveAsyncFunction": { "enabled": true },
+    "redundantNewKeyword": { "enabled": true },
+    "nestedStatements": {
+      "enabled": true,
+      "config": { "depth": 5 }
+    },
+    "numberOfItems": {
+      "maxFunctionDefinitionParameters": { "enabled": true, "config": { "maxItems": 5 } },
+      "maxTupleSize": { "enabled": true, "config": { "maxItems": 4 } }
+    },
+    "sourceLength": {
+      "maxLinesInFunction": { "enabled": true, "config": { "maxLines": 50 } },
+      "maxLinesInModule": { "enabled": true, "config": { "maxLines": 500 } }
+    }
+  }
+}

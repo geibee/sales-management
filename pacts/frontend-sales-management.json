@@ -1,0 +1,57 @@
+{
+  "consumer": { "name": "frontend" },
+  "provider": { "name": "sales-management" },
+  "interactions": [
+    {
+      "description": "GET /lots/{lotNumber} で manufacturing 状態の lot を取得",
+      "providerStates": [
+        { "name": "lot-1234 が manufacturing 状態で存在する" }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/lots/lot-1234"
+      },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "body": {
+          "lotNumber": "lot-1234",
+          "status": "manufacturing"
+        },
+        "matchingRules": {
+          "$.body.lotNumber": { "match": "type" },
+          "$.body.status": { "match": "regex", "regex": "manufacturing|manufactured|shippingInstructed|shippingCompleted|cancelled|conversion_instructed" }
+        }
+      }
+    },
+    {
+      "description": "POST /lots/{lotNumber}/complete-manufacturing で manufacturing 完了",
+      "providerStates": [
+        { "name": "lot-1234 が manufacturing 状態で存在する" }
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/lots/lot-1234/complete-manufacturing",
+        "headers": { "Content-Type": "application/json" },
+        "body": {
+          "manufacturingCompletedDate": "2026-04-27"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "body": {
+          "lotNumber": "lot-1234",
+          "status": "manufactured"
+        },
+        "matchingRules": {
+          "$.body.lotNumber": { "match": "type" },
+          "$.body.status": { "match": "regex", "regex": "manufactured" }
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "pactSpecification": { "version": "3.0.0" }
+  }
+}

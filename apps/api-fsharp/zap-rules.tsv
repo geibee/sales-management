@@ -1,0 +1,9 @@
+# ZAP API scan rule overrides (IGNORE / INFO / WARN / FAIL per rule_id + URL pattern)
+# 形式: <rule_id>\t<level>\t<url_regex>
+# 詳細: https://www.zaproxy.org/docs/docker/api-scan/#configuration-file
+#
+# 100001 "Unexpected Content-Type was returned":
+#   ZAP は API レスポンスとして application/json / application/xml 等の構造化データを期待し、
+#   text/csv を「想定外」とフラグする。/lots/export は CSV ファイルダウンロード専用
+#   エンドポイントなので、この URL に限り抑止する。
+100001	IGNORE	.*/lots/export.*

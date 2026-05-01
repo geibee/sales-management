@@ -1,0 +1,19 @@
+-- Optimistic lock version column for all aggregate tables.
+-- ロット系
+ALTER TABLE lot ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE lot_detail ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+
+-- 販売案件系
+ALTER TABLE sales_case ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE sales_case_lot ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE appraisal ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE contract ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+
+-- 査定明細
+ALTER TABLE lot_appraisal ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE lot_detail_appraisal ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+
+-- 予約/委託
+ALTER TABLE reservation_price ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE consignment_info ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE consignment_result ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
