@@ -60,7 +60,31 @@ apps/api-kotlin/  (将来予定)
 
 # RALPH ループによる後続開発
 
-本リポジトリはマルチエージェントオーケストレーション（`.harness/`）と RALPH ループ（`harness/ralph.sh`）で増分開発できるようにセットアップしてある。後続のタスクを追加するときは以下を前提とする：
+本リポジトリには 3 系統の自動化基盤がある：
+
+| 基盤 | 用途 | 起動 |
+|---|---|---|
+| `.harness/` (master.py) | マルチエージェントオーケストレーション。`prd.md` をエージェント間で読み合う | `python3 .harness/master.py --prd prd.md` |
+| `harness/ralph.sh` | **単一タスク** PRD ループ。`prd.md` の `[ ]` を 1 つずつ消化 | `bash harness/ralph.sh` |
+| `.ralph/` (ralph-orchestrator) | **DAG ベース multi-session**。タスク間依存と halt_before レビュー点を持つ | `/ralph-orch start` |
+
+`harness/ralph.sh` と `/ralph-orch` は別物（前者は単純 PRD ループ、後者は DAG）。混同しないこと。
+
+`.ralph/` は親プラン `~/.claude/plans/pbt-groovy-sparkle.md`（Stage 1〜5 のテストハーネス充実）を Stage 6 として自走実行するためのもの。
+
+- `.ralph/tasks.toml` — DAG 定義（git 管理）
+- `.ralph/verify/*.sh` — 各タスクの検収スクリプト（git 管理）
+- `.ralph/task-prompt.tmpl.md` — F#/.NET 用 worker prompt テンプレ（git 管理）
+- `.ralph/capture-baseline.sh` — `dotnet test --list-tests` でテスト数計測（git 管理）
+- `.ralph/state.json` / `.ralph/logs/` — ランタイム生成物（gitignore）
+
+ralph-orchestrator プラグイン (`~/.claude/plugins/local/plugins/ralph-orchestrator/`) は MoonBit 前提で書かれており、F#/.NET 対応のため `scripts/lib/worker.sh` と `scripts/lib/verify.sh` に **`<repo>/.ralph/{task-prompt.tmpl.md, capture-baseline.sh, verify/_generic.sh}` があれば優先する 2〜3 行のフォールバック分岐** を入れてある。プラグイン更新時はパッチの再適用が必要。
+
+worktree は `../mr-ralph-<task-id>` に隔離作成され、verify 緑+merge 後に削除、blocked 時は残置。累積したら `git worktree list` → `git worktree remove --force <path>` で掃除。
+
+## 共通注意
+
+後続のタスクを追加するときは以下を前提とする：
 
 - すべての CI ツールの結果は `ci-results/sarif/<tool>.sarif` に出力し、`ci-results/merged.sarif` に統合する
 - 失敗の自己分析は `Stop` フック（`.claude/scripts/sarif-to-lessons.py`）が本ファイル末尾の "## 失敗から学んだこと (自動生成)" セクションに追記する
@@ -130,3 +154,6 @@ bash harness/ralph.sh
 <!-- 以下は Stop フック (.claude/scripts/sarif-to-lessons.py) が自動追記する領域 -->
 
 ## 失敗から学んだこと (自動生成)
+- 2026-05-01 OWASP ZAP.100000: 311回検出。A Client Error response code was returned by the server: 400
+- 2026-05-01 OWASP ZAP.10049: 9回検出。Non-Storable Content: 400
+- 2026-05-01 OWASP ZAP.10104: 5回検出。User Agent Fuzzer: <p>Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search

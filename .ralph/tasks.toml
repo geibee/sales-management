@@ -1,0 +1,294 @@
+# ralph-orchestrator DAG for sales-management test-harness build-out.
+# Source plan: ~/.claude/plans/pbt-groovy-sparkle.md (Stages 1-5, executed via Stage 6).
+# Plugin patches at ~/.claude/plugins/local/plugins/ralph-orchestrator/ enable
+# project-local task-prompt.tmpl.md / capture-baseline.sh / verify/_generic.sh.
+
+[meta]
+schema_version  = 1
+default_model   = "opus"
+worker_pool_size = 2                   # cap parallel Postgres containers
+worktree_prefix = "../mr-ralph-"
+branch_prefix   = "ralph/test-harness/"
+auto_merge      = true
+auto_push       = false                # initial run: humans push manually
+
+# ────────────────────────────────────────────────────────────────────
+# S1 — common harness (gates everything)
+# ────────────────────────────────────────────────────────────────────
+[[tasks]]
+id          = "S1"
+title       = "Support/* 共通ハーネス導入 + スモークテスト"
+phase       = "S1"
+size        = "M"
+serial_only = true
+depends_on  = []
+files = [
+  "apps/api-fsharp/tests/SalesManagement.Tests/Support/ApiFixture.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/Support/HttpHelpers.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/Support/ProblemDetailsAssert.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/Support/RequestBuilders.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/Support/Generators.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/Support/SmokeTest.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/SalesManagement.Tests.fsproj",
+  "AGENTS.md",
+]
+verify = ".ralph/verify/S1.sh"
+prompt_extra = """
+親プラン `~/.claude/plans/pbt-groovy-sparkle.md` の Stage 1 セクションをそのまま実装する。
+
+要点:
+- `Support/*` を 5 ファイル（ApiFixture, HttpHelpers, ProblemDetailsAssert, RequestBuilders, Generators）+ SmokeTest 1 本作成
+- fsproj の `<Compile Include>` で Support/* を **先頭** に配置（F# は宣言順依存）
+- Smoke テストには `[<Trait("Category", "Smoke")>]` を付ける
+- 既存 31 ファイルは触らない（壊れたら本タスクは done にできない）
+- ApiFixture は `ICollectionFixture` で再利用可能、`Reset()`（TRUNCATE 発行ヘルパー）を生やしておく（S5 で必要）
+- `NewClient()` と `NewAuthedClient(roles)` の両方を提供
+- `RequestBuilders.fs` は `LotBodyOverrides` 等の差分ビルダ DU で「欠落 / null / 不正値 / 余剰」を区別できる JSON ビルダにする（S2 が依存）
+- AGENTS.md には「新規テストは `Support/*` を使うこと」を 1 行追記。既存自動生成領域（"## 失敗から学んだこと (自動生成)" 以下）は触らない
+"""
+halt_before = false
+
+# ────────────────────────────────────────────────────────────────────
+# S2 — boundary-value matrices (S2-Lot first, then 4 in parallel)
+# ────────────────────────────────────────────────────────────────────
+[[tasks]]
+id    = "S2-Lot"
+title = "Lot routes パラメータ境界マトリクス"
+phase = "S2"
+size  = "M"
+files = [
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/LotRoutesParamTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/SalesManagement.Tests.fsproj",
+]
+depends_on    = ["S1"]
+parallel_with = ["S2-StateTrans", "S2-AppraisalContract", "S2-ResvCons", "S2-ListQuery"]
+verify        = ".ralph/verify/S2-Lot.sh"
+halt_before   = true                    # human review of methodology before fanout
+prompt_extra = """
+親プラン Stage 2 の表テンプレートに従い、`POST /lots` / `GET /lots/{id}` / `GET /lots` の境界値マトリクスを書く。
+
+- ファイル: `LotRoutesParamTests.fs` 新規。fsproj に追記
+- Trait は `[<Trait("Category", "Param")>]` + `[<Trait("Category", "Integration")>]`
+- `[<Theory>]` + `[<MemberData(nameof xxxCases)>]` 駆動。1 関数 = 1 パラメータ次元
+- `Support/RequestBuilders.fs` の `createLotBody` + `LotBodyOverrides` で差分注入
+- 期待値はステータスコード + ProblemDetails の `type` のみ（文言照合しない）
+- 値の境界は `apps/api-fsharp/src/SalesManagement/Domain/SmartConstructors.fs` から採る
+- 初版で 100% 網羅は目指さない。各次元 5〜10 ケースで OK
+"""
+
+[[tasks]]
+id    = "S2-StateTrans"
+title = "State transition routes パラメータマトリクス"
+phase = "S2"
+size  = "M"
+files = [
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/StateTransitionParamTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/SalesManagement.Tests.fsproj",
+]
+depends_on  = ["S2-Lot"]                # human approves S2-Lot first, then this is unblocked
+verify      = ".ralph/verify/S2-StateTrans.sh"
+prompt_extra = """
+親プラン Stage 2 に従い、`/lots/{id}/{action}` と `/sales-cases/{id}/shipping-*` 系（共通形 version + date）の境界値マトリクスを書く。S2-Lot と同じスタイル / Trait / `RequestBuilders` 利用。
+"""
+
+[[tasks]]
+id    = "S2-AppraisalContract"
+title = "Appraisal/Contract routes パラメータマトリクス"
+phase = "S2"
+size  = "M"
+files = [
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/AppraisalContractParamTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/SalesManagement.Tests.fsproj",
+]
+depends_on  = ["S2-Lot"]
+verify      = ".ralph/verify/S2-AppraisalContract.sh"
+prompt_extra = """
+親プラン Stage 2 に従い、`POST/PUT/DELETE /sales-cases/{id}/appraisals` と `POST/DELETE /sales-cases/{id}/contracts` の境界値マトリクスを書く。`appraised` 状態が前提のエンドポイントは fixture seed で対応。
+"""
+
+[[tasks]]
+id    = "S2-ResvCons"
+title = "Reservation/Consignment routes パラメータマトリクス"
+phase = "S2"
+size  = "M"
+files = [
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/ReservationConsignmentParamTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/SalesManagement.Tests.fsproj",
+]
+depends_on  = ["S2-Lot"]
+verify      = ".ralph/verify/S2-ResvCons.sh"
+prompt_extra = """
+親プラン Stage 2 に従い、reservation / consignment 系のパラメータマトリクスを書く。
+"""
+
+[[tasks]]
+id    = "S2-ListQuery"
+title = "List query parameters マトリクス（GET /lots, GET /sales-cases）"
+phase = "S2"
+size  = "S"
+files = [
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/ListQueryParamTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/SalesManagement.Tests.fsproj",
+]
+depends_on  = ["S2-Lot"]
+verify      = ".ralph/verify/S2-ListQuery.sh"
+prompt_extra = """
+親プラン Stage 2 に従い、`GET /lots` と `GET /sales-cases` の `limit/offset/sort/filter` 等のクエリパラメータ全組合せのマトリクスを書く。型違反・重複指定・未知のキー無視を含める。
+"""
+
+# ────────────────────────────────────────────────────────────────────
+# S3 — Schemathesis (independent of S2 fanout)
+# ────────────────────────────────────────────────────────────────────
+[[tasks]]
+id    = "S3"
+title = "Schemathesis を ci.sh に追加"
+phase = "S3"
+size  = "M"
+files = [
+  "apps/api-fsharp/ci.sh",
+  "apps/api-fsharp/scripts/junit-to-sarif.py",
+  "apps/api-fsharp/schemathesis-hooks.py",
+  "AGENTS.md",
+]
+depends_on    = ["S1"]
+parallel_with = ["S2-StateTrans", "S2-AppraisalContract", "S2-ResvCons", "S2-ListQuery"]
+verify        = ".ralph/verify/S3.sh"
+halt_before   = true                    # CI changes always reviewed
+prompt_extra = """
+親プラン Stage 3 を実装する。
+
+- ci.sh の ZAP セクション直後（line 177 付近）に Schemathesis 実行ブロックを追加
+- 環境変数 `SCHEMATHESIS_ENABLED` で ON/OFF（既定 1。CI 内で 0 を渡せばスキップ可能）
+- stateful endpoint（POST /sales-cases/{id}/contracts など appraised 必須のもの）は `schemathesis-hooks.py` で除外
+- `--checks all`、`--hypothesis-max-examples=200`、`--hypothesis-seed=42`、`--hypothesis-deadline=2000`
+- 結果: `ci-results/sarif/schemathesis.sarif`、`ci-results/schemathesis-junit.xml`、`ci-results/schemathesis.tar.gz`
+- `scripts/junit-to-sarif.py` を新規作成。`scripts/zap-to-sarif.py` をモデルに
+- `merged.sarif` への統合は既存パイプラインに乗せる
+- AGENTS.md 末尾の自動生成領域より **上** に Schemathesis 運用メモを 1 段落
+"""
+
+# ────────────────────────────────────────────────────────────────────
+# S5 — migrate existing tests to Support/* (waves, serial)
+# ────────────────────────────────────────────────────────────────────
+[[tasks]]
+id          = "S5-W1"
+title       = "Wave1: Health/Auth/CORS/Security/Misc を Support/* に移行"
+phase       = "S5"
+size        = "M"
+serial_only = true
+files = [
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/HealthAndOpenApiTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/AuthConfigEndpointTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/CorsTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/SecurityHeaderTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/MiscEndpointTests.fs",
+]
+depends_on  = ["S2-StateTrans", "S2-AppraisalContract", "S2-ResvCons", "S2-ListQuery"]
+verify      = ".ralph/verify/S5-W1.sh"
+halt_before = true                      # confirm methodology before subsequent waves
+prompt_extra = """
+親プラン Stage 5 に従い、対象 5 ファイルを `Support/*` ベースに書き換える。
+
+- **テスト本数を変えない**（verify でカウント等価判定）
+- **テスト名 / Trait は維持**（CI レポート連続性）
+- 個別ヘルパー（`getFreePort` / `newClient` / `postJson` / `parseJson` / `createXxxBody` 等）を削除し `Support/*` に集約
+- 1 ファイルずつ commit（最大でもこのタスク内で 5 commits）
+- 挙動を変える「ついでの修正」は禁止（別タスクとして切り出す）
+"""
+
+[[tasks]]
+id          = "S5-W2"
+title       = "Wave2: Lot 系 5 本を Support/* に移行"
+phase       = "S5"
+size        = "M"
+serial_only = true
+files = [
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/LotLifecycleTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/LotErrorHandlingTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/LotCsvExportTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/LotIdMigrationTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/OptimisticLockConflictTests.fs",
+]
+depends_on   = ["S5-W1"]
+verify       = ".ralph/verify/S5-W2.sh"
+prompt_extra = "親プラン Stage 5 / Wave2。S5-W1 と同じ方針。"
+
+[[tasks]]
+id          = "S5-W3"
+title       = "Wave3: SalesCase 系 5 本を Support/* に移行"
+phase       = "S5"
+size        = "M"
+serial_only = true
+files = [
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/SalesCaseRetrievalTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/SalesCaseDetailTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/SalesCaseProblemDetailsTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/SalesCaseSubtypeRoutingTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/ListEndpointsTests.fs",
+]
+depends_on   = ["S5-W2"]
+verify       = ".ralph/verify/S5-W3.sh"
+prompt_extra = "親プラン Stage 5 / Wave3。"
+
+[[tasks]]
+id          = "S5-W4"
+title       = "Wave4: 認証/レート/OpenAPI 系 5 本を Support/* に移行"
+phase       = "S5"
+size        = "M"
+serial_only = true
+files = [
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/JwtAuthenticationTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/RateLimitAndCacheTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/OpenApiSchemaTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/DevTokenMintTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/ConfigurationTests.fs",
+]
+depends_on   = ["S5-W3"]
+verify       = ".ralph/verify/S5-W4.sh"
+prompt_extra = """
+親プラン Stage 5 / Wave4。
+
+注意: `JwtAuthenticationTests` は独自署名鍵を使う可能性あり。`Support/ApiFixture.NewAuthedClient` がそのケースをカバーできない場合は `ApiFixture` を継承して必要差分だけ override する（個別 fixture を新規作成しない）。
+"""
+
+[[tasks]]
+id          = "S5-W5"
+title       = "Wave5: Outbox/External/Audit 3 本を Support/* に移行"
+phase       = "S5"
+size        = "S"
+serial_only = true
+files = [
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/OutboxTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/ExternalPricingTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/AuditAndOtelTests.fs",
+]
+depends_on   = ["S5-W4"]
+verify       = ".ralph/verify/S5-W5.sh"
+prompt_extra = "親プラン Stage 5 / Wave5。"
+
+[[tasks]]
+id          = "S5-W6"
+title       = "Wave6: Batch 系 8 本を Support/* に移行（個別判断あり）"
+phase       = "S5"
+size        = "L"
+serial_only = true
+files = [
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/BatchMigrationTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/BatchJobLifecycleTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/BatchChunkProgressTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/BatchSkipPolicyTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/BatchPartitioningTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/BatchStateMachineTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/BatchJobLogFormatTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/BatchInputParserTests.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/Support/BatchFixture.fs",
+  "apps/api-fsharp/tests/SalesManagement.Tests/SalesManagement.Tests.fsproj",
+]
+depends_on   = ["S5-W5"]
+verify       = ".ralph/verify/S5-W6.sh"
+halt_before  = true                     # Batch is 別 host 形態; final review point
+prompt_extra = """
+親プラン Stage 5 / Wave6。
+
+Batch 系は `BatchRunner` が別プロセス起動の場合あり。`ApiFixture` に乗らない場合は **無理に統合せず** 同じ `Support/*` 配下に `BatchFixture.fs` を新規作成して共通化する。最終 verify では HTTP を直接叩くテストが `Support/` 経由以外で 0 ファイルであることをチェックするため、Batch 含めて HTTP テストは全て `Support/*` 経由にすること。
+"""
