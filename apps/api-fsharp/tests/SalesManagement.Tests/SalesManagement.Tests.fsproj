@@ -8,6 +8,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Support/ApiFixture.fs" />
+    <Compile Include="Support/HttpHelpers.fs" />
+    <Compile Include="Support/ProblemDetailsAssert.fs" />
+    <Compile Include="Support/RequestBuilders.fs" />
+    <Compile Include="Support/Generators.fs" />
+    <Compile Include="Support/SmokeTest.fs" />
     <Compile Include="LotPropertyTests.fs" />
     <Compile Include="SalesCasePropertyTests.fs" />
     <Compile Include="Architecture/ArchitectureTests.fs" />
