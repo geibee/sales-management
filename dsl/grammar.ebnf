@@ -1,0 +1,173 @@
+(* ============================================================
+   Sales Management DSL Grammar (EBNF / ISO 14977 風)
+   ============================================================
+   
+   このファイルは DSL の文法のみを定義する（意味論は SEMANTICS.md）。
+   
+   表記:
+     =       定義
+     |       選択
+     { ... } 0回以上の繰り返し
+     [ ... ] 0または1回（オプショナル）
+     ( ... ) グルーピング
+     "..."   リテラル
+     ?...?   メタ識別子（人間向けの注釈）
+   
+   ============================================================ *)
+
+(* === トップレベル === *)
+
+program         = { declaration } ;
+
+declaration     = dataDecl
+                | behaviorDecl
+                | invariantDecl
+                | propertyDecl
+                | initialDecl ;
+
+(* ============================================================
+   1. データ宣言
+   例: data 金額 = 整数 where 値 >= 0 unit 円
+       data 在庫ロット = 製造中ロット OR 製造完了ロット
+       data ロット共通 = ロット番号 AND 事業部コード AND List<ロット明細> { length >= 1 }
+   ============================================================ *)
+
+dataDecl        = "data" identifier "=" dataExpr
+                  [ whereClause ]
+                  [ unitClause ]
+                  [ descriptionClause ] ;
+
+dataExpr        = sumExpr ;
+sumExpr         = productExpr { "OR" productExpr } ;
+productExpr     = atomType  { "AND" atomType  } ;
+
+atomType        = optionalType
+                | listType
+                | identifier
+                | "(" dataExpr ")" ;
+
+optionalType    = identifier "?" ;
+listType        = "List" "<" identifier ">" [ cardinality ] ;
+cardinality     = "{" "length" comparator integer "}" ;
+
+whereClause     = "where" predicate ;
+unitClause      = "unit" identifier ;
+descriptionClause = "description" stringLit ;
+
+(* ============================================================
+   2. 振る舞い宣言
+   例: behavior 製造完了を指示する : 製造中ロット AND 製造完了日 
+                                  -> 製造完了ロット OR 製造完了指示エラー
+         requires 製造完了日 >= 製造開始日
+         ensures result.ロット番号 == input.ロット番号
+         error_when 製造完了日 < 製造開始日 -> 日付不正エラー
+   ============================================================ *)
+
+behaviorDecl    = "behavior" identifier ":" 
+                  dataExpr "->" dataExpr "OR" identifier
+                  { requireClause }
+                  { ensureClause }
+                  { errorClause }
+                  [ descriptionClause ] ;
+
+requireClause   = "requires" predicate ;
+ensureClause    = "ensures" predicate ;
+errorClause     = "error_when" predicate "->" identifier ;
+
+(* ============================================================
+   3. 横断的不変条件
+   例: invariant ロット番号一意性:
+         forall l1, l2 in 在庫ロット.
+           l1.ロット番号 == l2.ロット番号 => l1 == l2
+   ============================================================ *)
+
+invariantDecl   = "invariant" identifier ":" predicate ;
+
+(* ============================================================
+   4. 時相的性質
+   例: property liveness: 
+         forall c in 契約済み直接販売案件.
+           c.状態 == 契約済み ~> c.状態 == 出荷完了
+   ============================================================ *)
+
+propertyDecl    = "property" identifier ":" temporalPredicate ;
+
+temporalPredicate = "always" predicate
+                  | "eventually" predicate
+                  | predicate "~>" predicate         (* "leads to" *)
+                  | predicate ;
+
+(* ============================================================
+   5. 初期状態
+   例: initial:
+         在庫ロット = {}
+         販売案件 = {}
+   ============================================================ *)
+
+initialDecl     = "initial" ":" { stateAssignment } ;
+stateAssignment = identifier "=" valueExpr ;
+
+(* ============================================================
+   6. 述語言語（共通サブ言語）
+   ============================================================ *)
+
+predicate       = implication ;
+implication     = orPred [ "=>" orPred ] ;
+orPred          = andPred { "||" andPred } ;
+andPred         = notPred { "&&" notPred } ;
+notPred         = [ "!" ] atomicPred ;
+
+atomicPred      = quantified
+                | comparison
+                | functionCall
+                | "(" predicate ")"
+                | "true"
+                | "false" ;
+
+quantified      = quantifier identifier { "," identifier } "in" identifier "." predicate ;
+quantifier      = "forall" | "exists" ;
+
+comparison      = expr comparator expr ;
+comparator      = "==" | "!=" | "<" | "<=" | ">" | ">=" ;
+
+(* ============================================================
+   7. 式
+   ============================================================ *)
+
+expr            = orExpr ;
+orExpr          = andExpr { "||" andExpr } ;
+andExpr         = addExpr { "&&" addExpr } ;
+addExpr         = mulExpr { ("+" | "-") mulExpr } ;
+mulExpr         = atomExpr { ("*" | "/") atomExpr } ;
+
+atomExpr        = literal
+                | fieldAccess
+                | functionCall
+                | aggregation
+                | "(" expr ")" ;
+
+fieldAccess     = identifier { "." identifier } ;
+functionCall    = identifier "(" [ exprList ] ")" ;
+aggregation     = ("sum" | "count" | "min" | "max") "(" expr "for" identifier "in" expr ")" ;
+exprList        = expr { "," expr } ;
+
+valueExpr       = literal | fieldAccess | "{" "}" ;
+literal         = integer | stringLit | "true" | "false" ;
+
+(* ============================================================
+   8. 字句要素
+   ============================================================ *)
+
+identifier      = ( letter | japaneseChar | "_" )
+                  { letter | digit | japaneseChar | "_" } ;
+
+integer         = digit { digit } ;
+stringLit       = '"' { ?any character except "?  } '"' ;
+
+letter          = "a" | ... | "z" | "A" | ... | "Z" ;
+digit           = "0" | ... | "9" ;
+japaneseChar    = ?Unicode 範囲 U+3000-U+9FFF, U+30A0-U+30FF, U+3040-U+309F? ;
+
+(* コメントとホワイトスペースはトークン化時にスキップする *)
+comment         = "//" { ?any character? } newline ;
+whitespace      = " " | "\t" | "\n" | "\r" ;
