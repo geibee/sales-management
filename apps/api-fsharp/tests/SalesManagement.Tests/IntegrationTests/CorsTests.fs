@@ -9,23 +9,25 @@ open Microsoft.AspNetCore.Builder
 open Xunit
 open SalesManagement.Hosting
 
-let private getFreePort () =
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
-    port
-
 type CorsFixture() =
     let mutable app: WebApplication = Unchecked.defaultof<_>
     let mutable port: int = 0
 
     member _.Port = port
 
+    member _.NewClient() : HttpClient =
+        let client = new HttpClient()
+        client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
+        client.Timeout <- TimeSpan.FromSeconds 30.0
+        client
+
     interface IAsyncLifetime with
         member _.InitializeAsync() : Task =
             task {
-                port <- getFreePort ()
+                let listener = new TcpListener(IPAddress.Loopback, 0)
+                listener.Start()
+                port <- (listener.LocalEndpoint :?> IPEndPoint).Port
+                listener.Stop()
 
                 let args =
                     [| sprintf "--Server:Port=%d" port
@@ -60,12 +62,6 @@ type CorsFixture() =
 type CorsCollection() =
     interface ICollectionFixture<CorsFixture>
 
-let private newClient (port: int) =
-    let client = new HttpClient()
-    client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
-    client.Timeout <- TimeSpan.FromSeconds 30.0
-    client
-
 let private preflight (client: HttpClient) (path: string) (origin: string) : Task<HttpResponseMessage> =
     let req = new HttpRequestMessage(HttpMethod.Options, path)
     req.Headers.Add("Origin", origin)
@@ -80,7 +76,7 @@ type CorsTests(fixture: CorsFixture) =
     [<Trait("Category", "Cors")>]
     [<Trait("Category", "Integration")>]
     member _.``preflight from allowed origin returns CORS headers``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         let! resp = preflight client "/lots" "http://localhost:5173"
         // CORS preflight should be 204 (or 200)
         Assert.True(
@@ -104,7 +100,7 @@ type CorsTests(fixture: CorsFixture) =
     [<Trait("Category", "Cors")>]
     [<Trait("Category", "Integration")>]
     member _.``preflight from disallowed origin omits Access-Control-Allow-Origin``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         let! resp = preflight client "/lots" "https://evil.example.com"
 
         let mutable values: seq<string> = Seq.empty
