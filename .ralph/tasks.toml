@@ -150,10 +150,11 @@ files = [
   "apps/api-fsharp/schemathesis-hooks.py",
   "AGENTS.md",
 ]
-depends_on    = ["S1"]
-parallel_with = ["S2-StateTrans", "S2-AppraisalContract", "S2-ResvCons", "S2-ListQuery"]
-verify        = ".ralph/verify/S3.sh"
-halt_before   = true                    # CI changes always reviewed
+# S2-* と並列に走らせたいが、現 orchestrator は ready バッチに halt_before=true タスクがあると
+# 即座に halt するため、S2 完了後に直列化して halt させる。
+depends_on  = ["S1", "S2-Lot", "S2-StateTrans", "S2-AppraisalContract", "S2-ResvCons", "S2-ListQuery"]
+verify      = ".ralph/verify/S3.sh"
+halt_before = true                      # CI changes always reviewed
 prompt_extra = """
 親プラン Stage 3 を実装する。
 
