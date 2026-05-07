@@ -50,20 +50,28 @@ optionalType    = identifier "?" ;
 listType        = "List" "<" identifier ">" [ cardinality ] ;
 cardinality     = "{" "length" comparator integer "}" ;
 
+(* 注: 現行 DSL（dsl/domain-model.md）は "List<X> // 1件以上" のような
+       コメントでカーディナリティを表現している。コメントはトークン化時に
+       スキップされ、文法的にはカーディナリティなしの listType として扱う。
+       明示構文 "{ length >= 1 }" は P4 で導入予定の予約形である。 *)
+
 whereClause     = "where" predicate ;
 unitClause      = "unit" identifier ;
 descriptionClause = "description" stringLit ;
 
 (* ============================================================
    2. 振る舞い宣言
-   例: behavior 製造完了を指示する : 製造中ロット AND 製造完了日 
+   例: behavior 製造完了を指示する = 製造中ロット AND 製造完了日
                                   -> 製造完了ロット OR 製造完了指示エラー
          requires 製造完了日 >= 製造開始日
          ensures result.ロット番号 == input.ロット番号
          error_when 製造完了日 < 製造開始日 -> 日付不正エラー
+
+   注: 区切りは "=" を用いる（dsl/domain-model.md の記法に合わせる）。
+       requires/ensures/error_when は将来拡張用（P4 で導入）。
    ============================================================ *)
 
-behaviorDecl    = "behavior" identifier ":" 
+behaviorDecl    = "behavior" identifier "="
                   dataExpr "->" dataExpr "OR" identifier
                   { requireClause }
                   { ensureClause }

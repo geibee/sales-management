@@ -194,24 +194,24 @@ type ManufacturingLot = {
 }
 
 /// 製造完了ロット（DSL: data 製造完了ロット = ロット共通 AND 製造完了日）
-type CompletedLot = {
+type ManufacturedLot = {
     Common: LotCommon
-    CompletionDate: DateOnly
+    ManufacturingCompletedDate: DateOnly
 }
 
 /// 出荷指示済みロット（DSL: data 出荷指示済みロット = ロット共通 AND 製造完了日 AND 出荷期限日）
-type ShipmentInstructedLot = {
+type ShippingInstructedLot = {
     Common: LotCommon
-    CompletionDate: DateOnly
-    ShipmentDeadline: DateOnly
+    ManufacturingCompletedDate: DateOnly
+    ShippingDeadlineDate: DateOnly
 }
 
 /// 出荷完了ロット（DSL: data 出荷完了ロット = ロット共通 AND 製造完了日 AND 出荷期限日 AND 出荷日）
 type ShippedLot = {
     Common: LotCommon
-    CompletionDate: DateOnly
-    ShipmentDeadline: DateOnly
-    ShipmentDate: DateOnly
+    ManufacturingCompletedDate: DateOnly
+    ShippingDeadlineDate: DateOnly
+    ShippingDate: DateOnly
 }
 
 /// 変換先情報
@@ -223,15 +223,15 @@ type ConversionTarget = {
 /// 変換指示済みロット（DSL: data 変換指示済みロット = ロット共通 AND 製造完了日 AND 変換先情報）
 type ConversionInstructedLot = {
     Common: LotCommon
-    CompletionDate: DateOnly
+    ManufacturingCompletedDate: DateOnly
     ConversionTarget: ConversionTarget
 }
 
 /// 在庫ロット（DSL の最上位の直和型）
 type InventoryLot =
     | Manufacturing of ManufacturingLot
-    | Completed of CompletedLot
-    | ShipmentInstructed of ShipmentInstructedLot
+    | Manufactured of ManufacturedLot
+    | ShippingInstructed of ShippingInstructedLot
     | Shipped of ShippedLot
     | ConversionInstructed of ConversionInstructedLot
 
@@ -248,15 +248,15 @@ type InventoryLot =
 
 type ManufacturingCompletionError =
     /// 製造完了日が業務的に不正
-    | InvalidCompletionDate of attemptedDate: DateOnly * reason: string
+    | InvalidManufacturingCompletedDate of attemptedDate: DateOnly * reason: string
 
-type ShipmentInstructionError =
+type ShippingInstructionError =
     /// 出荷期限日が製造完了日より前
-    | InvalidShipmentDeadline of deadline: DateOnly * completionDate: DateOnly
+    | InvalidShippingDeadlineDate of deadline: DateOnly * manufacturingCompletedDate: DateOnly
 
-type ShipmentCompletionError =
+type ShippingCompletionError =
     /// 出荷日が出荷期限日より後
-    | InvalidShipmentDate of shipmentDate: DateOnly * deadline: DateOnly
+    | InvalidShippingDate of shippingDate: DateOnly * deadline: DateOnly
 
 type ManufacturingCompletionCancellationError =
     /// 取消不可（業務ルール上）
@@ -279,7 +279,7 @@ type ConversionInstructionCancellationError =
 //   1. 全域関数（部分関数を避ける）
 //   2. 副作用なし（純粋関数）。永続化は別レイヤー（Infrastructure）で行う
 //   3. 状態遷移は型レベルで強制
-//      （例：ManufacturingLot を受ける関数は CompletedLot から呼べない）
+//      （例：ManufacturingLot を受ける関数は ManufacturedLot から呼べない）
 //   4. エラーは Result 型で返す
 //   5. 共通フィールドは透過的に伝搬する
 // ============================================================
@@ -292,48 +292,48 @@ type ConversionInstructionCancellationError =
 /// ここに追加し、DSL も更新すること。
 let completeManufacturing
     (lot: ManufacturingLot)
-    (completionDate: DateOnly)
-    : Result<CompletedLot, ManufacturingCompletionError> =
+    (manufacturingCompletedDate: DateOnly)
+    : Result<ManufacturedLot, ManufacturingCompletionError> =
     Ok {
         Common = lot.Common
-        CompletionDate = completionDate
+        ManufacturingCompletedDate = manufacturingCompletedDate
     }
 
 /// 出荷を指示する
 /// DSL: behavior 出荷を指示する = 製造完了ロット AND 出荷期限日 -> 出荷指示済みロット OR 出荷指示エラー
-let instructShipment
-    (lot: CompletedLot)
+let instructShipping
+    (lot: ManufacturedLot)
     (deadline: DateOnly)
-    : Result<ShipmentInstructedLot, ShipmentInstructionError> =
-    if deadline < lot.CompletionDate then
-        Error (InvalidShipmentDeadline(deadline, lot.CompletionDate))
+    : Result<ShippingInstructedLot, ShippingInstructionError> =
+    if deadline < lot.ManufacturingCompletedDate then
+        Error (InvalidShippingDeadlineDate(deadline, lot.ManufacturingCompletedDate))
     else
         Ok {
             Common = lot.Common
-            CompletionDate = lot.CompletionDate
-            ShipmentDeadline = deadline
+            ManufacturingCompletedDate = lot.ManufacturingCompletedDate
+            ShippingDeadlineDate = deadline
         }
 
 /// 出荷完了を指示する
 /// DSL: behavior 出荷完了を指示する = 出荷指示済みロット AND 出荷日 -> 出荷完了ロット OR 出荷完了指示エラー
-let completeShipment
-    (lot: ShipmentInstructedLot)
-    (shipmentDate: DateOnly)
-    : Result<ShippedLot, ShipmentCompletionError> =
-    if shipmentDate > lot.ShipmentDeadline then
-        Error (InvalidShipmentDate(shipmentDate, lot.ShipmentDeadline))
+let completeShipping
+    (lot: ShippingInstructedLot)
+    (shippingDate: DateOnly)
+    : Result<ShippedLot, ShippingCompletionError> =
+    if shippingDate > lot.ShippingDeadlineDate then
+        Error (InvalidShippingDate(shippingDate, lot.ShippingDeadlineDate))
     else
         Ok {
             Common = lot.Common
-            CompletionDate = lot.CompletionDate
-            ShipmentDeadline = lot.ShipmentDeadline
-            ShipmentDate = shipmentDate
+            ManufacturingCompletedDate = lot.ManufacturingCompletedDate
+            ShippingDeadlineDate = lot.ShippingDeadlineDate
+            ShippingDate = shippingDate
         }
 
 /// 製造完了を取り消す
 /// DSL: behavior 製造完了を取り消す = 製造完了ロット -> 製造中ロット OR 取消エラー
 let cancelManufacturingCompletion
-    (lot: CompletedLot)
+    (lot: ManufacturedLot)
     : Result<ManufacturingLot, ManufacturingCompletionCancellationError> =
     Ok {
         Common = lot.Common
@@ -342,12 +342,12 @@ let cancelManufacturingCompletion
 /// 品目変換を指示する
 /// DSL: behavior 品目変換を指示する = 製造完了ロット AND 変換先情報 -> 変換指示済みロット OR 変換指示エラー
 let instructConversion
-    (lot: CompletedLot)
+    (lot: ManufacturedLot)
     (target: ConversionTarget)
     : Result<ConversionInstructedLot, ConversionInstructionError> =
     Ok {
         Common = lot.Common
-        CompletionDate = lot.CompletionDate
+        ManufacturingCompletedDate = lot.ManufacturingCompletedDate
         ConversionTarget = target
     }
 
@@ -355,10 +355,10 @@ let instructConversion
 /// DSL: behavior 品目変換指示を取り消す = 変換指示済みロット -> 製造完了ロット OR 変換指示取消エラー
 let cancelConversionInstruction
     (lot: ConversionInstructedLot)
-    : Result<CompletedLot, ConversionInstructionCancellationError> =
+    : Result<ManufacturedLot, ConversionInstructionCancellationError> =
     Ok {
         Common = lot.Common
-        CompletionDate = lot.CompletionDate
+        ManufacturingCompletedDate = lot.ManufacturingCompletedDate
     }
 
 // ============================================================
@@ -371,19 +371,19 @@ let cancelConversionInstruction
 /// 統合エラー型（複数のエラーを束ねる）
 type LotWorkflowError =
     | CompletionFailed of ManufacturingCompletionError
-    | ShipmentFailed of ShipmentInstructionError
+    | ShippingFailed of ShippingInstructionError
 
 /// 製造完了→出荷指示までを一括で実行する例
-let manufactureAndInstructShipment
+let manufactureAndInstructShipping
     (lot: ManufacturingLot)
-    (completionDate: DateOnly)
-    (shipmentDeadline: DateOnly)
-    : Result<ShipmentInstructedLot, LotWorkflowError> =
-    completeManufacturing lot completionDate
+    (manufacturingCompletedDate: DateOnly)
+    (shippingDeadlineDate: DateOnly)
+    : Result<ShippingInstructedLot, LotWorkflowError> =
+    completeManufacturing lot manufacturingCompletedDate
     |> Result.mapError CompletionFailed
     |> Result.bind (fun completed ->
-        instructShipment completed shipmentDeadline
-        |> Result.mapError ShipmentFailed)
+        instructShipping completed shippingDeadlineDate
+        |> Result.mapError ShippingFailed)
 
 // ============================================================
 // 11. アクティブパターン（オプション）
@@ -395,13 +395,13 @@ let manufactureAndInstructShipment
 let getCommon (lot: InventoryLot) : LotCommon =
     match lot with
     | Manufacturing m -> m.Common
-    | Completed c -> c.Common
-    | ShipmentInstructed s -> s.Common
+    | Manufactured m -> m.Common
+    | ShippingInstructed s -> s.Common
     | Shipped sh -> sh.Common
     | ConversionInstructed ci -> ci.Common
 
 /// 在庫ロットが出荷可能な状態か
-let isShipmentReady (lot: InventoryLot) : bool =
+let isShippingReady (lot: InventoryLot) : bool =
     match lot with
-    | Completed _ -> true
+    | Manufactured _ -> true
     | _ -> false
