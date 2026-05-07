@@ -1,43 +1,44 @@
 # case-001 在庫ロット — メタ情報
 
-## 評価目的タグ
+## 領域
 
-**`regression`**
+在庫ロットドメイン。`dsl/domain-model.md` の在庫ロット部分を抽出した
+`input.dsl` が AI への入力。
 
-リファレンス実装 `harness/reference/InventoryLot.fs` を AI が再現できるかを
-確認する。`SEMANTICS.md` の翻訳規則・命名規約・スタイルが破綻していない
-ことのサニティチェック。
+## 評価メソッド
+
+| メソッド | 内容 |
+|---|---|
+| `sample-diff` | `expected.fs` / `expected.mmd` と diff を取る |
+| `compile-check` | `generated.fs` が F# として通るか確認（実装予定） |
+
+**注**: `expected.fs` は `harness/reference/InventoryLot.fs` の流用。
+リファレンスは「**翻訳スタイルのサンプル**」であって厳格なゴールド標準
+ではないため、`sample-diff` の差分は **完全一致を要求しない**。
 
 ## AI に渡す入力
 
-このケースは regression テストなので、**リファレンスを含めて**渡す:
-
 - `dsl/grammar.ebnf`（[CORE] サブセット）
 - `harness/SEMANTICS.md`（[CORE] / [CORE 派生ビュー] 章）
-- `harness/reference/InventoryLot.fs` ← **見せる**
+- `harness/reference/InventoryLot.fs`（**スタイルサンプル**として）
 - `evaluation/case-001-inventory-lot/input.dsl`
 - `evaluation/case-001-inventory-lot/prompt-<target>.md`
 
-## 合格基準
+## 判定基準
 
 | ターゲット | 基準 |
 |---|---|
-| F# (`generated.fs`) | `expected.fs` と意味論的に等価。型構造・型名・フィールド名・関数シグネチャは完全一致を要求。順序・コメント・docstring 文言の差は許容 |
-| Mermaid (`generated.mmd`) | `expected.mmd` と意味論的に等価。状態名・遷移ラベル・初期/終端状態の整合が取れていること |
+| F# (`generated.fs`) | サンプルと意味論的に等価。型構造・型名・フィールド名・関数シグネチャは概ね一致を期待。順序・コメント・docstring 文言の差は許容。`compile-check` を別途必須 |
+| Mermaid (`generated.mmd`) | サンプルと状態名・遷移ラベル・初期/終端状態の整合が取れていること |
 
-## このケースで検出したいこと
+## このケースで検出したいこと（評価対象 A, D）
 
-- 命名規約（`ManufacturedLot` / `ShippingInstructedLot` / `ManufacturingCompletedDate` など）の遵守
-- smart constructor パターンの適用（DSL コメントの `// 0以上` などを検出）
-- 直和型 → 判別共用体への 1:1 マッピング
-- behavior の Result 戻り型・エラー型構造化
-- Mermaid の状態遷移が DSL behavior と一貫すること
+- AI 生成パイプラインが健全に動いている（A. 健全性）
+- DSL / SEMANTICS / reference の変更で出力が大きく壊れていない（D. 回帰検出）
 
-## 弱点
+## 検出しにくいこと
 
-リファレンスを見せて再現させる構造のため、以下は検出しにくい:
+- `SEMANTICS.md` の不足や曖昧さ（B. 規則の十分性）
+- AI が rule を一般化して未知領域に適用する能力（B, C）
 
-- `SEMANTICS.md` の不足や曖昧さ
-- AI が rule を一般化して未知領域に適用する能力
-
-これらは `case-002`（販売案件）以降の **generalization** ケースで補完する。
+これらは `case-002`（販売案件）以降の `expert-review` メソッドで補完する。
