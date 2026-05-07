@@ -1,0 +1,29 @@
+{
+  "type": "Program",
+  "declarations": [
+    {
+      "type": "DataDecl",
+      "name": "事業部コード",
+      "value": {
+        "type": "Identifier",
+        "name": "整数"
+      }
+    },
+    {
+      "type": "DataDecl",
+      "name": "部門コード",
+      "value": {
+        "type": "Identifier",
+        "name": "整数"
+      }
+    },
+    {
+      "type": "DataDecl",
+      "name": "担当課コード",
+      "value": {
+        "type": "Identifier",
+        "name": "整数"
+      }
+    }
+  ]
+}
