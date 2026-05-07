@@ -23,13 +23,6 @@ let private appsettingsPath =
 let private programFsPath =
     Path.Combine(fsharpRoot, "src", "SalesManagement", "Program.fs")
 
-let private getFreePort () =
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
-    port
-
 [<Fact>]
 [<Trait("Category", "Configuration")>]
 let ``appsettings.json defines Database.ConnectionString and Server.Port`` () =
@@ -96,7 +89,13 @@ let ``Program.fs has no hardcoded production connection string fallback`` () =
 [<Fact>]
 [<Trait("Category", "Configuration")>]
 let ``http requests emit JSON logs with timestamp/level/message/requestId and IDs differ`` () = task {
-    let port = getFreePort ()
+    let port =
+        let listener = new TcpListener(IPAddress.Loopback, 0)
+        listener.Start()
+        let p = (listener.LocalEndpoint :?> IPEndPoint).Port
+        listener.Stop()
+        p
+
     let connKey = "Database__ConnectionString"
     let originalConn = Environment.GetEnvironmentVariable connKey
     // Use a placeholder connection string so createApp doesn't fail when DB env is missing.

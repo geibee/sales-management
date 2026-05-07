@@ -6,45 +6,57 @@ open System.IO
 open System.Net
 open System.Net.Http
 open System.Net.Sockets
-open System.Text
 open System.Threading.Tasks
 open DbUp
 open Microsoft.AspNetCore.Builder
-open Npgsql
 open Testcontainers.PostgreSql
 open Xunit
 open SalesManagement.Hosting
+open SalesManagement.Tests.Support.ApiFixture
+open SalesManagement.Tests.Support.HttpHelpers
+
+/// 通常 (PermitLimit=10000) ＋ /test/slow を有効化するため Development 環境で起動。
+type RateLimitAndCacheDefaultFixture() =
+    inherit
+        ApiFixture(
+            { defaultOptions with
+                AuthEnabled = false
+                RateLimitPermits = 10000
+                ExtraArgs = [ "--Hosting:ShutdownTimeoutSeconds=30"; "--environment=Development" ] }
+        )
+
+/// 429 を強制するための小さな PermitLimit。
+type RateLimitAndCacheRateLimitFixture() =
+    inherit
+        ApiFixture(
+            { defaultOptions with
+                AuthEnabled = false
+                RateLimitPermits = 5
+                ExtraArgs =
+                    [ "--RateLimit:WindowSeconds=60"
+                      "--Hosting:ShutdownTimeoutSeconds=30"
+                      "--environment=Development" ] }
+        )
 
 let private migrationsDir =
     let baseDir = AppContext.BaseDirectory
     Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "migrations"))
 
-let private getFreePort () =
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
-    port
-
-type FixtureConfig =
-    { PermitLimit: int
-      WindowSeconds: int
-      ShutdownSeconds: int }
-
-let private defaultConfig =
-    { PermitLimit = 10000
-      WindowSeconds = 60
-      ShutdownSeconds = 30 }
-
-type RateLimitAndCacheFixtureBase(config: FixtureConfig) =
+/// graceful-shutdown テストは `App.StopAsync` を直接呼ぶ必要があるため、
+/// `Support/ApiFixture` で隠蔽されている WebApplication を露出させる専用 fixture を残す。
+type RateLimitAndCacheShutdownFixture() =
     let mutable container: PostgreSqlContainer = Unchecked.defaultof<_>
     let mutable app: WebApplication = Unchecked.defaultof<_>
     let mutable port: int = 0
-    let mutable connStr: string = ""
 
     member _.Port = port
-    member _.ConnectionString = connStr
     member _.App = app
+
+    member _.NewClient() : HttpClient =
+        let client = new HttpClient()
+        client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
+        client.Timeout <- TimeSpan.FromSeconds 30.0
+        client
 
     interface IAsyncLifetime with
         member _.InitializeAsync() : Task =
@@ -58,7 +70,7 @@ type RateLimitAndCacheFixtureBase(config: FixtureConfig) =
                         .Build()
 
                 do! container.StartAsync()
-                connStr <- container.GetConnectionString()
+                let connStr = container.GetConnectionString()
 
                 let upgrader =
                     DeployChanges.To
@@ -72,19 +84,20 @@ type RateLimitAndCacheFixtureBase(config: FixtureConfig) =
                 if not result.Successful then
                     failwithf "Migration failed: %s" (result.Error.ToString())
 
-                port <- getFreePort ()
+                let listener = new TcpListener(IPAddress.Loopback, 0)
+                listener.Start()
+                port <- (listener.LocalEndpoint :?> IPEndPoint).Port
+                listener.Stop()
 
                 let args =
                     [| sprintf "--Server:Port=%d" port
                        sprintf "--Database:ConnectionString=%s" connStr
                        "--Authentication:Enabled=false"
-                       sprintf "--RateLimit:PermitLimit=%d" config.PermitLimit
-                       sprintf "--RateLimit:WindowSeconds=%d" config.WindowSeconds
-                       sprintf "--Hosting:ShutdownTimeoutSeconds=%d" config.ShutdownSeconds
+                       "--RateLimit:PermitLimit=10000"
+                       "--RateLimit:WindowSeconds=60"
+                       "--Hosting:ShutdownTimeoutSeconds=30"
                        "--Outbox:PollIntervalMs=500"
                        "--Logging:LogLevel:Default=Warning"
-                       // RateLimitAndCache exercises /test/slow as a cheap unauthenticated
-                       // endpoint; that route is only registered in Development.
                        "--environment=Development" |]
 
                 app <- createApp args
@@ -105,20 +118,6 @@ type RateLimitAndCacheFixtureBase(config: FixtureConfig) =
             }
             :> Task
 
-type RateLimitAndCacheDefaultFixture() =
-    inherit RateLimitAndCacheFixtureBase(defaultConfig)
-
-type RateLimitAndCacheRateLimitFixture() =
-    inherit
-        RateLimitAndCacheFixtureBase(
-            { PermitLimit = 5
-              WindowSeconds = 60
-              ShutdownSeconds = 30 }
-        )
-
-type RateLimitAndCacheShutdownFixture() =
-    inherit RateLimitAndCacheFixtureBase(defaultConfig)
-
 [<CollectionDefinition("RateLimitAndCacheDefault")>]
 type RateLimitAndCacheDefaultCollection() =
     interface ICollectionFixture<RateLimitAndCacheDefaultFixture>
@@ -131,21 +130,6 @@ type RateLimitAndCacheRateLimitCollection() =
 type RateLimitAndCacheShutdownCollection() =
     interface ICollectionFixture<RateLimitAndCacheShutdownFixture>
 
-let private newClient (port: int) =
-    let client = new HttpClient()
-    client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
-    client.Timeout <- TimeSpan.FromSeconds 30.0
-    client
-
-let private postJson (client: HttpClient) (path: string) (body: string) : Task<HttpResponseMessage> =
-    let req = new HttpRequestMessage(HttpMethod.Post, path)
-    req.Content <- new StringContent(body, Encoding.UTF8, "application/json")
-    client.SendAsync req
-
-let private getReq (client: HttpClient) (path: string) : Task<HttpResponseMessage> =
-    let req = new HttpRequestMessage(HttpMethod.Get, path)
-    client.SendAsync req
-
 let private uniqueLot () =
     let r = Random()
     let year = 6000 + r.Next(0, 3000)
@@ -154,7 +138,7 @@ let private uniqueLot () =
     let id = sprintf "%d-%s-%03d" year location seq
     year, location, seq, id
 
-let private createLotBody (year: int) (location: string) (seq: int) =
+let private lotBody (year: int) (location: string) (seq: int) =
     sprintf
         """{
             "lotNumber": {"year": %d, "location": "%s", "seq": %d},
@@ -177,7 +161,7 @@ type RateLimitAndCacheRateLimitTests(fixture: RateLimitAndCacheRateLimitFixture)
     [<Trait("Category", "RateLimitAndCache")>]
     [<Trait("Category", "Integration")>]
     member _.``rate limiter returns 429 with Retry-After header once permits exhausted``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
 
         // Use /test/slow which is unauthenticated and cheap, so we focus on rate-limit behavior.
         let mutable okCount = 0
@@ -212,10 +196,10 @@ type RateLimitAndCacheCacheTests(fixture: RateLimitAndCacheDefaultFixture) =
     [<Trait("Category", "RateLimitAndCache")>]
     [<Trait("Category", "Integration")>]
     member _.``GET lot caches result and second call hits cache``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         let year, location, seq, lotId = uniqueLot ()
 
-        let! createResp = postJson client "/lots" (createLotBody year location seq)
+        let! createResp = postJson client "/lots" (lotBody year location seq)
         Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
 
         let! firstResp = getReq client (sprintf "/lots/%s" lotId)
@@ -233,10 +217,10 @@ type RateLimitAndCacheCacheTests(fixture: RateLimitAndCacheDefaultFixture) =
     [<Trait("Category", "RateLimitAndCache")>]
     [<Trait("Category", "Integration")>]
     member _.``cache is invalidated after state-changing transition``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         let year, location, seq, lotId = uniqueLot ()
 
-        let! createResp = postJson client "/lots" (createLotBody year location seq)
+        let! createResp = postJson client "/lots" (lotBody year location seq)
         Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
 
         // Prime cache
@@ -270,7 +254,7 @@ type RateLimitAndCacheGracefulShutdownTests(fixture: RateLimitAndCacheShutdownFi
     [<Trait("Category", "Integration")>]
     [<Trait("Category", "ZZShutdown")>]
     member _.``graceful shutdown waits for in-flight requests``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
 
         let stopwatch = Stopwatch.StartNew()
         // Warm-up: ensure server is responding.
