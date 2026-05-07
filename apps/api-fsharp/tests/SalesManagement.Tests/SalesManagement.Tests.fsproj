@@ -55,6 +55,7 @@
     <Compile Include="IntegrationTests/StateTransitionParamTests.fs" />
     <Compile Include="IntegrationTests/AppraisalContractParamTests.fs" />
     <Compile Include="IntegrationTests/ListQueryParamTests.fs" />
+    <Compile Include="IntegrationTests/ReservationConsignmentParamTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
