@@ -53,6 +53,7 @@
     <Compile Include="IntegrationTests/BatchInputParserTests.fs" />
     <Compile Include="IntegrationTests/LotRoutesParamTests.fs" />
     <Compile Include="IntegrationTests/StateTransitionParamTests.fs" />
+    <Compile Include="IntegrationTests/AppraisalContractParamTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
