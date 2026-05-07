@@ -12,6 +12,7 @@
     <Compile Include="Support/HttpHelpers.fs" />
     <Compile Include="Support/ProblemDetailsAssert.fs" />
     <Compile Include="Support/RequestBuilders.fs" />
+    <Compile Include="Support/TheoryCases.fs" />
     <Compile Include="Support/Generators.fs" />
     <Compile Include="Support/SmokeTest.fs" />
     <Compile Include="LotPropertyTests.fs" />

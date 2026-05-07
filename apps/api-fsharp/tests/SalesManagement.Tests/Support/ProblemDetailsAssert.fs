@@ -62,3 +62,20 @@ let assertConflict (expectedType: string) (resp: HttpResponseMessage) : Task<uni
         let! _ = assertProblemDetails expectedType HttpStatusCode.Conflict resp
         ()
     }
+
+/// パラメータ境界マトリクス用の二段検証。`expectedType = ""` のとき type はチェックしない。
+/// S2 系テストの `case` 行と 1 対 1 で対応するため、各テストファイルで再実装しない。
+let checkStatusAndType
+    (expectedStatus: int)
+    (expectedType: string)
+    (resp: HttpResponseMessage)
+    : Task<unit> =
+    task {
+        let status = enum<HttpStatusCode> expectedStatus
+
+        if expectedType <> "" then
+            let! _ = assertProblemDetails expectedType status resp
+            ()
+        else
+            Assert.Equal(status, resp.StatusCode)
+    }

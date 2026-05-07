@@ -112,18 +112,29 @@ let emptyLotOverrides: LotBodyOverrides =
       Extra = []
       Omit = [] }
 
-let private defaultLotDetail: JsonValue =
-    JObject
-        [ "itemCategory", JString "premium"
-          "premiumCategory", JString "A"
-          "productCategoryCode", JString "v1"
-          "lengthSpecLower", JFloat 1.0
-          "thicknessSpecLower", JFloat 1.0
-          "thicknessSpecUpper", JFloat 2.0
-          "qualityGrade", JString "A"
-          "count", JInt 1
-          "quantity", JFloat 10.0
-          "inspectionResultCategory", JString "pass" ]
+let private defaultLotDetailFields: (string * JsonValue) list =
+    [ "itemCategory", JString "premium"
+      "premiumCategory", JString "A"
+      "productCategoryCode", JString "v1"
+      "lengthSpecLower", JFloat 1.0
+      "thicknessSpecLower", JFloat 1.0
+      "thicknessSpecUpper", JFloat 2.0
+      "qualityGrade", JString "A"
+      "count", JInt 1
+      "quantity", JFloat 10.0
+      "inspectionResultCategory", JString "pass" ]
+
+/// 単一 LotDetail の正常値 baseline を、指定キーだけ差分上書きして返す。
+/// S2 系で `details[]` 内の値を境界テストするときに、テスト側で baseline を再定義しないで済むようにする共通ヘルパー。
+let lotDetailWith (overrides: (string * JsonValue) list) : JsonValue =
+    let m = Map.ofList overrides
+
+    JObject(
+        defaultLotDetailFields
+        |> List.map (fun (k, v) -> k, m |> Map.tryFind k |> Option.defaultValue v)
+    )
+
+let private defaultLotDetail: JsonValue = JObject defaultLotDetailFields
 
 let private defaultLotNumber (year: JsonValue) (location: JsonValue) (seq: JsonValue) : JsonValue =
     JObject [ "year", year; "location", location; "seq", seq ]

@@ -1,31 +1,12 @@
 module SalesManagement.Tests.IntegrationTests.LotRoutesParamTests
 
-open System.Net
 open System.Net.Http
 open Xunit
 open SalesManagement.Tests.Support.ApiFixture
 open SalesManagement.Tests.Support.HttpHelpers
 open SalesManagement.Tests.Support.ProblemDetailsAssert
 open SalesManagement.Tests.Support.RequestBuilders
-
-/// 単一 LotDetail の正常値を baseline として、指定キーだけ差分上書きする。
-/// `RequestBuilders.fs` の `defaultLotDetail` は private のため、ここで等価品を再定義している。
-let private detailWith (overrides: (string * JsonValue) list) : JsonValue =
-    let baseFields =
-        [ "itemCategory", JString "premium"
-          "premiumCategory", JString "A"
-          "productCategoryCode", JString "v1"
-          "lengthSpecLower", JFloat 1.0
-          "thicknessSpecLower", JFloat 1.0
-          "thicknessSpecUpper", JFloat 2.0
-          "qualityGrade", JString "A"
-          "count", JInt 1
-          "quantity", JFloat 10.0
-          "inspectionResultCategory", JString "pass" ]
-
-    let m = Map.ofList overrides
-
-    JObject(baseFields |> List.map (fun (k, v) -> k, m |> Map.tryFind k |> Option.defaultValue v))
+open SalesManagement.Tests.Support.TheoryCases
 
 let private bodyWithYear (year: JsonValue) : string =
     createLotBody { emptyLotOverrides with Year = Some year }
@@ -39,19 +20,9 @@ let private bodyWithSeq (s: JsonValue) : string =
 let private bodyWithDetails (details: JsonValue) : string =
     createLotBody { emptyLotOverrides with Details = Some details }
 
-let private case (a: 'a) (b: 'b) (c: 'c) : obj[] = [| box a; box b; box c |]
-
-/// status + ProblemDetails type の二段検証。`expectedType = ""` のときは type をチェックしない。
-let private check (expectedStatus: int) (expectedType: string) (resp: HttpResponseMessage) =
-    task {
-        let status = enum<HttpStatusCode> expectedStatus
-
-        if expectedType <> "" then
-            let! _ = assertProblemDetails expectedType status resp
-            ()
-        else
-            Assert.Equal(status, resp.StatusCode)
-    }
+let private case a b c = tcase3 a b c
+let private detailWith = lotDetailWith
+let private check = checkStatusAndType
 
 [<Collection("ApiAuthOff")>]
 type LotRoutesParamTests(fixture: AuthOffFixture) =
