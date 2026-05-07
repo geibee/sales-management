@@ -17,16 +17,10 @@ open WireMock.ResponseBuilders
 open WireMock.Server
 open Xunit
 open SalesManagement.Hosting
+open SalesManagement.Tests.Support.HttpHelpers
 
 let private signingKey = "step06-test-signing-key-please-do-not-use-in-production"
 let private audience = "sales-api"
-
-let private getFreePort () =
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
-    port
 
 let private mintToken (roles: string list) : string =
     let keyBytes = Encoding.UTF8.GetBytes signingKey
@@ -99,6 +93,13 @@ let private setupBaseStubs (wiremock: WireMockServer) =
                 .WithBody("""{"basePrice":10000}""")
         )
 
+let private freePort () =
+    let listener = new TcpListener(IPAddress.Loopback, 0)
+    listener.Start()
+    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
+    listener.Stop()
+    port
+
 type ExternalPricingHappyFixture() =
     let mutable wiremock: WireMockServer = Unchecked.defaultof<_>
     let mutable app: WebApplication = Unchecked.defaultof<_>
@@ -108,13 +109,19 @@ type ExternalPricingHappyFixture() =
     member _.Port = port
     member _.WireMock = wiremock
 
+    member _.NewClient() : HttpClient =
+        let client = new HttpClient()
+        client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
+        client.Timeout <- TimeSpan.FromSeconds 30.0
+        client
+
     interface IAsyncLifetime with
         member _.InitializeAsync() : Task =
             task {
                 wiremock <- WireMockServer.Start()
                 wiremockUrl <- wiremock.Url
                 setupBaseStubs wiremock
-                port <- getFreePort ()
+                port <- freePort ()
                 // Very high CircuitFailures so the breaker doesn't open during happy-path tests
                 let args = buildArgs port wiremockUrl 1000 2
                 app <- createApp args
@@ -142,13 +149,19 @@ type ExternalPricingCircuitFixture() =
     member _.Port = port
     member _.WireMock = wiremock
 
+    member _.NewClient() : HttpClient =
+        let client = new HttpClient()
+        client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
+        client.Timeout <- TimeSpan.FromSeconds 30.0
+        client
+
     interface IAsyncLifetime with
         member _.InitializeAsync() : Task =
             task {
                 wiremock <- WireMockServer.Start()
                 wiremockUrl <- wiremock.Url
                 setupBaseStubs wiremock
-                port <- getFreePort ()
+                port <- freePort ()
                 // Low circuit threshold and zero retries so the breaker opens deterministically
                 let args = buildArgs port wiremockUrl 3 0
                 app <- createApp args
@@ -175,21 +188,6 @@ type ExternalPricingHappyCollection() =
 type ExternalPricingCircuitCollection() =
     interface ICollectionFixture<ExternalPricingCircuitFixture>
 
-let private newClient (port: int) =
-    let client = new HttpClient()
-    client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
-    client.Timeout <- TimeSpan.FromSeconds(30.0)
-    client
-
-let private getWith (client: HttpClient) (path: string) (token: string option) : Task<HttpResponseMessage> =
-    let req = new HttpRequestMessage(HttpMethod.Get, path)
-
-    match token with
-    | Some t -> req.Headers.Authorization <- AuthenticationHeaderValue("Bearer", t)
-    | None -> ()
-
-    client.SendAsync req
-
 [<Collection("ExternalPricingHappy")>]
 type ExternalPricingHappyTests(fixture: ExternalPricingHappyFixture) =
 
@@ -197,9 +195,10 @@ type ExternalPricingHappyTests(fixture: ExternalPricingHappyFixture) =
     [<Trait("Category", "ExternalPricing")>]
     [<Trait("Category", "Integration")>]
     member _.``GET /api/external/price-check returns external pricing JSON``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         let token = mintToken [ "viewer" ]
-        let! resp = getWith client "/api/external/price-check?lotId=2024-A-001" (Some token)
+        client.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", token)
+        let! resp = getReq client "/api/external/price-check?lotId=2024-A-001"
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
         let! body = resp.Content.ReadAsStringAsync()
         use doc = JsonDocument.Parse body
@@ -214,7 +213,7 @@ type ExternalPricingHappyTests(fixture: ExternalPricingHappyFixture) =
     member _.``retry recovers when first attempt is 500 then 200``() = task {
         // Use a fresh app + custom HttpListener-based upstream so we can deterministically
         // count attempts without relying on WireMock scenario semantics.
-        let upstreamPort = getFreePort ()
+        let upstreamPort = freePort ()
         let upstreamUrl = sprintf "http://127.0.0.1:%d" upstreamPort
         let listener = new System.Net.HttpListener()
         listener.Prefixes.Add(sprintf "%s/" upstreamUrl)
@@ -247,7 +246,7 @@ type ExternalPricingHappyTests(fixture: ExternalPricingHappyFixture) =
         let serverTask = serve ()
 
         try
-            let appPort = getFreePort ()
+            let appPort = freePort ()
 
             let args =
                 buildArgs appPort upstreamUrl 1000 2
@@ -263,9 +262,10 @@ type ExternalPricingHappyTests(fixture: ExternalPricingHappyFixture) =
             use client =
                 new HttpClient(BaseAddress = Uri(sprintf "http://127.0.0.1:%d" appPort))
 
-            client.Timeout <- TimeSpan.FromSeconds(30.0)
+            client.Timeout <- TimeSpan.FromSeconds 30.0
             let token = mintToken [ "viewer" ]
-            let! resp = getWith client "/api/external/price-check?lotId=2024-A-002" (Some token)
+            client.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", token)
+            let! resp = getReq client "/api/external/price-check?lotId=2024-A-002"
 
             Assert.True(
                 !counter >= 2,
@@ -284,9 +284,10 @@ type ExternalPricingHappyTests(fixture: ExternalPricingHappyFixture) =
     [<Trait("Category", "ExternalPricing")>]
     [<Trait("Category", "Integration")>]
     member _.``slow upstream causes 502 timeout``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         let token = mintToken [ "viewer" ]
-        let! resp = getWith client "/api/external/price-check?lotId=2024-S-001" (Some token)
+        client.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", token)
+        let! resp = getReq client "/api/external/price-check?lotId=2024-S-001"
         Assert.Equal(HttpStatusCode.BadGateway, resp.StatusCode)
         let! body = resp.Content.ReadAsStringAsync()
         use doc = JsonDocument.Parse body
@@ -298,8 +299,8 @@ type ExternalPricingHappyTests(fixture: ExternalPricingHappyFixture) =
     [<Trait("Category", "ExternalPricing")>]
     [<Trait("Category", "Integration")>]
     member _.``request without token returns 401``() = task {
-        use client = newClient fixture.Port
-        let! resp = getWith client "/api/external/price-check?lotId=2024-A-001" None
+        use client = fixture.NewClient()
+        let! resp = getReq client "/api/external/price-check?lotId=2024-A-001"
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode)
     }
 
@@ -310,16 +311,17 @@ type ExternalPricingCircuitTests(fixture: ExternalPricingCircuitFixture) =
     [<Trait("Category", "ExternalPricing")>]
     [<Trait("Category", "Integration")>]
     member _.``circuit breaker opens after consecutive failures``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         let token = mintToken [ "viewer" ]
+        client.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", token)
 
         // Threshold = 3 failures with 0 retries → 3 calls to trip the breaker.
         for _ in 1..3 do
-            let! _ = getWith client "/api/external/price-check?lotId=2024-E-001" (Some token)
+            let! _ = getReq client "/api/external/price-check?lotId=2024-E-001"
             ()
 
         // Next call should hit the open breaker.
-        let! resp = getWith client "/api/external/price-check?lotId=2024-E-001" (Some token)
+        let! resp = getReq client "/api/external/price-check?lotId=2024-E-001"
         Assert.Equal(HttpStatusCode.ServiceUnavailable, resp.StatusCode)
         let! body = resp.Content.ReadAsStringAsync()
         use doc = JsonDocument.Parse body

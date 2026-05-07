@@ -3,39 +3,20 @@ module SalesManagement.Tests.IntegrationTests.AuditAndOtelTests
 open System
 open System.Collections.Concurrent
 open System.Diagnostics
-open System.IO
 open System.IdentityModel.Tokens.Jwt
 open System.Net
-open System.Net.Http
 open System.Net.Http.Headers
-open System.Net.Sockets
 open System.Security.Claims
 open System.Text
 open System.Threading.Tasks
-open DbUp
-open Microsoft.AspNetCore.Builder
 open Microsoft.IdentityModel.Tokens
 open Npgsql
-open Testcontainers.PostgreSql
 open Xunit
-open SalesManagement.Hosting
-
-let private signingKey = "step08-test-signing-key-please-do-not-use-in-production"
-let private audience = "sales-api"
-
-let private migrationsDir =
-    let baseDir = AppContext.BaseDirectory
-    Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "migrations"))
-
-let private getFreePort () =
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
-    port
+open SalesManagement.Tests.Support.ApiFixture
+open SalesManagement.Tests.Support.HttpHelpers
 
 let private mintTokenWithSub (sub: string) (roles: string list) : string =
-    let keyBytes = Encoding.UTF8.GetBytes signingKey
+    let keyBytes = Encoding.UTF8.GetBytes testSigningKey
     let key = SymmetricSecurityKey keyBytes
     let creds = SigningCredentials(key, SecurityAlgorithms.HmacSha256)
 
@@ -52,8 +33,8 @@ let private mintTokenWithSub (sub: string) (roles: string list) : string =
 
     let token =
         JwtSecurityToken(
-            issuer = "step08-test",
-            audience = audience,
+            issuer = "support-fixture",
+            audience = testAudience,
             claims = claims,
             expires = Nullable(DateTime.UtcNow.AddSeconds 300.0),
             signingCredentials = creds
@@ -61,113 +42,32 @@ let private mintTokenWithSub (sub: string) (roles: string list) : string =
 
     JwtSecurityTokenHandler().WriteToken token
 
-type AuditAndOtelFixture() =
-    let mutable container: PostgreSqlContainer = Unchecked.defaultof<_>
-    let mutable app: WebApplication = Unchecked.defaultof<_>
-    let mutable port: int = 0
-    let mutable connStr: string = ""
+let private uniqueLot () =
+    let r = Random()
+    let year = 5000 + r.Next(0, 4000)
+    let location = "F"
+    let seq = r.Next(1, 999)
+    let id = sprintf "%d-%s-%03d" year location seq
+    year, location, seq, id
 
-    member _.Port = port
-    member _.ConnectionString = connStr
+let private lotBody (year: int) (location: string) (seq: int) =
+    sprintf
+        """{
+            "lotNumber": {"year": %d, "location": "%s", "seq": %d},
+            "divisionCode": 1, "departmentCode": 1, "sectionCode": 1,
+            "processCategory": 1, "inspectionCategory": 1, "manufacturingCategory": 1,
+            "details": [
+                {"itemCategory": "general", "premiumCategory": "", "productCategoryCode": "v",
+                 "lengthSpecLower": 1.0, "thicknessSpecLower": 1.0, "thicknessSpecUpper": 2.0,
+                 "qualityGrade": "A", "count": 1, "quantity": 1.0, "inspectionResultCategory": ""}
+            ]
+        }"""
+        year
+        location
+        seq
 
-    interface IAsyncLifetime with
-        member _.InitializeAsync() : Task =
-            task {
-                container <-
-                    PostgreSqlBuilder()
-                        .WithImage("postgres:16-alpine")
-                        .WithDatabase("sales_management")
-                        .WithUsername("app")
-                        .WithPassword("app")
-                        .Build()
-
-                do! container.StartAsync()
-                connStr <- container.GetConnectionString()
-
-                let upgrader =
-                    DeployChanges.To
-                        .PostgresqlDatabase(connStr)
-                        .WithScriptsFromFileSystem(migrationsDir)
-                        .LogToConsole()
-                        .Build()
-
-                let result = upgrader.PerformUpgrade()
-
-                if not result.Successful then
-                    failwithf "Migration failed: %s" (result.Error.ToString())
-
-                port <- getFreePort ()
-
-                let args =
-                    [| sprintf "--Server:Port=%d" port
-                       sprintf "--Database:ConnectionString=%s" connStr
-                       "--Authentication:Enabled=true"
-                       sprintf "--Authentication:SigningKey=%s" signingKey
-                       sprintf "--Authentication:Audience=%s" audience
-                       "--Outbox:PollIntervalMs=500"
-                       "--Logging:LogLevel:Default=Warning" |]
-
-                app <- createApp args
-                do! app.StartAsync()
-            }
-            :> Task
-
-        member _.DisposeAsync() : Task =
-            task {
-                if not (isNull (box app)) then
-                    do! app.StopAsync()
-
-                if not (isNull (box container)) then
-                    do! container.DisposeAsync()
-            }
-            :> Task
-
-[<CollectionDefinition("AuditAndOtel")>]
-type AuditAndOtelCollection() =
-    interface ICollectionFixture<AuditAndOtelFixture>
-
-[<Collection("AuditAndOtel")>]
-type AuditAndOtelTests(fixture: AuditAndOtelFixture) =
-    let newClient () =
-        let client = new HttpClient()
-        client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" fixture.Port)
-        client
-
-    let postJson (client: HttpClient) (path: string) (body: string) (token: string) : Task<HttpResponseMessage> =
-        let req = new HttpRequestMessage(HttpMethod.Post, path)
-        req.Content <- new StringContent(body, Encoding.UTF8, "application/json")
-        req.Headers.Authorization <- AuthenticationHeaderValue("Bearer", token)
-        client.SendAsync req
-
-    let getReq (client: HttpClient) (path: string) (token: string) : Task<HttpResponseMessage> =
-        let req = new HttpRequestMessage(HttpMethod.Get, path)
-        req.Headers.Authorization <- AuthenticationHeaderValue("Bearer", token)
-        client.SendAsync req
-
-    let uniqueLot () =
-        let r = Random()
-        let year = 5000 + r.Next(0, 4000)
-        let location = "F"
-        let seq = r.Next(1, 999)
-        let id = sprintf "%d-%s-%03d" year location seq
-        year, location, seq, id
-
-    let createLotBody (year: int) (location: string) (seq: int) =
-        sprintf
-            """{
-                "lotNumber": {"year": %d, "location": "%s", "seq": %d},
-                "divisionCode": 1, "departmentCode": 1, "sectionCode": 1,
-                "processCategory": 1, "inspectionCategory": 1, "manufacturingCategory": 1,
-                "details": [
-                    {"itemCategory": "general", "premiumCategory": "", "productCategoryCode": "v",
-                     "lengthSpecLower": 1.0, "thicknessSpecLower": 1.0, "thicknessSpecUpper": 2.0,
-                     "qualityGrade": "A", "count": 1, "quantity": 1.0, "inspectionResultCategory": ""}
-                ]
-            }"""
-            year
-            location
-            seq
-
+[<Collection("ApiAuthOn")>]
+type AuditAndOtelTests(fixture: AuthOnFixture) =
     let queryAuditColumns (year: int) (location: string) (seq: int) : (string * string * DateTime * DateTime) option =
         use conn = new NpgsqlConnection(fixture.ConnectionString)
         conn.Open()
@@ -199,12 +99,13 @@ type AuditAndOtelTests(fixture: AuditAndOtelFixture) =
     [<Trait("Category", "AuditAndOtel")>]
     [<Trait("Category", "Integration")>]
     member _.``creating a lot records created_by from JWT sub claim``() = task {
-        use client = newClient ()
+        use client = fixture.NewClient()
         let operatorSub = Guid.NewGuid().ToString()
         let token = mintTokenWithSub operatorSub [ "operator" ]
+        client.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", token)
         let year, location, seq, _ = uniqueLot ()
 
-        let! createResp = postJson client "/lots" (createLotBody year location seq) token
+        let! createResp = postJson client "/lots" (lotBody year location seq)
         Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
 
         match queryAuditColumns year location seq with
@@ -218,19 +119,21 @@ type AuditAndOtelTests(fixture: AuditAndOtelFixture) =
     [<Trait("Category", "AuditAndOtel")>]
     [<Trait("Category", "Integration")>]
     member _.``updating a lot keeps created_by but changes updated_by``() = task {
-        use client = newClient ()
+        use opClient = fixture.NewClient()
+        use adminClient = fixture.NewClient()
         let operatorSub = Guid.NewGuid().ToString()
         let adminSub = Guid.NewGuid().ToString()
         let opToken = mintTokenWithSub operatorSub [ "operator" ]
         let adminToken = mintTokenWithSub adminSub [ "admin" ]
+        opClient.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", opToken)
+        adminClient.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", adminToken)
         let year, location, seq, lotId = uniqueLot ()
 
-        let! createResp = postJson client "/lots" (createLotBody year location seq) opToken
+        let! createResp = postJson opClient "/lots" (lotBody year location seq)
         Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
 
         let body = """{"date": "2026-04-22", "version": 1}"""
-
-        let! resp = postJson client (sprintf "/lots/%s/complete-manufacturing" lotId) body adminToken
+        let! resp = postJson adminClient (sprintf "/lots/%s/complete-manufacturing" lotId) body
 
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
 
@@ -258,11 +161,12 @@ type AuditAndOtelTests(fixture: AuditAndOtelFixture) =
         ActivitySource.AddActivityListener listener
 
         try
-            use client = newClient ()
+            use client = fixture.NewClient()
             let token = mintTokenWithSub (Guid.NewGuid().ToString()) [ "operator" ]
+            client.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", token)
             let year, location, seq, _ = uniqueLot ()
 
-            let! createResp = postJson client "/lots" (createLotBody year location seq) token
+            let! createResp = postJson client "/lots" (lotBody year location seq)
             Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
 
             do! Task.Delay 200
