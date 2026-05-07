@@ -10,8 +10,16 @@ sales-management/
 ├── apps/
 │   ├── api-fsharp/        # F# (Giraffe + Donald) によるバックエンド
 │   └── frontend/          # React 19 + Vite + TanStack Router フロントエンド
+├── dsl/                   # DSL (SSoT)
+│   ├── domain-model.md    # ドメインモデル DSL 本体
+│   └── grammar.ebnf       # DSL の形式文法 ([CORE] / [VERIFICATION] 層に区分)
+├── harness/               # RALPH ループ + 意味論ガイド
+│   ├── SEMANTICS.md       # DSL → 各ターゲット言語の翻訳規則
+│   ├── reference/         # 言語別リファレンス実装（ゴールド標準）
+│   └── ralph.sh           # green-loop runner
+├── tools/
+│   └── dsl-parser/        # DSL → AST パーサー (Python / uv)
 ├── pacts/                 # Pact によるコントラクトテスト成果物
-├── harness/               # RALPH ループ (green-loop runner)
 ├── .harness/              # マルチエージェントオーケストレーション基盤
 ├── .claude/               # Claude Code 用フック / 設定
 ├── docker-compose.harness.yml  # Pact Broker / Jaeger 起動用
@@ -67,6 +75,18 @@ dotnet tool restore
 dotnet build
 dotnet test
 bash ci.sh        # CI 一式（SARIF を ci-results/ に出力）
+```
+
+### DSL パーサー (`tools/dsl-parser/`)
+
+`dsl/domain-model.md` を AST に変換するツール。SDD で各派生物（F# 型・Alloy・TLA+ 等）を生成する際の入力。
+
+```bash
+cd tools/dsl-parser
+uv sync
+uv run pytest          # ゴールデンテスト + ドメインモデル全体のスモークテスト
+uv run dsl-parser ../../dsl/domain-model.md   # AST を JSON で出力
+bash ci.sh             # CI 一式
 ```
 
 ### 補助サービス (Pact Broker / Jaeger)
