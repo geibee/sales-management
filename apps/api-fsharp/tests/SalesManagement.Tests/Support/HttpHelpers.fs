@@ -19,11 +19,7 @@ let putJson (client: HttpClient) (path: string) (body: string) : Task<HttpRespon
     req.Content <- new StringContent(body, Encoding.UTF8, "application/json")
     client.SendAsync req
 
-let deleteWithBody
-    (client: HttpClient)
-    (path: string)
-    (body: string option)
-    : Task<HttpResponseMessage> =
+let deleteWithBody (client: HttpClient) (path: string) (body: string option) : Task<HttpResponseMessage> =
     let req = new HttpRequestMessage(HttpMethod.Delete, path)
 
     match body with

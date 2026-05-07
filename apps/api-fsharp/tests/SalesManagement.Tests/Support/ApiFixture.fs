@@ -19,8 +19,7 @@ open Xunit
 open SalesManagement.Hosting
 
 /// 認証 ON 時の HMAC-SHA256 署名鍵。テスト固定値（本番では絶対に使わない）。
-let testSigningKey =
-    "support-fixture-signing-key-please-do-not-use-in-production"
+let testSigningKey = "support-fixture-signing-key-please-do-not-use-in-production"
 
 let testAudience = "sales-api"
 
@@ -185,8 +184,7 @@ type ApiFixture(opts: ApiFixtureOptions) =
                     else
                         [ "--Authentication:Enabled=false" ]
 
-                let args =
-                    baseArgs @ authArgs @ opts.ExtraArgs |> List.toArray
+                let args = baseArgs @ authArgs @ opts.ExtraArgs |> List.toArray
 
                 app <- createApp args
                 do! app.StartAsync()
@@ -208,11 +206,19 @@ type ApiFixture(opts: ApiFixtureOptions) =
 
 /// 認証 OFF の標準 fixture。多くのテストクラスはこれで足りる。
 type AuthOffFixture() =
-    inherit ApiFixture({ defaultOptions with AuthEnabled = false })
+    inherit
+        ApiFixture(
+            { defaultOptions with
+                AuthEnabled = false }
+        )
 
 /// 認証 ON の fixture。`NewAuthedClient(roles)` で JWT 付き HttpClient を取れる。
 type AuthOnFixture() =
-    inherit ApiFixture({ defaultOptions with AuthEnabled = true })
+    inherit
+        ApiFixture(
+            { defaultOptions with
+                AuthEnabled = true }
+        )
 
 [<CollectionDefinition("ApiAuthOff")>]
 type AuthOffCollection() =
