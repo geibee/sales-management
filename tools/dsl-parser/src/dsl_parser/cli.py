@@ -2,8 +2,11 @@
 
 Usage::
 
-    dsl-parser <path-to-dsl-file>
-    dsl-parser -            # read from stdin
+    dsl-parser <path-to-input>
+    dsl-parser -                    # read from stdin
+
+If the input path ends with ``.md``, the first fenced code block (```...```)
+is extracted and parsed. Otherwise the whole file content is parsed.
 
 Outputs the AST as JSON on stdout.
 """
@@ -11,11 +14,24 @@ Outputs the AST as JSON on stdout.
 from __future__ import annotations
 
 import json
+import re
 import sys
+from pathlib import Path
 
 from parsimonious.exceptions import ParseError
 
 from dsl_parser.parser import parse
+
+
+_CODE_BLOCK_RE = re.compile(r"^```[^\n]*\n(.*?)\n```", re.DOTALL | re.MULTILINE)
+
+
+def extract_dsl_from_markdown(text: str) -> str:
+    """Return the first fenced code block content, or raise ValueError."""
+    match = _CODE_BLOCK_RE.search(text)
+    if not match:
+        raise ValueError("no fenced code block found in markdown input")
+    return match.group(1)
 
 
 def main() -> None:
@@ -24,7 +40,15 @@ def main() -> None:
         sys.exit(2)
 
     arg = sys.argv[1]
-    source = sys.stdin.read() if arg == "-" else open(arg, encoding="utf-8").read()
+    if arg == "-":
+        raw = sys.stdin.read()
+        is_markdown = False
+    else:
+        path = Path(arg)
+        raw = path.read_text(encoding="utf-8")
+        is_markdown = path.suffix == ".md"
+
+    source = extract_dsl_from_markdown(raw) if is_markdown else raw
 
     try:
         ast = parse(source)

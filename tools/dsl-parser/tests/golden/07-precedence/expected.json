@@ -1,0 +1,40 @@
+{
+  "type": "Program",
+  "declarations": [
+    {
+      "type": "DataDecl",
+      "name": "X",
+      "value": {
+        "type": "SumType",
+        "variants": [
+          {
+            "type": "ProductType",
+            "components": [
+              {
+                "type": "Identifier",
+                "name": "A"
+              },
+              {
+                "type": "Identifier",
+                "name": "B"
+              }
+            ]
+          },
+          {
+            "type": "ProductType",
+            "components": [
+              {
+                "type": "Identifier",
+                "name": "C"
+              },
+              {
+                "type": "Identifier",
+                "name": "D"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

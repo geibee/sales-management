@@ -130,12 +130,15 @@ descriptionClause = "description" stringLit ;               (* [VERIFICATION] *)
    注: 区切りは "=" を用いる（dsl/domain-model.md の記法に合わせる）。
    ============================================================ *)
 
-behaviorDecl    = "behavior" identifier "="                 (* [CORE] *)
-                  dataExpr "->" dataExpr "OR" identifier    (* [CORE] *)
-                  { requireClause }                         (* [VERIFICATION] *)
-                  { ensureClause }                          (* [VERIFICATION] *)
-                  { errorClause }                           (* [VERIFICATION] *)
-                  [ descriptionClause ] ;                   (* [VERIFICATION] *)
+behaviorDecl    = "behavior" identifier "="                    (* [CORE] *)
+                  productExpr "->" productExpr "OR" identifier (* [CORE] *)
+                  { requireClause }                            (* [VERIFICATION] *)
+                  { ensureClause }                             (* [VERIFICATION] *)
+                  { errorClause }                              (* [VERIFICATION] *)
+                  [ descriptionClause ] ;                      (* [VERIFICATION] *)
+
+(* 注: 入出力は productExpr に限定する（OR は最後の "OR <error>" 用に予約）。
+       OR を含む状態の引き渡しは現 DSL では出現しないため、この制限で十分。 *)
 
 requireClause   = "requires" predicate ;                    (* [VERIFICATION] *)
 ensureClause    = "ensures" predicate ;                     (* [VERIFICATION] *)
