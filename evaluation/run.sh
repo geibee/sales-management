@@ -2,11 +2,14 @@
 # 評価ランナー
 #
 # 使い方:
-#   bash evaluation/run.sh                  # 全ケース
-#   bash evaluation/run.sh case-001-...     # 単一ケース
+#   bash evaluation/run.sh                  # 全ケース・全ターゲット
+#   bash evaluation/run.sh case-001-...     # 単一ケース・全ターゲット
 #
-# 各ケース直下に generated.fs を置いてから実行する。
-# generated.fs は AI に prompt.md を読ませて作成すること（手動 or エージェント）。
+# 各ケース直下のターゲット規約:
+#   input.dsl                  共通入力
+#   expected.<ext>             ゴールド標準（fs / mmd / als / tla 等）
+#   prompt-<target>.md         AI への指示書
+#   generated.<ext>            AI が生成した結果（gitignore 対象）
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -37,12 +40,6 @@ for case_name in "${cases[@]}"; do
         continue
     fi
 
-    if [[ ! -f "$case_dir/expected.fs" ]]; then
-        echo "  [FAIL] expected.fs がない"
-        failed=$((failed + 1))
-        continue
-    fi
-
     # input.dsl がパース可能か確認
     if ! (cd ../tools/dsl-parser && uv run dsl-parser "../../evaluation/$case_dir/input.dsl" > /dev/null 2>&1); then
         echo "  [FAIL] input.dsl がパースできない"
@@ -51,20 +48,35 @@ for case_name in "${cases[@]}"; do
     fi
     echo "  [OK] input.dsl パース成功"
 
-    if [[ ! -f "$case_dir/generated.fs" ]]; then
-        echo "  [PENDING] generated.fs がない（prompt.md を AI に渡して生成してください）"
+    # ターゲットごと（expected.<ext> を列挙）
+    shopt -s nullglob
+    expected_files=("$case_dir"/expected.*)
+    shopt -u nullglob
+
+    if [[ ${#expected_files[@]} -eq 0 ]]; then
+        echo "  [WARN] expected.<ext> がない"
         continue
     fi
 
-    # expected.fs と generated.fs を diff
-    if diff -u "$case_dir/expected.fs" "$case_dir/generated.fs" > /tmp/eval-diff.txt; then
-        echo "  [OK] generated.fs == expected.fs (完全一致)"
-    else
-        added=$(grep -c '^+' /tmp/eval-diff.txt || true)
-        removed=$(grep -c '^-' /tmp/eval-diff.txt || true)
-        echo "  [DIFF] +$added -$removed 行"
-        echo "    詳細: diff -u $case_dir/expected.fs $case_dir/generated.fs"
-    fi
+    for exp in "${expected_files[@]}"; do
+        ext="${exp##*.}"
+        gen="$case_dir/generated.$ext"
+        target_label="$ext"
+
+        if [[ ! -f "$gen" ]]; then
+            echo "  [PENDING] $target_label: generated.$ext がない (prompt-*.md を AI に渡して生成)"
+            continue
+        fi
+
+        if diff -u "$exp" "$gen" > /tmp/eval-diff.txt 2>&1; then
+            echo "  [OK] $target_label: 完全一致"
+        else
+            added=$(grep -c '^+[^+]' /tmp/eval-diff.txt || true)
+            removed=$(grep -c '^-[^-]' /tmp/eval-diff.txt || true)
+            echo "  [DIFF] $target_label: +$added -$removed 行"
+            echo "    詳細: diff -u $exp $gen"
+        fi
+    done
 done
 
 if [[ $failed -gt 0 ]]; then

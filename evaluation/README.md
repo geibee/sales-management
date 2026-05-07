@@ -13,11 +13,20 @@ evaluation/
 ├── README.md                       # このファイル
 ├── run.sh                          # 評価ランナー
 └── case-NNN-<name>/
-    ├── input.dsl                   # DSL（domain-model.md からの抽出）
-    ├── expected.fs                 # ゴールド標準（リファレンス実装に基づく）
-    ├── prompt.md                   # AI への指示
-    └── generated.fs                # AI が生成した結果（gitignore 対象）
+    ├── input.dsl                   # DSL（domain-model.md からの抽出、共通入力）
+    ├── expected.<ext>              # ターゲット別ゴールド標準（fs / mmd / als / tla）
+    ├── prompt-<target>.md          # ターゲット別 AI 指示書
+    └── generated.<ext>             # AI が生成した結果（gitignore 対象）
 ```
+
+ターゲットは `expected.<ext>` の拡張子で識別:
+
+| 拡張子 | ターゲット |
+|---|---|
+| `.fs` | F# 型定義・関数 |
+| `.mmd` | Mermaid 状態遷移図 |
+| `.als` | Alloy モデル（P3 で導入予定） |
+| `.tla` | TLA+ モデル（P3 で導入予定） |
 
 ## ループ
 
