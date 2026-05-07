@@ -3,7 +3,6 @@ module SalesManagement.Tests.IntegrationTests.MiscEndpointTests
 open System
 open System.Net
 open System.Net.Http
-open System.Net.Sockets
 open System.Threading
 open System.Threading.Tasks
 open Microsoft.AspNetCore.Builder
@@ -16,6 +15,7 @@ open SalesManagement.Api.LotRoutes
 open SalesManagement.Tests.Support.ApiFixture
 open SalesManagement.Tests.Support.HttpHelpers
 open SalesManagement.Tests.Support.RequestBuilders
+open SalesManagement.Tests.Support.StandaloneAppHost
 
 // ----------------------------------------------------------------------------
 // F20-1: /test/slow gating
@@ -26,10 +26,7 @@ open SalesManagement.Tests.Support.RequestBuilders
 type SlowEndpointTests() =
 
     let buildSlowApp (env: string) : Task<WebApplication * int> = task {
-        let listener = new TcpListener(IPAddress.Loopback, 0)
-        listener.Start()
-        let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-        listener.Stop()
+        let port = getFreePort ()
 
         let args =
             [| sprintf "--Server:Port=%d" port
@@ -49,10 +46,7 @@ type SlowEndpointTests() =
         return app, port
     }
 
-    let buildClient (port: int) : HttpClient =
-        let c = new HttpClient()
-        c.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
-        c
+    let buildClient (port: int) : HttpClient = newClient port
 
     [<Fact>]
     member _.``test/slow returns 404 in Production``() = task {

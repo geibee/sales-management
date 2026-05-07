@@ -1,59 +1,32 @@
 module SalesManagement.Tests.IntegrationTests.HealthAndOpenApiTests
 
-open System
 open System.Net
 open System.Net.Http
-open System.Net.Sockets
 open System.Text.Json
 open System.Threading.Tasks
-open Microsoft.AspNetCore.Builder
 open Xunit
-open SalesManagement.Hosting
 open SalesManagement.Tests.Support.ApiFixture
 open SalesManagement.Tests.Support.HttpHelpers
+open SalesManagement.Tests.Support.StandaloneAppHost
 
 /// /health の DOWN 経路を確認するための専用 fixture。
 /// `Database:ConnectionString` を到達不能ホストに向けるため、testcontainer は使わない。
 type HealthDownFixture() =
-    let mutable app: WebApplication = Unchecked.defaultof<_>
-    let mutable port: int = 0
+    let host = StandaloneApp()
 
-    member _.Port = port
+    member _.Port = host.Port
 
-    member _.NewClient() : HttpClient =
-        let client = new HttpClient()
-        client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
-        client.Timeout <- TimeSpan.FromSeconds 30.0
-        client
+    member _.NewClient() : HttpClient = host.NewClient()
 
     interface IAsyncLifetime with
         member _.InitializeAsync() : Task =
-            task {
-                let listener = new TcpListener(IPAddress.Loopback, 0)
-                listener.Start()
-                port <- (listener.LocalEndpoint :?> IPEndPoint).Port
-                listener.Stop()
+            host.Start(fun port ->
+                [| sprintf "--Server:Port=%d" port
+                   "--Database:ConnectionString=Host=127.0.0.1;Port=1;Database=sales_management;Username=app;Password=app;Timeout=2;Command Timeout=2"
+                   "--Authentication:Enabled=false"
+                   "--Logging:LogLevel:Default=Warning" |])
 
-                let args =
-                    [| sprintf "--Server:Port=%d" port
-                       "--Database:ConnectionString=Host=127.0.0.1;Port=1;Database=sales_management;Username=app;Password=app;Timeout=2;Command Timeout=2"
-                       "--Authentication:Enabled=false"
-                       "--Logging:LogLevel:Default=Warning" |]
-
-                app <- createApp args
-                do! app.StartAsync()
-            }
-            :> Task
-
-        member _.DisposeAsync() : Task =
-            task {
-                if not (isNull (box app)) then
-                    try
-                        do! app.StopAsync()
-                    with _ ->
-                        ()
-            }
-            :> Task
+        member _.DisposeAsync() : Task = host.Stop()
 
 [<CollectionDefinition("HealthDown")>]
 type HealthDownCollection() =

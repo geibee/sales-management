@@ -3,10 +3,8 @@ module SalesManagement.Tests.Support.ApiFixture
 open System
 open System.IdentityModel.Tokens.Jwt
 open System.IO
-open System.Net
 open System.Net.Http
 open System.Net.Http.Headers
-open System.Net.Sockets
 open System.Security.Claims
 open System.Text
 open System.Threading.Tasks
@@ -17,6 +15,7 @@ open Npgsql
 open Testcontainers.PostgreSql
 open Xunit
 open SalesManagement.Hosting
+open SalesManagement.Tests.Support.StandaloneAppHost
 
 /// 認証 ON 時の HMAC-SHA256 署名鍵。テスト固定値（本番では絶対に使わない）。
 let testSigningKey = "support-fixture-signing-key-please-do-not-use-in-production"
@@ -36,13 +35,6 @@ let defaultOptions: ApiFixtureOptions =
 let private migrationsDir =
     let baseDir = AppContext.BaseDirectory
     Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "migrations"))
-
-let private getFreePort () =
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
-    port
 
 /// TRUNCATE 対象テーブル。FK 依存があるため `RESTART IDENTITY CASCADE` で一括掃除する。
 let private truncatableTables =

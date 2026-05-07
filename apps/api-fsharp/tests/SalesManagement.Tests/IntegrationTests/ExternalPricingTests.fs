@@ -5,7 +5,6 @@ open System.IdentityModel.Tokens.Jwt
 open System.Net
 open System.Net.Http
 open System.Net.Http.Headers
-open System.Net.Sockets
 open System.Security.Claims
 open System.Text
 open System.Text.Json
@@ -18,6 +17,7 @@ open WireMock.Server
 open Xunit
 open SalesManagement.Hosting
 open SalesManagement.Tests.Support.HttpHelpers
+open SalesManagement.Tests.Support.StandaloneAppHost
 
 let private signingKey = "step06-test-signing-key-please-do-not-use-in-production"
 let private audience = "sales-api"
@@ -93,13 +93,6 @@ let private setupBaseStubs (wiremock: WireMockServer) =
                 .WithBody("""{"basePrice":10000}""")
         )
 
-let private freePort () =
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
-    port
-
 type ExternalPricingHappyFixture() =
     let mutable wiremock: WireMockServer = Unchecked.defaultof<_>
     let mutable app: WebApplication = Unchecked.defaultof<_>
@@ -109,11 +102,7 @@ type ExternalPricingHappyFixture() =
     member _.Port = port
     member _.WireMock = wiremock
 
-    member _.NewClient() : HttpClient =
-        let client = new HttpClient()
-        client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
-        client.Timeout <- TimeSpan.FromSeconds 30.0
-        client
+    member _.NewClient() : HttpClient = newClient port
 
     interface IAsyncLifetime with
         member _.InitializeAsync() : Task =
@@ -121,7 +110,7 @@ type ExternalPricingHappyFixture() =
                 wiremock <- WireMockServer.Start()
                 wiremockUrl <- wiremock.Url
                 setupBaseStubs wiremock
-                port <- freePort ()
+                port <- getFreePort ()
                 // Very high CircuitFailures so the breaker doesn't open during happy-path tests
                 let args = buildArgs port wiremockUrl 1000 2
                 app <- createApp args
@@ -149,11 +138,7 @@ type ExternalPricingCircuitFixture() =
     member _.Port = port
     member _.WireMock = wiremock
 
-    member _.NewClient() : HttpClient =
-        let client = new HttpClient()
-        client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
-        client.Timeout <- TimeSpan.FromSeconds 30.0
-        client
+    member _.NewClient() : HttpClient = newClient port
 
     interface IAsyncLifetime with
         member _.InitializeAsync() : Task =
@@ -161,7 +146,7 @@ type ExternalPricingCircuitFixture() =
                 wiremock <- WireMockServer.Start()
                 wiremockUrl <- wiremock.Url
                 setupBaseStubs wiremock
-                port <- freePort ()
+                port <- getFreePort ()
                 // Low circuit threshold and zero retries so the breaker opens deterministically
                 let args = buildArgs port wiremockUrl 3 0
                 app <- createApp args
@@ -213,7 +198,7 @@ type ExternalPricingHappyTests(fixture: ExternalPricingHappyFixture) =
     member _.``retry recovers when first attempt is 500 then 200``() = task {
         // Use a fresh app + custom HttpListener-based upstream so we can deterministically
         // count attempts without relying on WireMock scenario semantics.
-        let upstreamPort = freePort ()
+        let upstreamPort = getFreePort ()
         let upstreamUrl = sprintf "http://127.0.0.1:%d" upstreamPort
         let listener = new System.Net.HttpListener()
         listener.Prefixes.Add(sprintf "%s/" upstreamUrl)
@@ -246,7 +231,7 @@ type ExternalPricingHappyTests(fixture: ExternalPricingHappyFixture) =
         let serverTask = serve ()
 
         try
-            let appPort = freePort ()
+            let appPort = getFreePort ()
 
             let args =
                 buildArgs appPort upstreamUrl 1000 2
@@ -259,10 +244,7 @@ type ExternalPricingHappyTests(fixture: ExternalPricingHappyFixture) =
             use app = createApp args
             do! app.StartAsync()
 
-            use client =
-                new HttpClient(BaseAddress = Uri(sprintf "http://127.0.0.1:%d" appPort))
-
-            client.Timeout <- TimeSpan.FromSeconds 30.0
+            use client = newClient appPort
             let token = mintToken [ "viewer" ]
             client.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", token)
             let! resp = getReq client "/api/external/price-check?lotId=2024-A-002"

@@ -5,7 +5,6 @@ open System.Diagnostics
 open System.IO
 open System.Net
 open System.Net.Http
-open System.Net.Sockets
 open System.Threading.Tasks
 open DbUp
 open Microsoft.AspNetCore.Builder
@@ -14,6 +13,7 @@ open Xunit
 open SalesManagement.Hosting
 open SalesManagement.Tests.Support.ApiFixture
 open SalesManagement.Tests.Support.HttpHelpers
+open SalesManagement.Tests.Support.StandaloneAppHost
 
 /// 通常 (PermitLimit=10000) ＋ /test/slow を有効化するため Development 環境で起動。
 type RateLimitAndCacheDefaultFixture() =
@@ -52,11 +52,7 @@ type RateLimitAndCacheShutdownFixture() =
     member _.Port = port
     member _.App = app
 
-    member _.NewClient() : HttpClient =
-        let client = new HttpClient()
-        client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
-        client.Timeout <- TimeSpan.FromSeconds 30.0
-        client
+    member _.NewClient() : HttpClient = newClient port
 
     interface IAsyncLifetime with
         member _.InitializeAsync() : Task =
@@ -84,10 +80,7 @@ type RateLimitAndCacheShutdownFixture() =
                 if not result.Successful then
                     failwithf "Migration failed: %s" (result.Error.ToString())
 
-                let listener = new TcpListener(IPAddress.Loopback, 0)
-                listener.Start()
-                port <- (listener.LocalEndpoint :?> IPEndPoint).Port
-                listener.Stop()
+                port <- getFreePort ()
 
                 let args =
                     [| sprintf "--Server:Port=%d" port

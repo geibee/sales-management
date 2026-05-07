@@ -7,35 +7,11 @@ open Npgsql
 open Xunit
 open SalesManagement.Infrastructure
 open SalesManagement.Infrastructure.CloudWatchPublisher
-
-let private connectionString =
-    match Environment.GetEnvironmentVariable("DATABASE_URL") with
-    | null
-    | "" -> "Host=localhost;Port=5432;Database=sales_management;Username=app;Password=app"
-    | url -> url
+open SalesManagement.Tests.Support.BatchFixture
 
 let private fsharpRoot =
     let baseDir = AppContext.BaseDirectory
     Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", ".."))
-
-let private execParam (sql: string) (parameters: (string * obj) list) =
-    use conn = new NpgsqlConnection(connectionString)
-    conn.Open()
-    use cmd = new NpgsqlCommand(sql, conn)
-
-    for (name, value) in parameters do
-        cmd.Parameters.AddWithValue(name, value) |> ignore
-
-    cmd.ExecuteNonQuery() |> ignore
-
-let private cleanupJob (jobName: string) (jobParams: string) =
-    execParam
-        "DELETE FROM batch_chunk_progress WHERE job_name = @n AND job_params = @p"
-        [ "n", box jobName; "p", box jobParams ]
-
-    execParam
-        "DELETE FROM batch_job_execution WHERE job_name = @n AND job_params = @p"
-        [ "n", box jobName; "p", box jobParams ]
 
 [<Fact>]
 [<Trait("Category", "BatchJobLogFormat")>]

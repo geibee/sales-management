@@ -1,15 +1,12 @@
 module SalesManagement.Tests.IntegrationTests.AuthConfigEndpointTests
 
-open System
 open System.Net
 open System.Net.Http
-open System.Net.Sockets
 open System.Text.Json
 open System.Threading.Tasks
-open Microsoft.AspNetCore.Builder
 open Xunit
-open SalesManagement.Hosting
 open SalesManagement.Tests.Support.HttpHelpers
+open SalesManagement.Tests.Support.StandaloneAppHost
 
 let private commonArgs (port: int) =
     [| sprintf "--Server:Port=%d" port
@@ -22,51 +19,23 @@ let private commonArgs (port: int) =
        "--ExternalApi:RetryCount=0"
        "--Logging:LogLevel:Default=Warning" |]
 
-type private AppHost() =
-    let mutable app: WebApplication = Unchecked.defaultof<_>
-    let mutable port: int = 0
-
-    member _.Port = port
-
-    member this.Start(extraArgs: string array) : Task =
-        task {
-            let listener = new TcpListener(IPAddress.Loopback, 0)
-            listener.Start()
-            port <- (listener.LocalEndpoint :?> IPEndPoint).Port
-            listener.Stop()
-
-            let args = Array.append (commonArgs port) extraArgs
-            app <- createApp args
-            do! app.StartAsync()
-        }
-
-    member _.Stop() : Task =
-        task {
-            if not (isNull (box app)) then
-                try
-                    do! app.StopAsync()
-                with _ ->
-                    ()
-        }
-
-    member _.NewClient() : HttpClient =
-        let client = new HttpClient()
-        client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
-        client.Timeout <- TimeSpan.FromSeconds 30.0
-        client
+let private buildArgs (extraArgs: string array) (port: int) : string array =
+    Array.append (commonArgs port) extraArgs
 
 type AuthConfigEndpointAuthOffFixture() =
-    let host = AppHost()
+    let host = StandaloneApp()
 
     member _.Port = host.Port
     member _.NewClient() = host.NewClient()
 
     interface IAsyncLifetime with
         member _.InitializeAsync() : Task =
-            host.Start
-                [| "--Authentication:Enabled=false"
-                   "--Authentication:Authority=http://localhost:8180/realms/sales-management"
-                   "--Authentication:Audience=sales-api" |]
+            host.Start(
+                buildArgs
+                    [| "--Authentication:Enabled=false"
+                       "--Authentication:Authority=http://localhost:8180/realms/sales-management"
+                       "--Authentication:Audience=sales-api" |]
+            )
 
         member _.DisposeAsync() : Task = host.Stop()
 
@@ -75,19 +44,21 @@ type AuthConfigEndpointAuthOffCollection() =
     interface ICollectionFixture<AuthConfigEndpointAuthOffFixture>
 
 type AuthConfigEndpointAuthOnFixture() =
-    let host = AppHost()
+    let host = StandaloneApp()
 
     member _.Port = host.Port
     member _.NewClient() = host.NewClient()
 
     interface IAsyncLifetime with
         member _.InitializeAsync() : Task =
-            host.Start
-                [| "--Authentication:Enabled=true"
-                   "--Authentication:Authority=https://idp.example.com/realms/sales"
-                   "--Authentication:Audience=sales-api"
-                   "--Authentication:SigningKey=stepf17-test-key-please-do-not-use-in-production-context"
-                   "--Authentication:RequireHttpsMetadata=false" |]
+            host.Start(
+                buildArgs
+                    [| "--Authentication:Enabled=true"
+                       "--Authentication:Authority=https://idp.example.com/realms/sales"
+                       "--Authentication:Audience=sales-api"
+                       "--Authentication:SigningKey=stepf17-test-key-please-do-not-use-in-production-context"
+                       "--Authentication:RequireHttpsMetadata=false" |]
+            )
 
         member _.DisposeAsync() : Task = host.Stop()
 

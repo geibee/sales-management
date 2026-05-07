@@ -3,12 +3,12 @@ module SalesManagement.Tests.IntegrationTests.LotErrorHandlingTests
 open System
 open System.Net
 open System.Net.Http
-open System.Net.Sockets
 open System.Threading.Tasks
 open Xunit
 open SalesManagement.Hosting
 open SalesManagement.Tests.Support.ApiFixture
 open SalesManagement.Tests.Support.HttpHelpers
+open SalesManagement.Tests.Support.StandaloneAppHost
 
 let private uniqueLot () : int * string * int * string =
     let r = Random()
@@ -169,10 +169,7 @@ type LotErrorHandlingTests(fixture: AuthOffFixture) =
 let ``server-side error response does not include stack trace`` () = task {
     // Provoke an internal error by pointing DB to a closed port.
     // This test owns its own app since the bad-DB config can't share the fixture.
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
+    let port = getFreePort ()
 
     let badConn = "Host=localhost;Port=65530;Database=nope;Username=u;Password=p"
 
@@ -185,8 +182,7 @@ let ``server-side error response does not include stack trace`` () = task {
     do! app.StartAsync()
 
     try
-        use client = new HttpClient()
-        client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
+        use client = newClient port
         let! resp = client.GetAsync("/lots/2024-A-001")
         let! body = resp.Content.ReadAsStringAsync()
         Assert.DoesNotContain("at SalesManagement.", body)
