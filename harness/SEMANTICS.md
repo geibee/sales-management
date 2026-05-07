@@ -18,7 +18,21 @@
 
 ---
 
-## 1. 値型エイリアス
+## レイヤー区分
+
+各章の見出しに以下のラベルを付ける（`dsl/grammar.ebnf` のラベリングと一致）:
+
+| ラベル | 意味 | 対象読者 / 書き手 |
+|---|---|---|
+| **[CORE]** | ドメインエキスパートが読む層。型構造・振る舞いシグネチャ。 | エキスパート + 技術者 |
+| **[VERIFICATION]** | 検証層。値域制約・事前事後条件・不変条件・時相性質。 | 技術者（P4 で導入） |
+
+エキスパートは [CORE] 章のみ目を通せば DSL の意図が把握できる。
+[VERIFICATION] 章は AI が Alloy / TLA+ / プロパティテストを生成する際の根拠。
+
+---
+
+## 1. 値型エイリアス　[CORE]
 
 ### 構文
 ```
@@ -51,7 +65,7 @@ let divisionCodeGen = Gen.map DivisionCode Arb.generate<int>
 
 ---
 
-## 2. 精錬型（Refined Type）
+## 2. 精錬型（Refined Type）　[VERIFICATION]
 
 ### 構文
 ```
@@ -103,7 +117,7 @@ let amountGen =
 
 ---
 
-## 3. 直積型（Product / Record）
+## 3. 直積型（Product / Record）　[CORE]
 
 ### 構文
 ```
@@ -157,7 +171,7 @@ let lotNumberGen = gen {
 
 ---
 
-## 4. 直和型（Sum / Discriminated Union）
+## 4. 直和型（Sum / Discriminated Union）　[CORE]
 
 ### 構文
 ```
@@ -217,7 +231,7 @@ let inventoryLotGen =
 
 ---
 
-## 5. オプショナル型
+## 5. オプショナル型　[CORE]
 
 ### 構文
 ```
@@ -268,7 +282,7 @@ let optionalGen<'T> (innerGen: Gen<'T>) : Gen<'T option> =
 
 ---
 
-## 6. 制約付きリスト
+## 6. 制約付きリスト　[CORE / VERIFICATION]
 
 ### 構文
 ```
@@ -319,7 +333,10 @@ let nonEmptyListGen<'T> (itemGen: Gen<'T>) : Gen<NonEmptyList<'T>> = gen {
 
 ---
 
-## 7. 振る舞い（Behavior / Workflow）
+## 7. 振る舞い（Behavior / Workflow）　[CORE / VERIFICATION]
+
+> シグネチャ部分（`behavior X = Input -> Output OR Error`）は **[CORE]**。
+> `requires` / `ensures` / `error_when` 句は **[VERIFICATION]**（P4で導入）。
 
 ### 構文
 ```
@@ -414,7 +431,7 @@ let prop_invalidDateProducesSpecificError (lot: ManufacturingLot) (manufacturing
 
 ---
 
-## 8. 横断的不変条件
+## 8. 横断的不変条件　[VERIFICATION]
 
 ### 構文
 ```
@@ -461,7 +478,7 @@ let prop_lotNumberUniqueness (operations: Operation list) =
 
 ---
 
-## 9. 時相的性質
+## 9. 時相的性質　[VERIFICATION]
 
 ### 構文
 ```

@@ -1,9 +1,9 @@
 (* ============================================================
    Sales Management DSL Grammar (EBNF / ISO 14977 風)
    ============================================================
-   
+
    このファイルは DSL の文法のみを定義する（意味論は SEMANTICS.md）。
-   
+
    表記:
      =       定義
      |       選択
@@ -12,30 +12,77 @@
      ( ... ) グルーピング
      "..."   リテラル
      ?...?   メタ識別子（人間向けの注釈）
-   
+
+   ============================================================
+   レイヤー構成（重要）
+   ------------------------------------------------------------
+   DSL は 2 層に分かれる:
+
+     [CORE]         ドメインエキスパートが読み書きする層。
+                    型構造と振る舞いシグネチャだけ。
+                    格納先: dsl/domain-model.md
+
+     [VERIFICATION] 技術者が書き、AI が Alloy / TLA+ 等に翻訳する層。
+                    値域制約・事前事後条件・不変条件・時相性質。
+                    格納先: dsl/verification.md（P4 で導入）
+
+   各章の見出しに [CORE] / [VERIFICATION] / [SHARED] を付ける。
+   [SHARED] は両層で使われる述語・式・字句のサブ言語。
+
+   現在の P1 パーサーが受理すべきは [CORE] のみ。
+   ============================================================
+
+   コア層サブセット（P1 実装スコープ）
+   ------------------------------------------------------------
+     §1 dataDecl      （where/unit/description 句を除く）
+     §2 behaviorDecl  （requires/ensures/error_when 句を除く）
+     §8 字句
+
+   検証層（P4 実装スコープ）
+   ------------------------------------------------------------
+     §1 の where/unit/description 句
+     §2 の requires/ensures/error_when 句
+     §3 invariantDecl
+     §4 propertyDecl
+     §5 initialDecl
+     §6 述語サブ言語
+     §7 式サブ言語
    ============================================================ *)
+
 
 (* === トップレベル === *)
 
 program         = { declaration } ;
 
-declaration     = dataDecl
-                | behaviorDecl
-                | invariantDecl
-                | propertyDecl
-                | initialDecl ;
+declaration     = dataDecl                  (* [CORE]         *)
+                | behaviorDecl              (* [CORE]         *)
+                | invariantDecl             (* [VERIFICATION] *)
+                | propertyDecl              (* [VERIFICATION] *)
+                | initialDecl ;             (* [VERIFICATION] *)
+
 
 (* ============================================================
    1. データ宣言
-   例: data 金額 = 整数 where 値 >= 0 unit 円
+   ------------------------------------------------------------
+   [CORE]         dataDecl の本体（identifier "=" dataExpr）
+   [VERIFICATION] whereClause / unitClause / descriptionClause
+
+   コア例:
        data 在庫ロット = 製造中ロット OR 製造完了ロット
-       data ロット共通 = ロット番号 AND 事業部コード AND List<ロット明細> { length >= 1 }
+       data ロット共通 = ロット番号 AND 事業部コード AND List<ロット明細>
+       data ロット明細 = 品目区分 AND 上位品区分? AND ...
+
+   検証層を含む例（P4）:
+       data 金額 = 整数 where 値 >= 0 unit 円
+       data ロット共通 = ... AND List<ロット明細> { length >= 1 }
    ============================================================ *)
 
-dataDecl        = "data" identifier "=" dataExpr
-                  [ whereClause ]
-                  [ unitClause ]
-                  [ descriptionClause ] ;
+dataDecl        = "data" identifier "=" dataExpr            (* [CORE] *)
+                  [ whereClause ]                           (* [VERIFICATION] *)
+                  [ unitClause ]                            (* [VERIFICATION] *)
+                  [ descriptionClause ] ;                   (* [VERIFICATION] *)
+
+(* --- [CORE] データ式 --- *)
 
 dataExpr        = sumExpr ;
 sumExpr         = productExpr { "OR" productExpr } ;
@@ -48,42 +95,56 @@ atomType        = optionalType
 
 optionalType    = identifier "?" ;
 listType        = "List" "<" identifier ">" [ cardinality ] ;
-cardinality     = "{" "length" comparator integer "}" ;
 
 (* 注: 現行 DSL（dsl/domain-model.md）は "List<X> // 1件以上" のような
        コメントでカーディナリティを表現している。コメントはトークン化時に
        スキップされ、文法的にはカーディナリティなしの listType として扱う。
-       明示構文 "{ length >= 1 }" は P4 で導入予定の予約形である。 *)
+       明示構文 "{ length >= 1 }" は [VERIFICATION] 拡張で P4 で導入予定。 *)
 
-whereClause     = "where" predicate ;
-unitClause      = "unit" identifier ;
-descriptionClause = "description" stringLit ;
+cardinality     = "{" "length" comparator integer "}" ;     (* [VERIFICATION] *)
+
+(* --- [VERIFICATION] データ宣言の付加句 --- *)
+
+whereClause     = "where" predicate ;                       (* [VERIFICATION] *)
+unitClause      = "unit" identifier ;                       (* [VERIFICATION] *)
+descriptionClause = "description" stringLit ;               (* [VERIFICATION] *)
+
 
 (* ============================================================
    2. 振る舞い宣言
-   例: behavior 製造完了を指示する = 製造中ロット AND 製造完了日
+   ------------------------------------------------------------
+   [CORE]         behaviorDecl の本体（シグネチャまで）
+   [VERIFICATION] requires / ensures / error_when 句
+
+   コア例:
+       behavior 製造完了を指示する = 製造中ロット AND 製造完了日
                                   -> 製造完了ロット OR 製造完了指示エラー
-         requires 製造完了日 >= 製造開始日
-         ensures result.ロット番号 == input.ロット番号
-         error_when 製造完了日 < 製造開始日 -> 日付不正エラー
+
+   検証層を含む例（P4）:
+       behavior 製造完了を指示する = 製造中ロット AND 製造完了日
+                                  -> 製造完了ロット OR 製造完了指示エラー
+           requires 製造完了日 >= 製造開始日
+           ensures result.ロット番号 == input.ロット番号
+           error_when 製造完了日 < 製造開始日 -> 日付不正エラー
 
    注: 区切りは "=" を用いる（dsl/domain-model.md の記法に合わせる）。
-       requires/ensures/error_when は将来拡張用（P4 で導入）。
    ============================================================ *)
 
-behaviorDecl    = "behavior" identifier "="
-                  dataExpr "->" dataExpr "OR" identifier
-                  { requireClause }
-                  { ensureClause }
-                  { errorClause }
-                  [ descriptionClause ] ;
+behaviorDecl    = "behavior" identifier "="                 (* [CORE] *)
+                  dataExpr "->" dataExpr "OR" identifier    (* [CORE] *)
+                  { requireClause }                         (* [VERIFICATION] *)
+                  { ensureClause }                          (* [VERIFICATION] *)
+                  { errorClause }                           (* [VERIFICATION] *)
+                  [ descriptionClause ] ;                   (* [VERIFICATION] *)
 
-requireClause   = "requires" predicate ;
-ensureClause    = "ensures" predicate ;
-errorClause     = "error_when" predicate "->" identifier ;
+requireClause   = "requires" predicate ;                    (* [VERIFICATION] *)
+ensureClause    = "ensures" predicate ;                     (* [VERIFICATION] *)
+errorClause     = "error_when" predicate "->" identifier ;  (* [VERIFICATION] *)
+
 
 (* ============================================================
-   3. 横断的不変条件
+   3. 横断的不変条件                              [VERIFICATION]
+   ------------------------------------------------------------
    例: invariant ロット番号一意性:
          forall l1, l2 in 在庫ロット.
            l1.ロット番号 == l2.ロット番号 => l1 == l2
@@ -91,9 +152,11 @@ errorClause     = "error_when" predicate "->" identifier ;
 
 invariantDecl   = "invariant" identifier ":" predicate ;
 
+
 (* ============================================================
-   4. 時相的性質
-   例: property liveness: 
+   4. 時相的性質                                  [VERIFICATION]
+   ------------------------------------------------------------
+   例: property liveness:
          forall c in 契約済み直接販売案件.
            c.状態 == 契約済み ~> c.状態 == 出荷完了
    ============================================================ *)
@@ -105,8 +168,10 @@ temporalPredicate = "always" predicate
                   | predicate "~>" predicate         (* "leads to" *)
                   | predicate ;
 
+
 (* ============================================================
-   5. 初期状態
+   5. 初期状態                                    [VERIFICATION]
+   ------------------------------------------------------------
    例: initial:
          在庫ロット = {}
          販売案件 = {}
@@ -115,8 +180,13 @@ temporalPredicate = "always" predicate
 initialDecl     = "initial" ":" { stateAssignment } ;
 stateAssignment = identifier "=" valueExpr ;
 
+
 (* ============================================================
-   6. 述語言語（共通サブ言語）
+   6. 述語サブ言語                                    [SHARED]
+   ------------------------------------------------------------
+   where / requires / ensures / error_when / invariant /
+   property の中身として使われる。
+   コア層では使用されない。
    ============================================================ *)
 
 predicate       = implication ;
@@ -138,8 +208,12 @@ quantifier      = "forall" | "exists" ;
 comparison      = expr comparator expr ;
 comparator      = "==" | "!=" | "<" | "<=" | ">" | ">=" ;
 
+
 (* ============================================================
-   7. 式
+   7. 式サブ言語                                      [SHARED]
+   ------------------------------------------------------------
+   述語サブ言語と initialDecl から参照される。
+   コア層では使用されない。
    ============================================================ *)
 
 expr            = orExpr ;
@@ -162,8 +236,9 @@ exprList        = expr { "," expr } ;
 valueExpr       = literal | fieldAccess | "{" "}" ;
 literal         = integer | stringLit | "true" | "false" ;
 
+
 (* ============================================================
-   8. 字句要素
+   8. 字句要素                                        [SHARED]
    ============================================================ *)
 
 identifier      = ( letter | japaneseChar | "_" )
