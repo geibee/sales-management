@@ -50,6 +50,7 @@
     <Compile Include="IntegrationTests/BatchStateMachineTests.fs" />
     <Compile Include="IntegrationTests/BatchJobLogFormatTests.fs" />
     <Compile Include="IntegrationTests/BatchInputParserTests.fs" />
+    <Compile Include="IntegrationTests/LotRoutesParamTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
