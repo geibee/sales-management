@@ -184,7 +184,9 @@ files = [
   "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/SecurityHeaderTests.fs",
   "apps/api-fsharp/tests/SalesManagement.Tests/IntegrationTests/MiscEndpointTests.fs",
 ]
-depends_on  = ["S2-StateTrans", "S2-AppraisalContract", "S2-ResvCons", "S2-ListQuery"]
+# S3 も halt_before=true のため、両者が同時に ready バッチに入ると resume 後も即 halt して
+# 進まなくなる。S3 を経由してから ready 入りさせる。
+depends_on  = ["S3", "S2-StateTrans", "S2-AppraisalContract", "S2-ResvCons", "S2-ListQuery"]
 verify      = ".ralph/verify/S5-W1.sh"
 halt_before = true                      # confirm methodology before subsequent waves
 prompt_extra = """
