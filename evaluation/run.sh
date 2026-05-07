@@ -34,6 +34,12 @@ for case_name in "${cases[@]}"; do
 
     echo "=== $case_name ==="
 
+    if [[ ! -f "$case_dir/meta.md" ]]; then
+        echo "  [FAIL] meta.md がない（評価目的が未定義）"
+        failed=$((failed + 1))
+        continue
+    fi
+
     if [[ ! -f "$case_dir/input.dsl" ]]; then
         echo "  [FAIL] input.dsl がない"
         failed=$((failed + 1))

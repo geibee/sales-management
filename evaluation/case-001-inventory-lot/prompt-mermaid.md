@@ -1,5 +1,8 @@
 # Prompt: case-001 在庫ロット領域 Mermaid 状態遷移図 生成
 
+> **評価目的**: `regression`（リファレンス再現テスト）。
+> AI に渡す入力リスト・合格基準は `meta.md` を参照。
+
 ## 目的
 
 `input.dsl` の DSL から、`expected.mmd` と意味論的に一致する
