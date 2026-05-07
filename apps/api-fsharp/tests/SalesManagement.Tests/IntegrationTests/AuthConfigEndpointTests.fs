@@ -9,13 +9,7 @@ open System.Threading.Tasks
 open Microsoft.AspNetCore.Builder
 open Xunit
 open SalesManagement.Hosting
-
-let private getFreePort () =
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
-    port
+open SalesManagement.Tests.Support.HttpHelpers
 
 let private commonArgs (port: int) =
     [| sprintf "--Server:Port=%d" port
@@ -28,93 +22,83 @@ let private commonArgs (port: int) =
        "--ExternalApi:RetryCount=0"
        "--Logging:LogLevel:Default=Warning" |]
 
-type AuthConfigEndpointAuthOffFixture() =
+type private AppHost() =
     let mutable app: WebApplication = Unchecked.defaultof<_>
     let mutable port: int = 0
 
     member _.Port = port
 
+    member this.Start(extraArgs: string array) : Task =
+        task {
+            let listener = new TcpListener(IPAddress.Loopback, 0)
+            listener.Start()
+            port <- (listener.LocalEndpoint :?> IPEndPoint).Port
+            listener.Stop()
+
+            let args = Array.append (commonArgs port) extraArgs
+            app <- createApp args
+            do! app.StartAsync()
+        }
+
+    member _.Stop() : Task =
+        task {
+            if not (isNull (box app)) then
+                try
+                    do! app.StopAsync()
+                with _ ->
+                    ()
+        }
+
+    member _.NewClient() : HttpClient =
+        let client = new HttpClient()
+        client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
+        client.Timeout <- TimeSpan.FromSeconds 30.0
+        client
+
+type AuthConfigEndpointAuthOffFixture() =
+    let host = AppHost()
+
+    member _.Port = host.Port
+    member _.NewClient() = host.NewClient()
+
     interface IAsyncLifetime with
         member _.InitializeAsync() : Task =
-            task {
-                port <- getFreePort ()
+            host.Start
+                [| "--Authentication:Enabled=false"
+                   "--Authentication:Authority=http://localhost:8180/realms/sales-management"
+                   "--Authentication:Audience=sales-api" |]
 
-                let args =
-                    Array.append
-                        (commonArgs port)
-                        [| "--Authentication:Enabled=false"
-                           "--Authentication:Authority=http://localhost:8180/realms/sales-management"
-                           "--Authentication:Audience=sales-api" |]
-
-                app <- createApp args
-                do! app.StartAsync()
-            }
-            :> Task
-
-        member _.DisposeAsync() : Task =
-            task {
-                if not (isNull (box app)) then
-                    try
-                        do! app.StopAsync()
-                    with _ ->
-                        ()
-            }
-            :> Task
+        member _.DisposeAsync() : Task = host.Stop()
 
 [<CollectionDefinition("AuthConfigEndpointAuthOff")>]
 type AuthConfigEndpointAuthOffCollection() =
     interface ICollectionFixture<AuthConfigEndpointAuthOffFixture>
 
 type AuthConfigEndpointAuthOnFixture() =
-    let mutable app: WebApplication = Unchecked.defaultof<_>
-    let mutable port: int = 0
+    let host = AppHost()
 
-    member _.Port = port
+    member _.Port = host.Port
+    member _.NewClient() = host.NewClient()
 
     interface IAsyncLifetime with
         member _.InitializeAsync() : Task =
-            task {
-                port <- getFreePort ()
+            host.Start
+                [| "--Authentication:Enabled=true"
+                   "--Authentication:Authority=https://idp.example.com/realms/sales"
+                   "--Authentication:Audience=sales-api"
+                   "--Authentication:SigningKey=stepf17-test-key-please-do-not-use-in-production-context"
+                   "--Authentication:RequireHttpsMetadata=false" |]
 
-                let args =
-                    Array.append
-                        (commonArgs port)
-                        [| "--Authentication:Enabled=true"
-                           "--Authentication:Authority=https://idp.example.com/realms/sales"
-                           "--Authentication:Audience=sales-api"
-                           "--Authentication:SigningKey=stepf17-test-key-please-do-not-use-in-production-context"
-                           "--Authentication:RequireHttpsMetadata=false" |]
-
-                app <- createApp args
-                do! app.StartAsync()
-            }
-            :> Task
-
-        member _.DisposeAsync() : Task =
-            task {
-                if not (isNull (box app)) then
-                    try
-                        do! app.StopAsync()
-                    with _ ->
-                        ()
-            }
-            :> Task
+        member _.DisposeAsync() : Task = host.Stop()
 
 [<CollectionDefinition("AuthConfigEndpointAuthOn")>]
 type AuthConfigEndpointAuthOnCollection() =
     interface ICollectionFixture<AuthConfigEndpointAuthOnFixture>
 
-let private newClient (port: int) =
-    let client = new HttpClient()
-    client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
-    client.Timeout <- TimeSpan.FromSeconds 30.0
-    client
-
-let private getAuthConfig (client: HttpClient) (req: HttpRequestMessage) : Task<HttpResponseMessage * JsonElement> = task {
-    let! resp = client.SendAsync req
-    let! body = resp.Content.ReadAsStringAsync()
-    let doc = JsonDocument.Parse body
-    return resp, doc.RootElement.Clone()
+let private fetchAuthConfig (client: HttpClient) : Task<HttpResponseMessage * JsonElement> = task {
+    let! resp = getReq client "/auth/config"
+    let! body = readBody resp
+    return resp, parseJson body
 }
 
 [<Collection("AuthConfigEndpointAuthOff")>]
@@ -124,9 +108,8 @@ type AuthOffTests(fixture: AuthConfigEndpointAuthOffFixture) =
     [<Trait("Category", "AuthConfigEndpoint")>]
     [<Trait("Category", "Integration")>]
     member _.``GET /auth/config returns enabled=false only when authentication is disabled``() = task {
-        use client = newClient fixture.Port
-        let req = new HttpRequestMessage(HttpMethod.Get, "/auth/config")
-        let! resp, root = getAuthConfig client req
+        use client = fixture.NewClient()
+        let! resp, root = fetchAuthConfig client
 
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
 
@@ -143,9 +126,8 @@ type AuthOffTests(fixture: AuthConfigEndpointAuthOffFixture) =
     [<Trait("Category", "AuthConfigEndpoint")>]
     [<Trait("Category", "Integration")>]
     member _.``GET /auth/config is reachable without Authorization header``() = task {
-        use client = newClient fixture.Port
-        let req = new HttpRequestMessage(HttpMethod.Get, "/auth/config")
-        let! resp = client.SendAsync req
+        use client = fixture.NewClient()
+        let! resp = getReq client "/auth/config"
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
     }
 
@@ -156,9 +138,8 @@ type AuthOnTests(fixture: AuthConfigEndpointAuthOnFixture) =
     [<Trait("Category", "AuthConfigEndpoint")>]
     [<Trait("Category", "Integration")>]
     member _.``GET /auth/config returns enabled=true with authority and audience when authentication is enabled``() = task {
-        use client = newClient fixture.Port
-        let req = new HttpRequestMessage(HttpMethod.Get, "/auth/config")
-        let! resp, root = getAuthConfig client req
+        use client = fixture.NewClient()
+        let! resp, root = fetchAuthConfig client
 
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
 
@@ -179,10 +160,9 @@ type AuthOnTests(fixture: AuthConfigEndpointAuthOnFixture) =
     [<Trait("Category", "AuthConfigEndpoint")>]
     [<Trait("Category", "Integration")>]
     member _.``GET /auth/config does not require a Bearer token even when authentication is enabled``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         // No Authorization header attached on purpose.
-        let req = new HttpRequestMessage(HttpMethod.Get, "/auth/config")
-        let! resp = client.SendAsync req
+        let! resp = getReq client "/auth/config"
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
     }
 
@@ -190,10 +170,9 @@ type AuthOnTests(fixture: AuthConfigEndpointAuthOnFixture) =
     [<Trait("Category", "AuthConfigEndpoint")>]
     [<Trait("Category", "Integration")>]
     member _.``GET /auth/config does not leak secrets``() = task {
-        use client = newClient fixture.Port
-        let req = new HttpRequestMessage(HttpMethod.Get, "/auth/config")
-        let! resp = client.SendAsync req
-        let! body = resp.Content.ReadAsStringAsync()
+        use client = fixture.NewClient()
+        let! resp = getReq client "/auth/config"
+        let! body = readBody resp
         let lower = body.ToLowerInvariant()
         Assert.DoesNotContain("signingkey", lower)
         Assert.DoesNotContain("signing_key", lower)
