@@ -15,6 +15,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# --- normalize.py のセルフテスト（軽量、毎回実行）----
+if ! python3 test_normalize.py > /dev/null 2>&1; then
+    echo "[FAIL] normalize.py のセルフテスト失敗" >&2
+    python3 test_normalize.py
+    exit 1
+fi
+
 # --- compile-check helper（F# のみ。dotnet があれば実行、無ければ SKIP）----
 compile_check_fs() {
     local fs_file="$1"
@@ -108,13 +115,21 @@ for case_name in "${cases[@]}"; do
                 continue
             fi
 
-            if diff -u "$exp" "$gen" > /tmp/eval-diff.txt 2>&1; then
+            if cmp -s "$exp" "$gen"; then
                 echo "  [OK] sample-diff ($target_label): 完全一致"
             else
-                added=$(grep -c '^+[^+]' /tmp/eval-diff.txt || true)
-                removed=$(grep -c '^-[^-]' /tmp/eval-diff.txt || true)
-                echo "  [DIFF] sample-diff ($target_label): +$added -$removed 行"
-                echo "    詳細: diff -u $exp $gen"
+                # 意味論比較（コメント・空行・末尾空白を除去）
+                exp_norm=$(python3 normalize.py "$ext" "$exp" 2>/dev/null || cat "$exp")
+                gen_norm=$(python3 normalize.py "$ext" "$gen" 2>/dev/null || cat "$gen")
+                if [[ "$exp_norm" == "$gen_norm" ]]; then
+                    echo "  [OK] sample-diff ($target_label): 意味論的に等価（コメント・空行差のみ）"
+                else
+                    diff -u <(echo "$exp_norm") <(echo "$gen_norm") > /tmp/eval-diff.txt 2>&1 || true
+                    added=$(grep -c '^+[^+]' /tmp/eval-diff.txt || true)
+                    removed=$(grep -c '^-[^-]' /tmp/eval-diff.txt || true)
+                    echo "  [DIFF] sample-diff ($target_label): +$added -$removed 行（意味論的差分）"
+                    echo "    詳細: diff -u <(python3 evaluation/normalize.py $ext $exp) <(python3 evaluation/normalize.py $ext $gen)"
+                fi
             fi
         done
     fi
