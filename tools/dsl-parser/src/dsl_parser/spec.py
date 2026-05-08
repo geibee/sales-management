@@ -71,7 +71,10 @@ def _type_expr_to_spec(expr: DataExpr) -> dict[str, Any]:
     if isinstance(expr, OptionalType):
         return _named_type(expr.inner.name, optional=True, list_=False)
     if isinstance(expr, ListType):
-        return _named_type(expr.element.name, optional=False, list_=True)
+        result = _named_type(expr.element.name, optional=False, list_=True)
+        if expr.non_empty:
+            result["minItems"] = 1
+        return result
     if isinstance(expr, ProductType):
         return {
             "kind": "and",

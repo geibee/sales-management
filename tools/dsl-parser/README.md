@@ -41,7 +41,7 @@ uv run dsl-parser ../../dsl/domain-model.md
 echo 'data 事業部コード = 整数' | uv run dsl-parser -
 ```
 
-既定の出力は AST の JSON。`--format spec` を指定すると、`data` 宣言と `behavior` 宣言を照合しやすい正規化形式で出力する。
+既定の出力は AST の JSON。`--format spec` を指定すると、`data` 宣言と `behavior` 宣言を照合しやすい正規化形式で出力する。`List<X> // 1件以上` は `list: true` と `minItems: 1` として spec に残す。
 
 ## F# 実装照合リンター
 
@@ -56,6 +56,8 @@ uv run dsl-spec-lint \
 ```
 
 照合対象の英訳はリポジトリ直下の `glossary.yaml` から読む。現時点では在庫ロット領域の主要OR型、variant、behavior関数だけを対象にする。
+
+リンターは `checkedTypes`, `checkedBehaviors`, `skippedDueToMissingGlossary` を出力する。辞書登録済みの親OR型配下に未登録variantがある場合と、input/outputが辞書登録済み型だけで構成される未登録behaviorは `missing-glossary-entry` として失敗させる。
 
 ## テスト
 

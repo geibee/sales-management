@@ -42,6 +42,16 @@ def test_domain_model_generates_spec() -> None:
     assert len(spec["data"]) > 0
     assert len(spec["behaviors"]) > 0
 
+    lot_common = next(d for d in spec["data"] if d["name"] == "ロット共通")
+    lot_detail_list = lot_common["components"][-1]
+    assert lot_detail_list == {
+        "kind": "named",
+        "name": "ロット明細",
+        "optional": False,
+        "list": True,
+        "minItems": 1,
+    }
+
     # JSONとして決定論的に出力可能な構造であることを確認する。
     encoded = json.dumps(spec, ensure_ascii=False, indent=2)
     assert json.loads(encoded) == spec

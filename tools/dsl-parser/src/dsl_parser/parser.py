@@ -45,7 +45,8 @@ _GRAMMAR = Grammar(
     atomType      = optionalType / listType / parenType / identifier
     parenType     = "(" _ dataExpr _ ")"
     optionalType  = identifier _ "?"
-    listType      = "List" _ "<" _ identifier _ ">"
+    listType      = "List" _ "<" _ identifier _ ">" listConstraint?
+    listConstraint = ~r"[ \t]*//[^\n]*1件以上[^\n]*"
 
     identifier    = id_start id_rest*
     id_start      = ~r"[A-Za-z_　-鿿゠-ヿ぀-ゟ]"
@@ -83,6 +84,7 @@ class OptionalType:
 @dataclass(frozen=True)
 class ListType:
     element: Identifier
+    non_empty: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {"type": "ListType", "element": self.element.to_dict()}
@@ -214,8 +216,8 @@ class _AstBuilder(NodeVisitor):
         return OptionalType(inner=ident)
 
     def visit_listType(self, node: Node, visited_children: list[Any]) -> ListType:
-        # "List" _ "<" _ identifier _ ">"
-        return ListType(element=visited_children[4])
+        # "List" _ "<" _ identifier _ ">" listConstraint?
+        return ListType(element=visited_children[4], non_empty=bool(visited_children[7]))
 
     def visit_identifier(self, node: Node, visited_children: list[Any]) -> Identifier:
         return Identifier(name=node.text)

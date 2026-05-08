@@ -39,7 +39,8 @@
           "kind": "named",
           "name": "タグ",
           "optional": false,
-          "list": true
+          "list": true,
+          "minItems": 1
         }
       ]
     }
