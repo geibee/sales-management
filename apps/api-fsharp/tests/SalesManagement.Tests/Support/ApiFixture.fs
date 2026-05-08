@@ -3,10 +3,8 @@ module SalesManagement.Tests.Support.ApiFixture
 open System
 open System.IdentityModel.Tokens.Jwt
 open System.IO
-open System.Net
 open System.Net.Http
 open System.Net.Http.Headers
-open System.Net.Sockets
 open System.Security.Claims
 open System.Text
 open System.Threading.Tasks
@@ -17,10 +15,10 @@ open Npgsql
 open Testcontainers.PostgreSql
 open Xunit
 open SalesManagement.Hosting
+open SalesManagement.Tests.Support.StandaloneAppHost
 
 /// 認証 ON 時の HMAC-SHA256 署名鍵。テスト固定値（本番では絶対に使わない）。
-let testSigningKey =
-    "support-fixture-signing-key-please-do-not-use-in-production"
+let testSigningKey = "support-fixture-signing-key-please-do-not-use-in-production"
 
 let testAudience = "sales-api"
 
@@ -37,13 +35,6 @@ let defaultOptions: ApiFixtureOptions =
 let private migrationsDir =
     let baseDir = AppContext.BaseDirectory
     Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "migrations"))
-
-let private getFreePort () =
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
-    port
 
 /// TRUNCATE 対象テーブル。FK 依存があるため `RESTART IDENTITY CASCADE` で一括掃除する。
 let private truncatableTables =
@@ -185,8 +176,7 @@ type ApiFixture(opts: ApiFixtureOptions) =
                     else
                         [ "--Authentication:Enabled=false" ]
 
-                let args =
-                    baseArgs @ authArgs @ opts.ExtraArgs |> List.toArray
+                let args = baseArgs @ authArgs @ opts.ExtraArgs |> List.toArray
 
                 app <- createApp args
                 do! app.StartAsync()
@@ -208,11 +198,19 @@ type ApiFixture(opts: ApiFixtureOptions) =
 
 /// 認証 OFF の標準 fixture。多くのテストクラスはこれで足りる。
 type AuthOffFixture() =
-    inherit ApiFixture({ defaultOptions with AuthEnabled = false })
+    inherit
+        ApiFixture(
+            { defaultOptions with
+                AuthEnabled = false }
+        )
 
 /// 認証 ON の fixture。`NewAuthedClient(roles)` で JWT 付き HttpClient を取れる。
 type AuthOnFixture() =
-    inherit ApiFixture({ defaultOptions with AuthEnabled = true })
+    inherit
+        ApiFixture(
+            { defaultOptions with
+                AuthEnabled = true }
+        )
 
 [<CollectionDefinition("ApiAuthOff")>]
 type AuthOffCollection() =

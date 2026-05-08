@@ -4,22 +4,13 @@ open System
 open System.IO
 open Npgsql
 open Xunit
+open SalesManagement.Tests.Support.BatchFixture
 
 let private fsharpRoot =
     let baseDir = AppContext.BaseDirectory
     Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", ".."))
 
-let private connectionString =
-    match Environment.GetEnvironmentVariable("DATABASE_URL") with
-    | null
-    | "" -> "Host=localhost;Port=5432;Database=sales_management;Username=app;Password=app"
-    | url -> url
-
-let private exec (sql: string) =
-    use conn = new NpgsqlConnection(connectionString)
-    conn.Open()
-    use cmd = new NpgsqlCommand(sql, conn)
-    cmd.ExecuteNonQuery() |> ignore
+let private exec (sql: string) = execParam sql []
 
 let private queryColumnTypes (table: string) : Map<string, string> =
     use conn = new NpgsqlConnection(connectionString)

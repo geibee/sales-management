@@ -83,20 +83,22 @@ let private applyOverrides
 /// `POST /lots` ボディの差分指定。
 /// すべて `None` でデフォルト正常値（小ロット 1 件）を生成する。
 type LotBodyOverrides =
-    { Year: FieldOverride
-      Location: FieldOverride
-      Seq: FieldOverride
-      DivisionCode: FieldOverride
-      DepartmentCode: FieldOverride
-      SectionCode: FieldOverride
-      ProcessCategory: FieldOverride
-      InspectionCategory: FieldOverride
-      ManufacturingCategory: FieldOverride
-      Details: FieldOverride
-      /// 余剰フィールド注入（OpenAPI に無いキー）
-      Extra: (string * JsonValue) list
-      /// 完全に削除するトップレベルフィールド名
-      Omit: string list }
+    {
+        Year: FieldOverride
+        Location: FieldOverride
+        Seq: FieldOverride
+        DivisionCode: FieldOverride
+        DepartmentCode: FieldOverride
+        SectionCode: FieldOverride
+        ProcessCategory: FieldOverride
+        InspectionCategory: FieldOverride
+        ManufacturingCategory: FieldOverride
+        Details: FieldOverride
+        /// 余剰フィールド注入（OpenAPI に無いキー）
+        Extra: (string * JsonValue) list
+        /// 完全に削除するトップレベルフィールド名
+        Omit: string list
+    }
 
 let emptyLotOverrides: LotBodyOverrides =
     { Year = None

@@ -6,62 +6,14 @@ open Npgsql
 open Xunit
 open SalesManagement.Infrastructure
 open SalesManagement.Infrastructure.BatchProcessing
-
-let private connectionString =
-    match Environment.GetEnvironmentVariable("DATABASE_URL") with
-    | null
-    | "" -> "Host=localhost;Port=5432;Database=sales_management;Username=app;Password=app"
-    | url -> url
-
-let private execParam (sql: string) (parameters: (string * obj) list) =
-    use conn = new NpgsqlConnection(connectionString)
-    conn.Open()
-    use cmd = new NpgsqlCommand(sql, conn)
-
-    for (name, value) in parameters do
-        cmd.Parameters.AddWithValue(name, value) |> ignore
-
-    cmd.ExecuteNonQuery() |> ignore
+open SalesManagement.Tests.Support.BatchFixture
 
 let private testYear = 2096
 let private testLocation = "T5"
 
-let private cleanupLots () =
-    execParam
-        "DELETE FROM lot_detail WHERE lot_number_year = @y AND lot_number_location = @loc"
-        [ "y", box testYear; "loc", box testLocation ]
-
-    execParam
-        "DELETE FROM lot WHERE lot_number_year = @y AND lot_number_location = @loc"
-        [ "y", box testYear; "loc", box testLocation ]
-
+let private cleanupLotsLocal () = cleanupLots testYear testLocation
 let private seedLots (count: int) =
-    cleanupLots ()
-    use conn = new NpgsqlConnection(connectionString)
-    conn.Open()
-    use tx = conn.BeginTransaction()
-
-    use cmd =
-        new NpgsqlCommand(
-            """
-            INSERT INTO lot (lot_number_year, lot_number_location, lot_number_seq,
-                             division_code, department_code, section_code,
-                             process_category, inspection_category, manufacturing_category,
-                             status, manufacturing_completed_date)
-            SELECT @y, @loc, seq,
-                   1, 1, 1, 1, 1, 1,
-                   'manufactured', '2096-04-01'
-              FROM generate_series(1, @c) AS seq
-            """,
-            conn,
-            tx
-        )
-
-    cmd.Parameters.AddWithValue("y", testYear) |> ignore
-    cmd.Parameters.AddWithValue("loc", testLocation) |> ignore
-    cmd.Parameters.AddWithValue("c", count) |> ignore
-    cmd.ExecuteNonQuery() |> ignore
-    tx.Commit()
+    seedManufacturedLots testYear testLocation count "2096-04-01"
 
 type private TestRow = { Id: int64; Seq: int }
 
@@ -146,7 +98,7 @@ let ``items raising skippable exception are skipped within MaxSkips`` () =
         Assert.Equal(25, outcome.TotalProcessed)
         Assert.Equal(5, outcome.TotalSkipped)
     finally
-        cleanupLots ()
+        cleanupLotsLocal ()
 
 [<Fact>]
 [<Trait("Category", "BatchSkipPolicy")>]
@@ -184,7 +136,7 @@ let ``exceeding MaxSkips raises SkipLimitExceededException`` () =
 
         Assert.Throws<SkipLimitExceededException>(act) |> ignore
     finally
-        cleanupLots ()
+        cleanupLotsLocal ()
 
 [<Fact>]
 [<Trait("Category", "BatchSkipPolicy")>]
@@ -227,7 +179,7 @@ let ``retryable exception on first attempt succeeds on second attempt`` () =
         Assert.Equal(0, outcome.TotalSkipped)
         Assert.Equal(2, attempts.[retryTargetSeq])
     finally
-        cleanupLots ()
+        cleanupLotsLocal ()
 
 [<Fact>]
 [<Trait("Category", "BatchSkipPolicy")>]
@@ -289,4 +241,4 @@ let ``listeners receive job and chunk lifecycle callbacks`` () =
         Assert.Equal(23, outcome.TotalProcessed)
         Assert.Equal(2, outcome.TotalSkipped)
     finally
-        cleanupLots ()
+        cleanupLotsLocal ()

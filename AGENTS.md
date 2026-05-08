@@ -155,6 +155,10 @@ bash harness/ralph.sh
 
 スキルファイルは YAML frontmatter（`name`, `description`）を先頭に記述する。Claude Code は `.claude/skills/` 配下を自動検出し、`Skill` ツール経由（または `/<skill-name>` スラッシュコマンド）で起動できる。サブエージェントを別途定義する場合は `.claude/agents/<agent-name>.md`（project）または `~/.claude/agents/<agent-name>.md`（user）に Markdown + frontmatter で配置する。
 
+# API Fuzz (Schemathesis)
+
+`apps/api-fsharp/ci.sh` は ZAP 直後に Schemathesis を回し、`openapi.yaml` から property-based の入力を生成して `http://localhost:5000` を叩く。固定 seed `42` / `-n 200` / `--request-timeout 2.0` で反復可能。`SCHEMATHESIS_ENABLED=0` で全体スキップ可能（ralph 反復時の高速モード）。事前状態を要するエンドポイント（`POST /sales-cases/{id}/contracts` など appraised 必須のもの、ロット状態遷移、reservation/consignment 多段フロー）は `apps/api-fsharp/schemathesis-hooks.py` の `before_load_schema` フックで raw schema から物理的に除外している。出力は `ci-results/schemathesis-junit.xml` / `ci-results/sarif/schemathesis.sarif` / `ci-results/schemathesis.tar.gz` の 3 点。`scripts/junit-to-sarif.py` が JUnit XML を SARIF v2.1.0 に変換し、`merged.sarif` にも統合される。発見は当面 `warning` レベル扱いで CI を落とさない（信号品質が安定したら `error` に昇格する）。
+
 <!-- 以下は Stop フック (.claude/scripts/sarif-to-lessons.py) が自動追記する領域 -->
 
 ## 失敗から学んだこと (自動生成)

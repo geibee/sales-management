@@ -1,113 +1,13 @@
 module SalesManagement.Tests.IntegrationTests.LotCsvExportTests
 
 open System
-open System.IO
 open System.Net
-open System.Net.Http
-open System.Net.Sockets
 open System.Text
-open System.Threading.Tasks
-open DbUp
-open Microsoft.AspNetCore.Builder
-open Testcontainers.PostgreSql
 open Xunit
-open SalesManagement.Hosting
+open SalesManagement.Tests.Support.ApiFixture
+open SalesManagement.Tests.Support.HttpHelpers
 
-let private migrationsDir =
-    let baseDir = AppContext.BaseDirectory
-    Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "migrations"))
-
-let private getFreePort () =
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
-    port
-
-type LotCsvExportFixture() =
-    let mutable container: PostgreSqlContainer = Unchecked.defaultof<_>
-    let mutable app: WebApplication = Unchecked.defaultof<_>
-    let mutable port: int = 0
-    let mutable connStr: string = ""
-
-    member _.Port = port
-    member _.ConnectionString = connStr
-
-    interface IAsyncLifetime with
-        member _.InitializeAsync() : Task =
-            task {
-                container <-
-                    PostgreSqlBuilder()
-                        .WithImage("postgres:16-alpine")
-                        .WithDatabase("sales_management")
-                        .WithUsername("app")
-                        .WithPassword("app")
-                        .Build()
-
-                do! container.StartAsync()
-                connStr <- container.GetConnectionString()
-
-                let upgrader =
-                    DeployChanges.To
-                        .PostgresqlDatabase(connStr)
-                        .WithScriptsFromFileSystem(migrationsDir)
-                        .LogToConsole()
-                        .Build()
-
-                let result = upgrader.PerformUpgrade()
-
-                if not result.Successful then
-                    failwithf "Migration failed: %s" (result.Error.ToString())
-
-                port <- getFreePort ()
-
-                let args =
-                    [| sprintf "--Server:Port=%d" port
-                       sprintf "--Database:ConnectionString=%s" connStr
-                       "--Authentication:Enabled=false"
-                       "--RateLimit:PermitLimit=100000"
-                       "--RateLimit:WindowSeconds=60"
-                       "--Outbox:PollIntervalMs=500"
-                       "--Logging:LogLevel:Default=Warning" |]
-
-                app <- createApp args
-                do! app.StartAsync()
-            }
-            :> Task
-
-        member _.DisposeAsync() : Task =
-            task {
-                if not (isNull (box app)) then
-                    try
-                        do! app.StopAsync()
-                    with _ ->
-                        ()
-
-                if not (isNull (box container)) then
-                    do! container.DisposeAsync()
-            }
-            :> Task
-
-[<CollectionDefinition("LotCsvExport")>]
-type LotCsvExportCollection() =
-    interface ICollectionFixture<LotCsvExportFixture>
-
-let private newClient (port: int) =
-    let client = new HttpClient()
-    client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
-    client.Timeout <- TimeSpan.FromSeconds 60.0
-    client
-
-let private postJson (client: HttpClient) (path: string) (body: string) : Task<HttpResponseMessage> =
-    let req = new HttpRequestMessage(HttpMethod.Post, path)
-    req.Content <- new StringContent(body, Encoding.UTF8, "application/json")
-    client.SendAsync req
-
-let private getReq (client: HttpClient) (path: string) : Task<HttpResponseMessage> =
-    let req = new HttpRequestMessage(HttpMethod.Get, path)
-    client.SendAsync req
-
-let private createLotBody (year: int) (location: string) (seq: int) =
+let private lotBody (year: int) (location: string) (seq: int) =
     sprintf
         """{
             "lotNumber": {"year": %d, "location": "%s", "seq": %d},
@@ -123,23 +23,24 @@ let private createLotBody (year: int) (location: string) (seq: int) =
         location
         seq
 
-[<Collection("LotCsvExport")>]
-type CsvExportTests(fixture: LotCsvExportFixture) =
+[<Collection("ApiAuthOff")>]
+type CsvExportTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     let registerCodePages =
-        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance)
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance)
         ()
 
     [<Fact>]
     [<Trait("Category", "LotCsvExport")>]
     [<Trait("Category", "Integration")>]
     member _.``CSV export returns Windows-31J encoded body with Japanese header``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
 
         let r = Random()
         let year = 7100 + r.Next(0, 500)
         let seq = r.Next(1, 999)
-        let! createResp = postJson client "/lots" (createLotBody year "X" seq)
+        let! createResp = postJson client "/lots" (lotBody year "X" seq)
         Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
 
         let! resp = getReq client "/lots/export?format=csv"
@@ -175,19 +76,19 @@ type CsvExportTests(fixture: LotCsvExportFixture) =
     [<Trait("Category", "LotCsvExport")>]
     [<Trait("Category", "Integration")>]
     member _.``CSV export filtered by status returns only matching rows``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
 
         let r = Random()
         let year = 7600 + r.Next(0, 500)
 
         // Create one lot left in manufacturing
         let mfgSeq = r.Next(1, 499)
-        let! resp1 = postJson client "/lots" (createLotBody year "Y" mfgSeq)
+        let! resp1 = postJson client "/lots" (lotBody year "Y" mfgSeq)
         Assert.Equal(HttpStatusCode.OK, resp1.StatusCode)
 
         // Create another lot and complete manufacturing
         let doneSeq = r.Next(500, 999)
-        let! resp2 = postJson client "/lots" (createLotBody year "Y" doneSeq)
+        let! resp2 = postJson client "/lots" (lotBody year "Y" doneSeq)
         Assert.Equal(HttpStatusCode.OK, resp2.StatusCode)
         let lotIdDone = sprintf "%d-Y-%03d" year doneSeq
 
@@ -218,13 +119,13 @@ type CsvExportTests(fixture: LotCsvExportFixture) =
     [<Trait("Category", "LotCsvExport")>]
     [<Trait("Category", "Integration")>]
     member _.``CSV export streams many rows without timeout``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
 
         let r = Random()
         let year = 8200 + r.Next(0, 500)
         // Insert 50 lots — keeps the test fast while still exercising bulk output.
         for i in 1..50 do
-            let! resp = postJson client "/lots" (createLotBody year "Z" i)
+            let! resp = postJson client "/lots" (lotBody year "Z" i)
             Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
 
         let sw = System.Diagnostics.Stopwatch.StartNew()

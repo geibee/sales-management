@@ -6,56 +6,7 @@ open System.Text
 open Npgsql
 open Xunit
 open SalesManagement.Infrastructure
-
-let private connectionString =
-    match Environment.GetEnvironmentVariable("DATABASE_URL") with
-    | null
-    | "" -> "Host=localhost;Port=5432;Database=sales_management;Username=app;Password=app"
-    | url -> url
-
-let private execParam (sql: string) (parameters: (string * obj) list) =
-    use conn = new NpgsqlConnection(connectionString)
-    conn.Open()
-    use cmd = new NpgsqlCommand(sql, conn)
-
-    for (name, value) in parameters do
-        cmd.Parameters.AddWithValue(name, value) |> ignore
-
-    cmd.ExecuteNonQuery() |> ignore
-
-let private queryScalarInt (sql: string) (parameters: (string * obj) list) : int64 =
-    use conn = new NpgsqlConnection(connectionString)
-    conn.Open()
-    use cmd = new NpgsqlCommand(sql, conn)
-
-    for (name, value) in parameters do
-        cmd.Parameters.AddWithValue(name, value) |> ignore
-
-    let result = cmd.ExecuteScalar()
-
-    match result with
-    | :? int64 as v -> v
-    | :? int32 as v -> int64 v
-    | null -> 0L
-    | other -> Convert.ToInt64 other
-
-let private cleanupLots (year: int) (location: string) =
-    execParam
-        "DELETE FROM lot_detail WHERE lot_number_year = @y AND lot_number_location = @loc"
-        [ "y", box year; "loc", box location ]
-
-    execParam
-        "DELETE FROM lot WHERE lot_number_year = @y AND lot_number_location = @loc"
-        [ "y", box year; "loc", box location ]
-
-let private cleanupJob (jobName: string) (jobParams: string) =
-    execParam
-        "DELETE FROM batch_chunk_progress WHERE job_name = @n AND job_params = @p"
-        [ "n", box jobName; "p", box jobParams ]
-
-    execParam
-        "DELETE FROM batch_job_execution WHERE job_name = @n AND job_params = @p"
-        [ "n", box jobName; "p", box jobParams ]
+open SalesManagement.Tests.Support.BatchFixture
 
 let private writeTempCsv (lines: string seq) (encoding: Encoding) : string =
     let path =

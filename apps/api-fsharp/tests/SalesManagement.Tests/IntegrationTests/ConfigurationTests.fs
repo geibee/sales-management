@@ -3,14 +3,13 @@ module SalesManagement.Tests.IntegrationTests.ConfigurationTests
 open System
 open System.IO
 open System.Net
-open System.Net.Http
-open System.Net.Sockets
 open System.Text.Json
 open System.Threading
 open System.Threading.Tasks
 open Microsoft.Extensions.Configuration
 open Xunit
 open SalesManagement.Hosting
+open SalesManagement.Tests.Support.StandaloneAppHost
 
 let private fsharpRoot =
     // base dir = tests/SalesManagement.Tests/bin/Debug/net10.0 → up 5 → fsharp/
@@ -22,13 +21,6 @@ let private appsettingsPath =
 
 let private programFsPath =
     Path.Combine(fsharpRoot, "src", "SalesManagement", "Program.fs")
-
-let private getFreePort () =
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
-    port
 
 [<Fact>]
 [<Trait("Category", "Configuration")>]
@@ -97,6 +89,7 @@ let ``Program.fs has no hardcoded production connection string fallback`` () =
 [<Trait("Category", "Configuration")>]
 let ``http requests emit JSON logs with timestamp/level/message/requestId and IDs differ`` () = task {
     let port = getFreePort ()
+
     let connKey = "Database__ConnectionString"
     let originalConn = Environment.GetEnvironmentVariable connKey
     // Use a placeholder connection string so createApp doesn't fail when DB env is missing.
@@ -115,8 +108,7 @@ let ``http requests emit JSON logs with timestamp/level/message/requestId and ID
         do! app.StartAsync()
 
         try
-            use client = new HttpClient()
-            client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
+            use client = newClient port
 
             // /openapi.yaml is auth-free and does not require a live DB, so it works as
             // a simple endpoint for exercising the request-logging pipeline.

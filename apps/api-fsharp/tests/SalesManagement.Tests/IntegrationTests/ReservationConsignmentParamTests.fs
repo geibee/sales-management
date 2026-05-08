@@ -37,11 +37,7 @@ let private appraisalBody
 let private validAppraisalBody =
     appraisalBody (JString "2026-04-15") (JString "L-1") (JInt 1000) (JInt 1)
 
-let private confirmBody
-    (determinedDate: JsonValue)
-    (determinedAmount: JsonValue)
-    (version: JsonValue)
-    : string =
+let private confirmBody (determinedDate: JsonValue) (determinedAmount: JsonValue) (version: JsonValue) : string =
     render (
         JObject
             [ "determinedDate", determinedDate
@@ -74,17 +70,8 @@ let private designateBody
 let private validDesignateBody =
     designateBody (JString "Alice") (JString "C-1") (JString "2026-04-15") (JInt 1)
 
-let private resultBody
-    (resultDate: JsonValue)
-    (resultAmount: JsonValue)
-    (version: JsonValue)
-    : string =
-    render (
-        JObject
-            [ "resultDate", resultDate
-              "resultAmount", resultAmount
-              "version", version ]
-    )
+let private resultBody (resultDate: JsonValue) (resultAmount: JsonValue) (version: JsonValue) : string =
+    render (JObject [ "resultDate", resultDate; "resultAmount", resultAmount; "version", version ])
 
 let private validResultBody = resultBody (JString "2026-04-15") (JInt 500) (JInt 1)
 
@@ -92,33 +79,33 @@ let private validVersionOnly = versionOnlyBody (JInt 1)
 
 [<Collection("ApiAuthOff")>]
 type ReservationConsignmentParamTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     // ───────────────────────────────────────────────────────────────
     // POST /sales-cases/{id}/reservation/appraisals
     // body: { appraisalDate, reservedLotInfo, reservedAmount, version }
     // ───────────────────────────────────────────────────────────────
-    static member CreateReservationAppraisalCases: obj[] seq =
-        seq {
-            // 正常境界: 正しい id 形式 + 完全な body → 未登録 case で 404
-            yield case nonExistentSalesCaseId validAppraisalBody 404 "not-found"
-            yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
-            // version 欠落 (null) — id チェックより先に弾かれる
-            yield
-                case
-                    nonExistentSalesCaseId
-                    (appraisalBody (JString "2026-04-15") (JString "L-1") (JInt 1000) JNull)
-                    400
-                    "bad-request"
-            // 完全に空ボディ → version 欠落で bad-request
-            yield case nonExistentSalesCaseId "{}" 400 "bad-request"
-            // 不正 JSON → bindBody で例外 → bad-request
-            yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
-            yield case nonExistentSalesCaseId "" 400 "bad-request"
-            // id フォーマット不正 — body は正常だが trySalesCaseNumber で失敗
-            yield case "not-a-case" validAppraisalBody 400 "bad-request"
-            yield case "2026-04" validAppraisalBody 400 "bad-request"
-            yield case "abc-04-001" validAppraisalBody 400 "bad-request"
-        }
+    static member CreateReservationAppraisalCases: obj[] seq = seq {
+        // 正常境界: 正しい id 形式 + 完全な body → 未登録 case で 404
+        yield case nonExistentSalesCaseId validAppraisalBody 404 "not-found"
+        yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
+        // version 欠落 (null) — id チェックより先に弾かれる
+        yield
+            case
+                nonExistentSalesCaseId
+                (appraisalBody (JString "2026-04-15") (JString "L-1") (JInt 1000) JNull)
+                400
+                "bad-request"
+        // 完全に空ボディ → version 欠落で bad-request
+        yield case nonExistentSalesCaseId "{}" 400 "bad-request"
+        // 不正 JSON → bindBody で例外 → bad-request
+        yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
+        yield case nonExistentSalesCaseId "" 400 "bad-request"
+        // id フォーマット不正 — body は正常だが trySalesCaseNumber で失敗
+        yield case "not-a-case" validAppraisalBody 400 "bad-request"
+        yield case "2026-04" validAppraisalBody 400 "bad-request"
+        yield case "abc-04-001" validAppraisalBody 400 "bad-request"
+    }
 
     [<Theory>]
     [<Trait("Category", "Param")>]
@@ -138,22 +125,16 @@ type ReservationConsignmentParamTests(fixture: AuthOffFixture) =
     // POST /sales-cases/{id}/reservation/determine
     // body: { determinedDate, determinedAmount, version }
     // ───────────────────────────────────────────────────────────────
-    static member DetermineReservationCases: obj[] seq =
-        seq {
-            yield case nonExistentSalesCaseId validConfirmBody 404 "not-found"
-            yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
-            yield
-                case
-                    nonExistentSalesCaseId
-                    (confirmBody (JString "2026-04-15") (JInt 1000) JNull)
-                    400
-                    "bad-request"
-            yield case nonExistentSalesCaseId "{}" 400 "bad-request"
-            yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
-            yield case "not-a-case" validConfirmBody 400 "bad-request"
-            yield case "2026-04" validConfirmBody 400 "bad-request"
-            yield case "abc-04-001" validConfirmBody 400 "bad-request"
-        }
+    static member DetermineReservationCases: obj[] seq = seq {
+        yield case nonExistentSalesCaseId validConfirmBody 404 "not-found"
+        yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
+        yield case nonExistentSalesCaseId (confirmBody (JString "2026-04-15") (JInt 1000) JNull) 400 "bad-request"
+        yield case nonExistentSalesCaseId "{}" 400 "bad-request"
+        yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
+        yield case "not-a-case" validConfirmBody 400 "bad-request"
+        yield case "2026-04" validConfirmBody 400 "bad-request"
+        yield case "abc-04-001" validConfirmBody 400 "bad-request"
+    }
 
     [<Theory>]
     [<Trait("Category", "Param")>]
@@ -173,18 +154,17 @@ type ReservationConsignmentParamTests(fixture: AuthOffFixture) =
     // DELETE /sales-cases/{id}/reservation/determination
     // body: { version }
     // ───────────────────────────────────────────────────────────────
-    static member CancelReservationDeterminationCases: obj[] seq =
-        seq {
-            yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
-            // version 欠落 → bad-request
-            yield case nonExistentSalesCaseId (versionOnlyBody JNull) 400 "bad-request"
-            yield case nonExistentSalesCaseId "{}" 400 "bad-request"
-            yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
-            // id フォーマット不正
-            yield case "not-a-case" validVersionOnly 400 "bad-request"
-            yield case "2026-04" validVersionOnly 400 "bad-request"
-            yield case "abc-04-001" validVersionOnly 400 "bad-request"
-        }
+    static member CancelReservationDeterminationCases: obj[] seq = seq {
+        yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
+        // version 欠落 → bad-request
+        yield case nonExistentSalesCaseId (versionOnlyBody JNull) 400 "bad-request"
+        yield case nonExistentSalesCaseId "{}" 400 "bad-request"
+        yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
+        // id フォーマット不正
+        yield case "not-a-case" validVersionOnly 400 "bad-request"
+        yield case "2026-04" validVersionOnly 400 "bad-request"
+        yield case "abc-04-001" validVersionOnly 400 "bad-request"
+    }
 
     [<Theory>]
     [<Trait("Category", "Param")>]
@@ -196,8 +176,7 @@ type ReservationConsignmentParamTests(fixture: AuthOffFixture) =
         task {
             fixture.Reset()
             use client = fixture.NewClient()
-            let! resp =
-                deleteWithBody client (sprintf "/sales-cases/%s/reservation/determination" id) (Some body)
+            let! resp = deleteWithBody client (sprintf "/sales-cases/%s/reservation/determination" id) (Some body)
             do! check status expectedType resp
         }
 
@@ -205,17 +184,16 @@ type ReservationConsignmentParamTests(fixture: AuthOffFixture) =
     // POST /sales-cases/{id}/reservation/delivery
     // body: { deliveryDate, version }
     // ───────────────────────────────────────────────────────────────
-    static member DeliverReservationCases: obj[] seq =
-        seq {
-            yield case nonExistentSalesCaseId validDeliverBody 404 "not-found"
-            yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
-            yield case nonExistentSalesCaseId (deliverBody (JString "2026-04-15") JNull) 400 "bad-request"
-            yield case nonExistentSalesCaseId "{}" 400 "bad-request"
-            yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
-            yield case "not-a-case" validDeliverBody 400 "bad-request"
-            yield case "2026-04" validDeliverBody 400 "bad-request"
-            yield case "abc-04-001" validDeliverBody 400 "bad-request"
-        }
+    static member DeliverReservationCases: obj[] seq = seq {
+        yield case nonExistentSalesCaseId validDeliverBody 404 "not-found"
+        yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
+        yield case nonExistentSalesCaseId (deliverBody (JString "2026-04-15") JNull) 400 "bad-request"
+        yield case nonExistentSalesCaseId "{}" 400 "bad-request"
+        yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
+        yield case "not-a-case" validDeliverBody 400 "bad-request"
+        yield case "2026-04" validDeliverBody 400 "bad-request"
+        yield case "abc-04-001" validDeliverBody 400 "bad-request"
+    }
 
     [<Theory>]
     [<Trait("Category", "Param")>]
@@ -235,22 +213,23 @@ type ReservationConsignmentParamTests(fixture: AuthOffFixture) =
     // POST /sales-cases/{id}/consignment/designate
     // body: { consignorName, consignorCode, designatedDate, version }
     // ───────────────────────────────────────────────────────────────
-    static member DesignateConsignmentCases: obj[] seq =
-        seq {
-            yield case nonExistentSalesCaseId validDesignateBody 404 "not-found"
-            yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
-            yield
-                case
-                    nonExistentSalesCaseId
-                    (designateBody (JString "Alice") (JString "C-1") (JString "2026-04-15") JNull)
-                    400
-                    "bad-request"
-            yield case nonExistentSalesCaseId "{}" 400 "bad-request"
-            yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
-            yield case "not-a-case" validDesignateBody 400 "bad-request"
-            yield case "2026-04" validDesignateBody 400 "bad-request"
-            yield case "abc-04-001" validDesignateBody 400 "bad-request"
-        }
+    static member DesignateConsignmentCases: obj[] seq = seq {
+        yield case nonExistentSalesCaseId validDesignateBody 404 "not-found"
+        yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
+
+        yield
+            case
+                nonExistentSalesCaseId
+                (designateBody (JString "Alice") (JString "C-1") (JString "2026-04-15") JNull)
+                400
+                "bad-request"
+
+        yield case nonExistentSalesCaseId "{}" 400 "bad-request"
+        yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
+        yield case "not-a-case" validDesignateBody 400 "bad-request"
+        yield case "2026-04" validDesignateBody 400 "bad-request"
+        yield case "abc-04-001" validDesignateBody 400 "bad-request"
+    }
 
     [<Theory>]
     [<Trait("Category", "Param")>]
@@ -270,16 +249,15 @@ type ReservationConsignmentParamTests(fixture: AuthOffFixture) =
     // DELETE /sales-cases/{id}/consignment/designation
     // body: { version }
     // ───────────────────────────────────────────────────────────────
-    static member CancelConsignmentDesignationCases: obj[] seq =
-        seq {
-            yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
-            yield case nonExistentSalesCaseId (versionOnlyBody JNull) 400 "bad-request"
-            yield case nonExistentSalesCaseId "{}" 400 "bad-request"
-            yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
-            yield case "not-a-case" validVersionOnly 400 "bad-request"
-            yield case "2026-04" validVersionOnly 400 "bad-request"
-            yield case "abc-04-001" validVersionOnly 400 "bad-request"
-        }
+    static member CancelConsignmentDesignationCases: obj[] seq = seq {
+        yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
+        yield case nonExistentSalesCaseId (versionOnlyBody JNull) 400 "bad-request"
+        yield case nonExistentSalesCaseId "{}" 400 "bad-request"
+        yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
+        yield case "not-a-case" validVersionOnly 400 "bad-request"
+        yield case "2026-04" validVersionOnly 400 "bad-request"
+        yield case "abc-04-001" validVersionOnly 400 "bad-request"
+    }
 
     [<Theory>]
     [<Trait("Category", "Param")>]
@@ -291,8 +269,7 @@ type ReservationConsignmentParamTests(fixture: AuthOffFixture) =
         task {
             fixture.Reset()
             use client = fixture.NewClient()
-            let! resp =
-                deleteWithBody client (sprintf "/sales-cases/%s/consignment/designation" id) (Some body)
+            let! resp = deleteWithBody client (sprintf "/sales-cases/%s/consignment/designation" id) (Some body)
             do! check status expectedType resp
         }
 
@@ -300,22 +277,16 @@ type ReservationConsignmentParamTests(fixture: AuthOffFixture) =
     // POST /sales-cases/{id}/consignment/result
     // body: { resultDate, resultAmount, version }
     // ───────────────────────────────────────────────────────────────
-    static member ConsignmentResultCases: obj[] seq =
-        seq {
-            yield case nonExistentSalesCaseId validResultBody 404 "not-found"
-            yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
-            yield
-                case
-                    nonExistentSalesCaseId
-                    (resultBody (JString "2026-04-15") (JInt 500) JNull)
-                    400
-                    "bad-request"
-            yield case nonExistentSalesCaseId "{}" 400 "bad-request"
-            yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
-            yield case "not-a-case" validResultBody 400 "bad-request"
-            yield case "2026-04" validResultBody 400 "bad-request"
-            yield case "abc-04-001" validResultBody 400 "bad-request"
-        }
+    static member ConsignmentResultCases: obj[] seq = seq {
+        yield case nonExistentSalesCaseId validResultBody 404 "not-found"
+        yield case nonExistentSalesCaseId validVersionOnly 404 "not-found"
+        yield case nonExistentSalesCaseId (resultBody (JString "2026-04-15") (JInt 500) JNull) 400 "bad-request"
+        yield case nonExistentSalesCaseId "{}" 400 "bad-request"
+        yield case nonExistentSalesCaseId "not-json" 400 "bad-request"
+        yield case "not-a-case" validResultBody 400 "bad-request"
+        yield case "2026-04" validResultBody 400 "bad-request"
+        yield case "abc-04-001" validResultBody 400 "bad-request"
+    }
 
     [<Theory>]
     [<Trait("Category", "Param")>]

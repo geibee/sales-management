@@ -1,114 +1,15 @@
 module SalesManagement.Tests.IntegrationTests.SalesCaseRetrievalTests
 
 open System
-open System.IO
 open System.Net
 open System.Net.Http
-open System.Net.Sockets
-open System.Text
 open System.Text.Json
 open System.Threading.Tasks
-open DbUp
-open Microsoft.AspNetCore.Builder
-open Testcontainers.PostgreSql
 open Xunit
-open SalesManagement.Hosting
+open SalesManagement.Tests.Support.ApiFixture
+open SalesManagement.Tests.Support.HttpHelpers
 
-let private migrationsDir =
-    let baseDir = AppContext.BaseDirectory
-    Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "migrations"))
-
-let private getFreePort () =
-    let listener = new TcpListener(IPAddress.Loopback, 0)
-    listener.Start()
-    let port = (listener.LocalEndpoint :?> IPEndPoint).Port
-    listener.Stop()
-    port
-
-type SalesCaseRetrievalFixture() =
-    let mutable container: PostgreSqlContainer = Unchecked.defaultof<_>
-    let mutable app: WebApplication = Unchecked.defaultof<_>
-    let mutable port: int = 0
-    let mutable connStr: string = ""
-
-    member _.Port = port
-    member _.ConnectionString = connStr
-
-    interface IAsyncLifetime with
-        member _.InitializeAsync() : Task =
-            task {
-                container <-
-                    PostgreSqlBuilder()
-                        .WithImage("postgres:16-alpine")
-                        .WithDatabase("sales_management")
-                        .WithUsername("app")
-                        .WithPassword("app")
-                        .Build()
-
-                do! container.StartAsync()
-                connStr <- container.GetConnectionString()
-
-                let upgrader =
-                    DeployChanges.To
-                        .PostgresqlDatabase(connStr)
-                        .WithScriptsFromFileSystem(migrationsDir)
-                        .LogToConsole()
-                        .Build()
-
-                let result = upgrader.PerformUpgrade()
-
-                if not result.Successful then
-                    failwithf "Migration failed: %s" (result.Error.ToString())
-
-                port <- getFreePort ()
-
-                let args =
-                    [| sprintf "--Server:Port=%d" port
-                       sprintf "--Database:ConnectionString=%s" connStr
-                       "--Authentication:Enabled=false"
-                       "--RateLimit:PermitLimit=100000"
-                       "--RateLimit:WindowSeconds=60"
-                       "--Outbox:PollIntervalMs=500"
-                       "--Logging:LogLevel:Default=Warning" |]
-
-                app <- createApp args
-                do! app.StartAsync()
-            }
-            :> Task
-
-        member _.DisposeAsync() : Task =
-            task {
-                if not (isNull (box app)) then
-                    try
-                        do! app.StopAsync()
-                    with _ ->
-                        ()
-
-                if not (isNull (box container)) then
-                    do! container.DisposeAsync()
-            }
-            :> Task
-
-[<CollectionDefinition("SalesCaseRetrieval")>]
-type SalesCaseRetrievalCollection() =
-    interface ICollectionFixture<SalesCaseRetrievalFixture>
-
-let private newClient (port: int) =
-    let client = new HttpClient()
-    client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
-    client.Timeout <- TimeSpan.FromSeconds 60.0
-    client
-
-let private postJson (client: HttpClient) (path: string) (body: string) : Task<HttpResponseMessage> =
-    let req = new HttpRequestMessage(HttpMethod.Post, path)
-    req.Content <- new StringContent(body, Encoding.UTF8, "application/json")
-    client.SendAsync req
-
-let private getReq (client: HttpClient) (path: string) : Task<HttpResponseMessage> =
-    let req = new HttpRequestMessage(HttpMethod.Get, path)
-    client.SendAsync req
-
-let private createLotBody (year: int) (location: string) (seq: int) =
+let private lotBody (year: int) (location: string) (seq: int) =
     sprintf
         """{
             "lotNumber": {"year": %d, "location": "%s", "seq": %d},
@@ -140,12 +41,8 @@ let private hasNonNull (root: JsonElement) (name: string) : bool =
     else
         false
 
-let private parseBody (resp: HttpResponseMessage) : JsonDocument =
-    let body = resp.Content.ReadAsStringAsync().Result
-    JsonDocument.Parse body
-
 let private setupManufacturedLot (client: HttpClient) (year: int) (location: string) (seq: int) : Task<string> = task {
-    let! createResp = postJson client "/lots" (createLotBody year location seq)
+    let! createResp = postJson client "/lots" (lotBody year location seq)
     Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
     let lotId = sprintf "%d-%s-%03d" year location seq
 
@@ -156,7 +53,7 @@ let private setupManufacturedLot (client: HttpClient) (year: int) (location: str
     return lotId
 }
 
-let private createSalesCase (client: HttpClient) (caseType: string) (lotIds: string[]) : Task<string> = task {
+let private createCase (client: HttpClient) (caseType: string) (lotIds: string[]) : Task<string> = task {
     let lotsJson = String.Join(",", lotIds |> Array.map (sprintf "\"%s\""))
 
     let body =
@@ -164,18 +61,20 @@ let private createSalesCase (client: HttpClient) (caseType: string) (lotIds: str
 
     let! resp = postJson client "/sales-cases" body
     Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
-    use doc = parseBody resp
-    return extractStr doc.RootElement "salesCaseNumber"
+    let! responseBody = readBody resp
+    let root = parseJson responseBody
+    return extractStr root "salesCaseNumber"
 }
 
-[<Collection("SalesCaseRetrieval")>]
-type SalesCaseRetrievalDetailTests(fixture: SalesCaseRetrievalFixture) =
+[<Collection("ApiAuthOff")>]
+type SalesCaseRetrievalDetailTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "SalesCaseRetrieval")>]
     [<Trait("Category", "Integration")>]
     member _.``GET sales-cases on missing id returns 404 problem+json``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         let! resp = getReq client "/sales-cases/9999-99-999"
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode)
         let ct = resp.Content.Headers.ContentType
@@ -187,7 +86,7 @@ type SalesCaseRetrievalDetailTests(fixture: SalesCaseRetrievalFixture) =
     [<Trait("Category", "SalesCaseRetrieval")>]
     [<Trait("Category", "Integration")>]
     member _.``GET sales-cases with malformed id returns 400 problem+json``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         let! resp = getReq client "/sales-cases/invalid-id"
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode)
         let ct = resp.Content.Headers.ContentType
@@ -199,17 +98,17 @@ type SalesCaseRetrievalDetailTests(fixture: SalesCaseRetrievalFixture) =
     [<Trait("Category", "SalesCaseRetrieval")>]
     [<Trait("Category", "Integration")>]
     member _.``direct sales case can be retrieved with caseType=direct``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         let r = Random()
         let year = 5000 + r.Next(0, 500)
         let location = sprintf "D%d" (r.Next(0, 999))
         let! lotId = setupManufacturedLot client year location 1
-        let! caseId = createSalesCase client "direct" [| lotId |]
+        let! caseId = createCase client "direct" [| lotId |]
 
         let! resp = getReq client (sprintf "/sales-cases/%s" caseId)
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
-        use doc = parseBody resp
-        let root = doc.RootElement
+        let! body = readBody resp
+        let root = parseJson body
         Assert.Equal(caseId, extractStr root "salesCaseNumber")
         Assert.Equal("direct", extractStr root "caseType")
         Assert.Equal("before_appraisal", extractStr root "status")
@@ -234,20 +133,21 @@ type SalesCaseRetrievalDetailTests(fixture: SalesCaseRetrievalFixture) =
     [<Trait("Category", "SalesCaseRetrieval")>]
     [<Trait("Category", "Integration")>]
     member _.``reservation sales case can be retrieved with caseType=reservation and status transitions reflect``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         let r = Random()
         let year = 5500 + r.Next(0, 500)
         let location = sprintf "E%d" (r.Next(0, 999))
         let! lotId = setupManufacturedLot client year location 1
-        let! caseId = createSalesCase client "reservation" [| lotId |]
+        let! caseId = createCase client "reservation" [| lotId |]
 
         // initial GET
         let! resp1 = getReq client (sprintf "/sales-cases/%s" caseId)
         Assert.Equal(HttpStatusCode.OK, resp1.StatusCode)
-        use doc1 = parseBody resp1
-        Assert.Equal("reservation", extractStr doc1.RootElement "caseType")
-        Assert.Equal("before_reservation", extractStr doc1.RootElement "status")
-        Assert.False(hasNonNull doc1.RootElement "reservationPrice")
+        let! body1 = readBody resp1
+        let root1 = parseJson body1
+        Assert.Equal("reservation", extractStr root1 "caseType")
+        Assert.Equal("before_reservation", extractStr root1 "status")
+        Assert.False(hasNonNull root1 "reservationPrice")
 
         // create reservation appraisal
         let appraisalBody =
@@ -259,10 +159,11 @@ type SalesCaseRetrievalDetailTests(fixture: SalesCaseRetrievalFixture) =
         // GET reflects status + reservationPrice field present
         let! resp2 = getReq client (sprintf "/sales-cases/%s" caseId)
         Assert.Equal(HttpStatusCode.OK, resp2.StatusCode)
-        use doc2 = parseBody resp2
-        Assert.Equal("reserved", extractStr doc2.RootElement "status")
-        Assert.True(hasNonNull doc2.RootElement "reservationPrice")
-        let ea = doc2.RootElement.GetProperty("reservationPrice")
+        let! body2 = readBody resp2
+        let root2 = parseJson body2
+        Assert.Equal("reserved", extractStr root2 "status")
+        Assert.True(hasNonNull root2 "reservationPrice")
+        let ea = root2.GetProperty("reservationPrice")
         Assert.Equal("2026-01-20", extractStr ea "appraisalDate")
         Assert.Equal(500000, ea.GetProperty("reservedAmount").GetInt32())
 
@@ -274,10 +175,11 @@ type SalesCaseRetrievalDetailTests(fixture: SalesCaseRetrievalFixture) =
         Assert.Equal(HttpStatusCode.OK, dResp.StatusCode)
 
         let! resp3 = getReq client (sprintf "/sales-cases/%s" caseId)
-        use doc3 = parseBody resp3
-        Assert.Equal("reservation_confirmed", extractStr doc3.RootElement "status")
-        Assert.True(hasNonNull doc3.RootElement "determination")
-        let det = doc3.RootElement.GetProperty("determination")
+        let! body3 = readBody resp3
+        let root3 = parseJson body3
+        Assert.Equal("reservation_confirmed", extractStr root3 "status")
+        Assert.True(hasNonNull root3 "determination")
+        let det = root3.GetProperty("determination")
         Assert.Equal(480000, det.GetProperty("determinedAmount").GetInt32())
     }
 
@@ -285,19 +187,20 @@ type SalesCaseRetrievalDetailTests(fixture: SalesCaseRetrievalFixture) =
     [<Trait("Category", "SalesCaseRetrieval")>]
     [<Trait("Category", "Integration")>]
     member _.``consignment sales case can be retrieved with caseType=consignment``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         let r = Random()
         let year = 6000 + r.Next(0, 500)
         let location = sprintf "C%d" (r.Next(0, 999))
         let! lotId = setupManufacturedLot client year location 1
-        let! caseId = createSalesCase client "consignment" [| lotId |]
+        let! caseId = createCase client "consignment" [| lotId |]
 
         let! resp1 = getReq client (sprintf "/sales-cases/%s" caseId)
         Assert.Equal(HttpStatusCode.OK, resp1.StatusCode)
-        use doc1 = parseBody resp1
-        Assert.Equal("consignment", extractStr doc1.RootElement "caseType")
-        Assert.Equal("before_consignment", extractStr doc1.RootElement "status")
-        Assert.False(hasNonNull doc1.RootElement "consignor")
+        let! body1 = readBody resp1
+        let root1 = parseJson body1
+        Assert.Equal("consignment", extractStr root1 "caseType")
+        Assert.Equal("before_consignment", extractStr root1 "status")
+        Assert.False(hasNonNull root1 "consignor")
 
         // designate consignor
         let designate =
@@ -307,10 +210,11 @@ type SalesCaseRetrievalDetailTests(fixture: SalesCaseRetrievalFixture) =
         Assert.Equal(HttpStatusCode.OK, dResp.StatusCode)
 
         let! resp2 = getReq client (sprintf "/sales-cases/%s" caseId)
-        use doc2 = parseBody resp2
-        Assert.Equal("consignment_designated", extractStr doc2.RootElement "status")
-        Assert.True(hasNonNull doc2.RootElement "consignor")
-        let co = doc2.RootElement.GetProperty("consignor")
+        let! body2 = readBody resp2
+        let root2 = parseJson body2
+        Assert.Equal("consignment_designated", extractStr root2 "status")
+        Assert.True(hasNonNull root2 "consignor")
+        let co = root2.GetProperty("consignor")
         Assert.Equal("Acme", extractStr co "consignorName")
         Assert.Equal("C001", extractStr co "consignorCode")
     }
@@ -319,7 +223,7 @@ type SalesCaseRetrievalDetailTests(fixture: SalesCaseRetrievalFixture) =
     [<Trait("Category", "SalesCaseRetrieval")>]
     [<Trait("Category", "Integration")>]
     member _.``GET sales-cases does not exist for /reservation-cases or /consignment-cases``() = task {
-        use client = newClient fixture.Port
+        use client = fixture.NewClient()
         // GET to subtype-specific URLs should NOT return 200 (no GET handler registered)
         let! resp1 = getReq client "/reservation-cases/2026-01-001"
         Assert.NotEqual(HttpStatusCode.OK, resp1.StatusCode)
