@@ -1,6 +1,6 @@
 # dsl-parser
 
-Sales Management DSL のパーサー。`dsl/grammar.ebnf` の **[CORE] サブセット**を AST に変換する。
+Sales Management DSL のパーサー。`dsl/grammar.ebnf` の **[CORE] サブセット**を AST または照合向け `spec.json` に変換する。
 
 ## スコープ
 
@@ -28,8 +28,11 @@ uv sync
 ## 使い方
 
 ```bash
-# .dsl ファイルを指定
+# .dsl ファイルを指定（既存互換: AST JSON）
 uv run dsl-parser path/to/input.dsl
+
+# 照合向け spec JSON
+uv run dsl-parser --format spec ../../dsl/domain-model.md > /tmp/sales-management-spec.json
 
 # .md ファイル（最初の fenced code block を抽出してパース）
 uv run dsl-parser ../../dsl/domain-model.md
@@ -38,16 +41,35 @@ uv run dsl-parser ../../dsl/domain-model.md
 echo 'data 事業部コード = 整数' | uv run dsl-parser -
 ```
 
-出力は AST の JSON。
+既定の出力は AST の JSON。`--format spec` を指定すると、`data` 宣言と `behavior` 宣言を照合しやすい正規化形式で出力する。
+
+## F# 実装照合リンター
+
+初手のリンターはコード生成を行わず、`spec.json` と `apps/api-fsharp/src/SalesManagement/Domain/*.fs` を静的テキスト/正規表現で照合する。
+
+```bash
+uv run dsl-parser --format spec ../../dsl/domain-model.md > /tmp/sales-management-spec.json
+uv run dsl-spec-lint \
+  --spec /tmp/sales-management-spec.json \
+  --domain-dir ../../apps/api-fsharp/src/SalesManagement/Domain \
+  --glossary ../../glossary.yaml
+```
+
+照合対象の英訳はリポジトリ直下の `glossary.yaml` から読む。現時点では在庫ロット領域の主要OR型、variant、behavior関数だけを対象にする。
 
 ## テスト
 
 ```bash
 uv run pytest
+
+# spec生成テストとリンターまで含む軽量CI
+bash ci.sh
 ```
 
 - `tests/golden/<case>/{input.dsl,expected.json}` — パターン別のゴールデンテスト
+- `tests/spec_golden/<case>/{input.dsl,expected.json}` — spec JSON のゴールデンテスト
 - `tests/test_domain_model.py` — `dsl/domain-model.md` 全体のスモークテスト
+- `tests/test_linter.py` — spec/F# 実装照合リンターの最小テスト
 
 新ゴールデンケースを追加するときは:
 
