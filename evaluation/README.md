@@ -87,13 +87,28 @@ evaluation/
    - `expert-review` → ランナーは [PENDING REVIEW] を出すのみ
    - `consistency-check` → 複数 generated を比較
 
-### sample-diff の判定値
+### sample-diff の 3 段階判定
 
-| 判定 | 意味 |
-|---|---|
-| `[OK] 完全一致` | バイト単位で一致 |
-| `[OK] 意味論的に等価（コメント・空行差のみ）` | normalize 後に一致 |
-| `[DIFF] +N -M 行（意味論的差分）` | normalize 後も差分あり。要対処 |
+| 段階 | 判定 | 何を吸収するか |
+|---|---|---|
+| 1 | `[OK] 完全一致` | なし。バイト単位一致 |
+| 2 | `[OK] 意味論的に等価（コメント・空行差のみ）` | コメント・空行・末尾空白（`normalize.py`） |
+| 3 | `[OK] 構造的に等価（AST 一致、宣言順序差あり）` | トップレベル宣言の順序差・改行差（`ast_compare.py`） |
+| - | `[DIFF] +N -M 行（構造的差分）` | 上記でも吸収できない本質的な差分。要対処 |
+
+判定は段階的に試行され、最初に成功した段階が報告される。
+
+### AST 比較の仕様
+
+| 拡張子 | パース対象 | 比較粒度 |
+|---|---|---|
+| `.mmd` | `stateDiagram-v2` の遷移行 | `(from, to, label)` の集合 |
+| `.fs` | トップレベル `type` / `let` / `module` / `namespace` / `open` | `{ name -> 正規化本体 }` の dict |
+| `.als` | `module` / `sig` / `pred` / `fact` / `run` 等 | 同上 |
+| `.tla` | `MODULE` / `EXTENDS` / `CONSTANTS` / `VARIABLES` / `X == ...` | 同上 |
+
+`.mmd` は完全なグラフ AST、他は構造的ダイジェスト（同一識別子のブロック比較）。
+詳細は `evaluation/ast_compare.py` を参照。
 
 ---
 

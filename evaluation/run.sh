@@ -15,10 +15,15 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# --- normalize.py のセルフテスト（軽量、毎回実行）----
+# --- セルフテスト（軽量、毎回実行）----
 if ! python3 test_normalize.py > /dev/null 2>&1; then
     echo "[FAIL] normalize.py のセルフテスト失敗" >&2
     python3 test_normalize.py
+    exit 1
+fi
+if ! python3 test_ast_compare.py > /dev/null 2>&1; then
+    echo "[FAIL] ast_compare.py のセルフテスト失敗" >&2
+    python3 test_ast_compare.py
     exit 1
 fi
 
@@ -123,12 +128,14 @@ for case_name in "${cases[@]}"; do
                 gen_norm=$(python3 normalize.py "$ext" "$gen" 2>/dev/null || cat "$gen")
                 if [[ "$exp_norm" == "$gen_norm" ]]; then
                     echo "  [OK] sample-diff ($target_label): 意味論的に等価（コメント・空行差のみ）"
+                elif python3 ast_compare.py "$ext" "$exp" "$gen" 2>/dev/null; then
+                    echo "  [OK] sample-diff ($target_label): 構造的に等価（AST 一致、宣言順序差あり）"
                 else
                     diff -u <(echo "$exp_norm") <(echo "$gen_norm") > /tmp/eval-diff.txt 2>&1 || true
                     added=$(grep -c '^+[^+]' /tmp/eval-diff.txt || true)
                     removed=$(grep -c '^-[^-]' /tmp/eval-diff.txt || true)
-                    echo "  [DIFF] sample-diff ($target_label): +$added -$removed 行（意味論的差分）"
-                    echo "    詳細: diff -u <(python3 evaluation/normalize.py $ext $exp) <(python3 evaluation/normalize.py $ext $gen)"
+                    echo "  [DIFF] sample-diff ($target_label): +$added -$removed 行（構造的差分）"
+                    echo "    詳細: python3 evaluation/ast_compare.py $ext $exp $gen"
                 fi
             fi
         done
