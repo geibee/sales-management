@@ -214,7 +214,7 @@ InventoryLot == ManufacturingLot \cup ManufacturedLot \cup ShippingInstructedLot
 ```
 または各バリアントをタグ付き record で：
 ```tla+
-InventoryLot == [type: {"Manufacturing", "Completed", ...}, data: ...]
+InventoryLot == [type: {"Manufacturing", "Manufactured", "ShippingInstructed", "Shipped", "ConversionInstructed"}, data: ...]
 ```
 
 ### プロパティテスト
@@ -400,7 +400,7 @@ CompleteManufacturing(lot, date) ==
                             lotNumber |-> lot.lotNumber,        \* ensures
                             lotItems  |-> lot.lotItems,         \* ensures
                             manufacturingCompletedDate |-> date,
-                            state |-> "Completed"
+                            state |-> "Manufactured"
                         ]}
 ```
 
