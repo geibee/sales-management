@@ -1,0 +1,13 @@
+{
+  "type": "Program",
+  "declarations": [
+    {
+      "type": "DataDecl",
+      "name": "事業部コード",
+      "value": {
+        "type": "Identifier",
+        "name": "整数"
+      }
+    }
+  ]
+}
