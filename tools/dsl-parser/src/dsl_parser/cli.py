@@ -3,16 +3,18 @@
 Usage::
 
     dsl-parser <path-to-input>
+    dsl-parser --format spec <path-to-input>
     dsl-parser -                    # read from stdin
 
 If the input path ends with ``.md``, the first fenced code block (```...```)
 is extracted and parsed. Otherwise the whole file content is parsed.
 
-Outputs the AST as JSON on stdout.
+Outputs the AST as JSON on stdout by default.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
@@ -21,6 +23,7 @@ from pathlib import Path
 from parsimonious.exceptions import ParseError
 
 from dsl_parser.parser import parse
+from dsl_parser.spec import to_spec_dict
 
 
 _CODE_BLOCK_RE = re.compile(r"^```[^\n]*\n(.*?)\n```", re.DOTALL | re.MULTILINE)
@@ -35,11 +38,17 @@ def extract_dsl_from_markdown(text: str) -> str:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        print("usage: dsl-parser <path-or-->", file=sys.stderr)
-        sys.exit(2)
+    parser = argparse.ArgumentParser(description="Sales Management DSL parser")
+    parser.add_argument(
+        "--format",
+        choices=("ast", "spec"),
+        default="ast",
+        help="出力形式。既定は既存互換の ast。",
+    )
+    parser.add_argument("path", help="入力DSLファイル、Markdownファイル、または -")
+    args = parser.parse_args()
 
-    arg = sys.argv[1]
+    arg = args.path
     if arg == "-":
         raw = sys.stdin.read()
         is_markdown = False
@@ -56,5 +65,6 @@ def main() -> None:
         print(f"parse error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    json.dump(ast.to_dict(), sys.stdout, ensure_ascii=False, indent=2)
+    output = ast.to_dict() if args.format == "ast" else to_spec_dict(ast)
+    json.dump(output, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
