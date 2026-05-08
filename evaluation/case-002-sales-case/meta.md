@@ -9,10 +9,14 @@
 
 | メソッド | 内容 |
 |---|---|
-| `expert-review` | 主メソッド。生成 F# のレビュー基準で人手判定 |
+| `sample-diff` | `expected.mmd` / `expected.als` / `expected.tla` と diff を取る |
+| `expert-review` | F# 生成（`generated.fs`）はリファレンス無しのためレビュー基準で人手判定 |
 | `compile-check` | `generated.fs` が F# として通るか確認（dotnet があれば自動） |
 
-このケースには **`sample-diff` を使わない**（リファレンス実装が無いため）。
+**注**: F# (`expected.fs`) は持たない（在庫ロット領域以外のリファレンス
+実装はサンプル不在のため）。Mermaid / Alloy / TLA+ は構造的な翻訳で
+意味論的に決まるため、SEMANTICS.md ルールから hand-craft した
+`expected.<ext>` を持つ。
 
 ## AI に渡す入力
 
