@@ -1,0 +1,12 @@
+在庫ロット: InventoryLot
+製造中ロット: ManufacturingLot
+製造完了ロット: ManufacturedLot
+出荷指示済みロット: ShippingInstructedLot
+出荷完了ロット: ShippedLot
+変換指示済みロット: ConversionInstructedLot
+製造完了を指示する: completeManufacturing
+出荷を指示する: instructShipping
+出荷完了を指示する: completeShipping
+製造完了を取り消す: cancelManufacturingCompletion
+品目変換を指示する: instructItemConversion
+品目変換指示を取り消す: cancelItemConversionInstruction
