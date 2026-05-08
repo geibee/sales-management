@@ -9,8 +9,8 @@
 
 | メソッド | 内容 |
 |---|---|
-| `sample-diff` | `expected.fs` / `expected.mmd` と diff を取る |
-| `compile-check` | `generated.fs` が F# として通るか確認（実装予定） |
+| `sample-diff` | `expected.fs` / `expected.mmd` / `expected.als` と diff を取る |
+| `compile-check` | `generated.fs` が F# として通るか確認（dotnet があれば自動） |
 
 **注**: `expected.fs` は `harness/reference/InventoryLot.fs` の流用。
 リファレンスは「**翻訳スタイルのサンプル**」であって厳格なゴールド標準
@@ -30,6 +30,7 @@
 |---|---|
 | F# (`generated.fs`) | サンプルと意味論的に等価。型構造・型名・フィールド名・関数シグネチャは概ね一致を期待。順序・コメント・docstring 文言の差は許容。`compile-check` を別途必須 |
 | Mermaid (`generated.mmd`) | サンプルと状態名・遷移ラベル・初期/終端状態の整合が取れていること |
+| Alloy (`generated.als`) | sig 構造・extends 関係・pred シグネチャが一致。`fact` の値域制約は `Amount`, `Count` のみ要求。`run` コマンドの順序・サイズ指定は許容 |
 
 ## このケースで検出したいこと（評価対象 A, D）
 
