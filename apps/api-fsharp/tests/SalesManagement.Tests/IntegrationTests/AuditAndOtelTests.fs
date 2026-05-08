@@ -68,6 +68,7 @@ let private lotBody (year: int) (location: string) (seq: int) =
 
 [<Collection("ApiAuthOn")>]
 type AuditAndOtelTests(fixture: AuthOnFixture) =
+    do fixture.Reset()
     let queryAuditColumns (year: int) (location: string) (seq: int) : (string * string * DateTime * DateTime) option =
         use conn = new NpgsqlConnection(fixture.ConnectionString)
         conn.Open()

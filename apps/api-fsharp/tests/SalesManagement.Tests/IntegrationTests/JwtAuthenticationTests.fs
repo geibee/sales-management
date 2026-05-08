@@ -35,6 +35,7 @@ let private lotBody (year: int) (location: string) (seq: int) =
 
 [<Collection("ApiAuthOn")>]
 type JwtAuthenticationTests(fixture: AuthOnFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "JwtAuthentication")>]

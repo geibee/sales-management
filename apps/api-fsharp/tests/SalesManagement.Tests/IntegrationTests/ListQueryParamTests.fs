@@ -12,6 +12,7 @@ let private check = checkStatusAndType
 
 [<Collection("ApiAuthOff")>]
 type ListQueryParamTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     // ───────────────────────────────────────────────────────────────
     // GET /lots — limit 境界 (1 <= limit <= 200, default 50)

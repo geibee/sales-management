@@ -35,6 +35,7 @@ type HealthDownCollection() =
 
 [<Collection("ApiAuthOff")>]
 type HealthAndOpenApiAuthOffTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "HealthAndOpenApi")>]
@@ -76,6 +77,7 @@ type HealthAndOpenApiAuthOffTests(fixture: AuthOffFixture) =
 
 [<Collection("ApiAuthOn")>]
 type HealthAndOpenApiAuthOnTests(fixture: AuthOnFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "HealthAndOpenApi")>]

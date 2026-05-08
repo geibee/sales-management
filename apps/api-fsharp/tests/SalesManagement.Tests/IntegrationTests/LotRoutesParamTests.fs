@@ -32,6 +32,7 @@ let private check = checkStatusAndType
 
 [<Collection("ApiAuthOff")>]
 type LotRoutesParamTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     // ───────────────────────────────────────────────────────────────
     // POST /lots — lotNumber.year 境界 (PositiveInt: > 0)

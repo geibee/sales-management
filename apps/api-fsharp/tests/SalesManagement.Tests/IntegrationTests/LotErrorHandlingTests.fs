@@ -44,6 +44,7 @@ let private createManufacturingLot (client: HttpClient) : Task<string> = task {
 
 [<Collection("ApiAuthOff")>]
 type LotErrorHandlingTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "LotErrorHandling")>]

@@ -9,6 +9,7 @@ open SalesManagement.Tests.Support.RequestBuilders
 
 [<Collection("ApiAuthOff")>]
 type SupportSmokeTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "Smoke")>]

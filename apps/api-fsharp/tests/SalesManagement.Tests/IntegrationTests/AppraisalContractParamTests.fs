@@ -165,6 +165,7 @@ let private seedAppraised (client: HttpClient) : Task<string * string * int> = t
 
 [<Collection("ApiAuthOff")>]
 type AppraisalContractParamTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     // ───────────────────────────────────────────────────────────────
     // POST /sales-cases/{id}/appraisals — id format boundaries
@@ -378,6 +379,7 @@ type AppraisalContractParamTests(fixture: AuthOffFixture) =
 // ───────────────────────────────────────────────────────────────
 [<Collection("ApiAuthOff")>]
 type AppraisalContractStatefulParamTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Theory>]
     [<Trait("Category", "Param")>]

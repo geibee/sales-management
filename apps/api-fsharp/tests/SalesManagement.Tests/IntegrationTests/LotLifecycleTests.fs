@@ -36,6 +36,7 @@ let private lotBody (year: int) (location: string) (seq: int) =
 
 [<Collection("ApiAuthOn")>]
 type LotLifecycleTests(fixture: AuthOnFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "LotLifecycle")>]

@@ -121,6 +121,7 @@ type MiscDbCollection() =
 
 [<Collection("MiscEndpointDb")>]
 type CreateLotErrorHandlingTests(fixture: MiscDbFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "MiscEndpoint")>]
@@ -160,6 +161,7 @@ type CreateLotErrorHandlingTests(fixture: MiscDbFixture) =
 
 [<Collection("MiscEndpointDb")>]
 type OutboxConcurrencyTests(fixture: MiscDbFixture) =
+    do fixture.Reset()
 
     let insertPending (count: int) =
         use conn = new NpgsqlConnection(fixture.ConnectionString)

@@ -61,6 +61,7 @@ let private createCase (client: HttpClient) (caseType: string) (lotIds: string[]
 
 [<Collection("ApiAuthOff")>]
 type ReservationUrlTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "SalesCaseSubtypeRouting")>]
@@ -152,6 +153,7 @@ type ReservationUrlTests(fixture: AuthOffFixture) =
 
 [<Collection("ApiAuthOff")>]
 type ConsignmentUrlTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "SalesCaseSubtypeRouting")>]
@@ -223,6 +225,7 @@ type ConsignmentUrlTests(fixture: AuthOffFixture) =
 
 [<Collection("ApiAuthOff")>]
 type SubtypeRoutingOpenApiSpecTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "SalesCaseSubtypeRouting")>]

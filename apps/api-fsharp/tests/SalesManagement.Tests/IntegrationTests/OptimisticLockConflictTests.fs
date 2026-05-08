@@ -70,6 +70,7 @@ let private appraisalBody (lotId: string) (version: int) =
 
 [<Collection("ApiAuthOff")>]
 type SalesCaseConflictTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "OptimisticLockConflict")>]
@@ -99,6 +100,7 @@ type SalesCaseConflictTests(fixture: AuthOffFixture) =
 
 [<Collection("ApiAuthOff")>]
 type ReservationConflictTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "OptimisticLockConflict")>]
@@ -135,6 +137,7 @@ type ReservationConflictTests(fixture: AuthOffFixture) =
 
 [<Collection("ApiAuthOff")>]
 type ConsignmentConflictTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "OptimisticLockConflict")>]

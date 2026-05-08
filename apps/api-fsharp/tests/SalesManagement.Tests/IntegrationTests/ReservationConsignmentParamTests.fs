@@ -79,6 +79,7 @@ let private validVersionOnly = versionOnlyBody (JInt 1)
 
 [<Collection("ApiAuthOff")>]
 type ReservationConsignmentParamTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     // ───────────────────────────────────────────────────────────────
     // POST /sales-cases/{id}/reservation/appraisals

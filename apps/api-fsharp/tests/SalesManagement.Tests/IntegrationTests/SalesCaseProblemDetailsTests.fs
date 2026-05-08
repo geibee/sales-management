@@ -23,6 +23,7 @@ let private assertProblemJson (resp: HttpResponseMessage) (expectedStatus: HttpS
 
 [<Collection("ApiAuthOff")>]
 type ProblemJsonTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "SalesCaseProblemDetails")>]

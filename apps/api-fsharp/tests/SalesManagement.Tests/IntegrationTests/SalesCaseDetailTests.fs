@@ -60,6 +60,7 @@ let private createCase (client: HttpClient) (caseType: string) (lotIds: string[]
 
 [<Collection("ApiAuthOff")>]
 type SalesCaseDetailOpenApiSpecTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "SalesCaseDetail")>]
@@ -107,6 +108,7 @@ type SalesCaseDetailOpenApiSpecTests(fixture: AuthOffFixture) =
 
 [<Collection("ApiAuthOff")>]
 type DetailRetrievalTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "SalesCaseDetail")>]

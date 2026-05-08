@@ -25,6 +25,7 @@ let private lotBody (year: int) (location: string) (seq: int) =
 
 [<Collection("ApiAuthOff")>]
 type CsvExportTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     let registerCodePages =
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance)

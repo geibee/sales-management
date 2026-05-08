@@ -18,6 +18,7 @@ let private dvBody = dateVersionBody
 
 [<Collection("ApiAuthOff")>]
 type StateTransitionParamTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     // ───────────────────────────────────────────────────────────────
     // POST /lots/{id}/complete-manufacturing — { date, version }

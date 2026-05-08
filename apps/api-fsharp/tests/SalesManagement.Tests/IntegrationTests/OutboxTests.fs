@@ -34,6 +34,7 @@ let private lotBody (year: int) (location: string) (seq: int) =
 
 [<Collection("ApiAuthOn")>]
 type OutboxTests(fixture: AuthOnFixture) =
+    do fixture.Reset()
     let queryOutboxRow (lotId: string) : (int64 * string * string * string) option =
         use conn = new NpgsqlConnection(fixture.ConnectionString)
         conn.Open()

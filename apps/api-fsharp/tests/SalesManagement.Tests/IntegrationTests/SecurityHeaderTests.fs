@@ -20,6 +20,7 @@ let private headerValue (resp: HttpResponseMessage) (name: string) : string opti
 
 [<Collection("ApiAuthOff")>]
 type SecurityHeadersTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "SecurityHeader")>]
@@ -56,6 +57,7 @@ type SecurityHeadersTests(fixture: AuthOffFixture) =
 
 [<Collection("ApiAuthOff")>]
 type LotIdValidationTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "SecurityHeader")>]

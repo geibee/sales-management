@@ -35,6 +35,7 @@ let private lotBody (year: int) (location: string) (seq: int) =
 
 [<Collection("ApiAuthOff")>]
 type ListLotsTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "ListEndpoints")>]
@@ -97,6 +98,7 @@ type ListLotsTests(fixture: AuthOffFixture) =
 
 [<Collection("ApiAuthOff")>]
 type ListSalesCasesTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "ListEndpoints")>]
@@ -136,6 +138,7 @@ type ListSalesCasesTests(fixture: AuthOffFixture) =
 
 [<Collection("ApiAuthOff")>]
 type ListEndpointsOpenApiSpecTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
 
     [<Fact>]
     [<Trait("Category", "ListEndpoints")>]
