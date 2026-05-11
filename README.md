@@ -1,7 +1,7 @@
 # sales-management
 
 [仕様駆動開発](https://github.com/geibee/sdd-tutorial)のF#版実装のリポジトリ。  
-販売管理ドメインの PoC リポジトリ。F# (Giraffe) によるバックエンド API と React フロントエンドをモノレポで管理し、マルチエージェントオーケストレーション (`.harness/`) と RALPH ループ (`harness/ralph.sh`) による増分開発を前提とする。
+販売管理ドメインの PoC リポジトリ。F# (Giraffe) によるバックエンド API と React フロントエンドをモノレポで管理する。
 
 ## 構成
 
@@ -10,21 +10,11 @@ sales-management/
 ├── apps/
 │   ├── api-fsharp/        # F# (Giraffe + Donald) によるバックエンド
 │   └── frontend/          # React 19 + Vite + TanStack Router フロントエンド
-├── dsl/                   # DSL (SSoT)
-│   ├── domain-model.md    # ドメインモデル DSL 本体
-│   └── grammar.ebnf       # DSL の形式文法 ([CORE] / [VERIFICATION] 層に区分)
-├── harness/               # RALPH ループ + 意味論ガイド
-│   ├── SEMANTICS.md       # DSL → 各ターゲット言語の翻訳規則
-│   ├── reference/         # 言語別リファレンス実装（ゴールド標準）
-│   └── ralph.sh           # green-loop runner
-├── tools/
-│   └── dsl-parser/        # DSL → AST パーサー (Python / uv)
+├── dsl/                   # Stage 1 仕様入力
+│   ├── README.md          # Stage 1 の使い方
+│   └── domain-model.md    # 人間が読むドメインモデル
 ├── pacts/                 # Pact によるコントラクトテスト成果物
-├── .harness/              # マルチエージェントオーケストレーション基盤
 ├── .claude/               # Claude Code 用フック / 設定
-├── docker-compose.harness.yml  # Pact Broker / Jaeger 起動用
-├── prd.md                 # PRD (RALPH ループが消化するタスクリスト)
-├── progress.txt           # RALPH 反復ログ
 └── AGENTS.md              # 開発スタイル / コーディング規約 / 運用ルール
 ```
 
@@ -77,25 +67,15 @@ dotnet test
 bash ci.sh        # CI 一式（SARIF を ci-results/ に出力）
 ```
 
-### DSL パーサー (`tools/dsl-parser/`)
+### Stage 1 仕様入力
 
-`dsl/domain-model.md` を AST に変換するツール。SDD で各派生物（F# 型・Alloy・TLA+ 等）を生成する際の入力。
+このリポジトリでは、仕様駆動開発の最小対応として `dsl/domain-model.md` を人間が読む仕様入力にする。専用パーサーやIR生成は前提にしない。
 
-```bash
-cd tools/dsl-parser
-uv sync
-uv run pytest          # ゴールデンテスト + ドメインモデル全体のスモークテスト
-uv run dsl-parser ../../dsl/domain-model.md   # AST を JSON で出力
-bash ci.sh             # CI 一式
-```
+1. `dsl/domain-model.md` に型と `behavior` の型シグネチャを小さく書く
+2. AI がそれを読んで `apps/api-fsharp/src/SalesManagement/Domain/` の型・純粋関数を更新する
+3. `dotnet build` / `dotnet test` で矛盾を検出する
 
-### 補助サービス (Pact Broker / Jaeger)
-
-```bash
-docker compose -f docker-compose.harness.yml up -d
-# Pact Broker: http://localhost:9292 (basic auth: pact / pact)
-# Jaeger UI:   http://localhost:16686
-```
+詳細は [`dsl/README.md`](./dsl/README.md) を参照。
 
 ## ローカル起動の流れ
 
@@ -162,29 +142,6 @@ bash apps/api-fsharp/scripts/seed-dev-data.sh
 - **静的検査**: linter または ast-grep に書く（プロンプトに混ぜない）
 
 詳細・命名規約・DSL 解釈ルールは [`AGENTS.md`](./AGENTS.md) を参照。
-
-## マルチエージェント開発と RALPH ループ
-
-本リポジトリは PRD (`prd.md`) を SSoT としたタスクリストを、専門エージェントに分配して消化する。
-
-### タスクを dry-run（inbox 書き込みのみ）
-
-```bash
-python3 .harness/master.py --prd prd.md --dry-run
-```
-
-### RALPH ループ（CI が緑になるまで自己反復）
-
-```bash
-bash harness/ralph.sh
-```
-
-停止条件:
-- `prd.md` の全項目が `[x]` になる
-- `MAX_ITER`（デフォルト 20）到達
-- `BUDGET_USD`（デフォルト 10）到達
-
-エージェント間通信は `.harness/inbox/<agent>/` と `.harness/outbox/<agent>/` の JSON メッセージのみ（直接呼び出しは禁止）。詳細は [`.harness/README.md`](./.harness/README.md) を参照。
 
 ## CI 出力
 

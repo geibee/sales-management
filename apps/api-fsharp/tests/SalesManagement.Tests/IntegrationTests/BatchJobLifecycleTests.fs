@@ -11,6 +11,7 @@ let private testLocation = "T3"
 
 let private cleanupLotsLocal () = cleanupLots testYear testLocation
 let private cleanupJobExecution (jobParams: string) = cleanupMonthlyCloseJob jobParams
+
 let private seedManufacturedLotsLocal (count: int) =
     seedManufacturedLots testYear testLocation count "2098-04-01"
 

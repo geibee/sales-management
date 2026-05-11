@@ -62,41 +62,12 @@ apps/api-kotlin/  (将来予定)
 - `フィールド?` → Option / nullable
 - エラー型の内部構造はDSLに定義がないため、実装時に判断する
 
-# RALPH ループによる後続開発
-
-本リポジトリには 3 系統の自動化基盤がある：
-
-| 基盤 | 用途 | 起動 |
-|---|---|---|
-| `.harness/` (master.py) | マルチエージェントオーケストレーション。`prd.md` をエージェント間で読み合う | `python3 .harness/master.py --prd prd.md` |
-| `harness/ralph.sh` | **単一タスク** PRD ループ。`prd.md` の `[ ]` を 1 つずつ消化 | `bash harness/ralph.sh` |
-| `.ralph/` (ralph-orchestrator) | **DAG ベース multi-session**。タスク間依存と halt_before レビュー点を持つ | `/ralph-orch start` |
-
-`harness/ralph.sh` と `/ralph-orch` は別物（前者は単純 PRD ループ、後者は DAG）。混同しないこと。
-
-`.ralph/` は親プラン `~/.claude/plans/pbt-groovy-sparkle.md`（Stage 1〜5 のテストハーネス充実）を Stage 6 として自走実行するためのもの。
-
-- `.ralph/tasks.toml` — DAG 定義（git 管理）
-- `.ralph/verify/*.sh` — 各タスクの検収スクリプト（git 管理）
-- `.ralph/task-prompt.tmpl.md` — F#/.NET 用 worker prompt テンプレ（git 管理）
-- `.ralph/capture-baseline.sh` — `dotnet test --list-tests` でテスト数計測（git 管理）
-- `.ralph/state.json` / `.ralph/logs/` — ランタイム生成物（gitignore）
-
-ralph-orchestrator プラグイン (`~/.claude/plugins/local/plugins/ralph-orchestrator/`) は MoonBit 前提で書かれており、F#/.NET 対応のため `scripts/lib/worker.sh` と `scripts/lib/verify.sh` に **`<repo>/.ralph/{task-prompt.tmpl.md, capture-baseline.sh, verify/_generic.sh}` があれば優先する 2〜3 行のフォールバック分岐** を入れてある。プラグイン更新時はパッチの再適用が必要。
-
-worktree は `../mr-ralph-<task-id>` に隔離作成され、verify 緑+merge 後に削除、blocked 時は残置。累積したら `git worktree list` → `git worktree remove --force <path>` で掃除。
-
-## 共通注意
+# CI / SARIF 集約
 
 後続のタスクを追加するときは以下を前提とする：
 
 - すべての CI ツールの結果は `ci-results/sarif/<tool>.sarif` に出力し、`ci-results/merged.sarif` に統合する
 - 失敗の自己分析は `Stop` フック（`.claude/scripts/sarif-to-lessons.py`）が本ファイル末尾の "## 失敗から学んだこと (自動生成)" セクションに追記する
-- マルチエージェント間通信は `.harness/inbox/<agent>/` と `.harness/outbox/<agent>/` の JSON メッセージのみ（直接呼び出しは禁止）。詳細は `.harness/README.md` 参照
-- RALPH ループの停止条件は以下のいずれか：
-  - `prd.md` の全項目が `[x]` になる
-  - `MAX_ITER`（デフォルト 20）到達
-  - `BUDGET_USD`（デフォルト 10）到達
 
 ## 関連ディレクトリ
 
@@ -114,36 +85,25 @@ ci-results/                    # gitignore 対象
 ├── sbom-kotlin.cdx.json       # SBOM
 └── renovate.log               # 依存更新候補
 
-.claude/                       # Claude Code フック
+.claude/                       # Claude Code フック / 同梱プラグイン
 ├── settings.json
-└── scripts/
-    ├── start-trace.py         # SessionStart: trace ID 生成
-    ├── emit-otel.py           # PostToolUse: OTel スパン送信
-    └── sarif-to-lessons.py    # Stop: AGENTS.md 自動更新
-
-.harness/                      # マルチエージェント基盤
-├── agents/                    # サブエージェント定義
-├── inbox/                     # 入力メッセージ
-├── outbox/                    # 出力メッセージ
-├── lessons.md                 # エージェント間共有メモリ
-└── master.py                  # オーケストレーター
-
-harness/                       # RALPH ループ
-└── ralph.sh                   # green-loop runner
-
-prd.md                         # PRD (SSoT、後続タスクの追記先)
-progress.txt                   # RALPH 反復記録
+├── scripts/
+│   ├── start-trace.py         # SessionStart: trace ID 生成
+│   ├── emit-otel.py           # PostToolUse: OTel スパン送信
+│   └── sarif-to-lessons.py    # Stop: AGENTS.md 自動更新
+└── plugins/
+    └── ralph-orchestrator/    # DAG ベース multi-session RALPH (詳細は README 参照)
 ```
 
-## 起動手順
+## ralph-orchestrator の利用
 
-```bash
-# 1 タスク dry-run（inbox 書き込みのみ）
-python3 .harness/master.py --prd prd.md --dry-run
+本リポジトリには `.claude/plugins/ralph-orchestrator/` を同梱してある。DAG ベースで `.ralph/tasks.toml` のタスクを並列実行し、verify 緑なら main に自動マージする。利用するには:
 
-# RALPH ループを回す（CI 緑になるまで自己反復）
-bash harness/ralph.sh
-```
+1. プロジェクトルートに `.ralph/tasks.toml` と `.ralph/verify/<task-id>.sh` を作る（詳細は `.claude/plugins/ralph-orchestrator/README.md` の "プロジェクト要件" 参照）
+2. `.gitignore` に `.ralph/state.json` / `.ralph/state.lock` / `.ralph/logs/` / `.ralph/orchestrator.pid` 等のランタイム生成物を追加する
+3. `/ralph-orch start` でバックグラウンド起動
+
+worker 用のライフサイクル契約は `.claude/plugins/ralph-orchestrator/skills/ralph-task/SKILL.md` に本リポジトリ (F#/.NET) 向けに調整済み。
 
 # スキル作成
 
@@ -157,7 +117,7 @@ bash harness/ralph.sh
 
 # API Fuzz (Schemathesis)
 
-`apps/api-fsharp/ci.sh` は ZAP 直後に Schemathesis を回し、`openapi.yaml` から property-based の入力を生成して `http://localhost:5000` を叩く。固定 seed `42` / `-n 200` / `--request-timeout 2.0` で反復可能。`SCHEMATHESIS_ENABLED=0` で全体スキップ可能（ralph 反復時の高速モード）。事前状態を要するエンドポイント（`POST /sales-cases/{id}/contracts` など appraised 必須のもの、ロット状態遷移、reservation/consignment 多段フロー）は `apps/api-fsharp/schemathesis-hooks.py` の `before_load_schema` フックで raw schema から物理的に除外している。出力は `ci-results/schemathesis-junit.xml` / `ci-results/sarif/schemathesis.sarif` / `ci-results/schemathesis.tar.gz` の 3 点。`scripts/junit-to-sarif.py` が JUnit XML を SARIF v2.1.0 に変換し、`merged.sarif` にも統合される。発見は当面 `warning` レベル扱いで CI を落とさない（信号品質が安定したら `error` に昇格する）。
+`apps/api-fsharp/ci.sh` は ZAP 直後に Schemathesis を回し、`openapi.yaml` から property-based の入力を生成して `http://localhost:5000` を叩く。固定 seed `42` / `-n 200` / `--request-timeout 2.0` で反復可能。`SCHEMATHESIS_ENABLED=0` で全体スキップ可能（高速モード）。事前状態を要するエンドポイント（`POST /sales-cases/{id}/contracts` など appraised 必須のもの、ロット状態遷移、reservation/consignment 多段フロー）は `apps/api-fsharp/schemathesis-hooks.py` の `before_load_schema` フックで raw schema から物理的に除外している。出力は `ci-results/schemathesis-junit.xml` / `ci-results/sarif/schemathesis.sarif` / `ci-results/schemathesis.tar.gz` の 3 点。`scripts/junit-to-sarif.py` が JUnit XML を SARIF v2.1.0 に変換し、`merged.sarif` にも統合される。発見は当面 `warning` レベル扱いで CI を落とさない（信号品質が安定したら `error` に昇格する）。
 
 <!-- 以下は Stop フック (.claude/scripts/sarif-to-lessons.py) が自動追記する領域 -->
 
@@ -165,3 +125,5 @@ bash harness/ralph.sh
 - 2026-05-01 OWASP ZAP.100000: 311回検出。A Client Error response code was returned by the server: 400
 - 2026-05-01 OWASP ZAP.10049: 9回検出。Non-Storable Content: 400
 - 2026-05-01 OWASP ZAP.10104: 5回検出。User Agent Fuzzer: <p>Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search
+- 2026-05-11 Schemathesis.failure: 19回検出。POST /lots: 1. Test Case ID: qhqW6S  - API accepted schema-violating request      Invalid data should have been rejected
+- 2026-05-11 Schemathesis.skipped: 11回検出。POST /lots: No examples in schema

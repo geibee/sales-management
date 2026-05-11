@@ -87,8 +87,18 @@ export function LotCreatePage() {
               <TextField name="premiumCategory" label="上位品区分" defaultValue="none" />
               <TextField name="productCategoryCode" label="商品分類コード" defaultValue="default" />
               <NumberField name="lengthSpecLower" label="長さ下限" step="0.01" defaultValue={1} />
-              <NumberField name="thicknessSpecLower" label="太さ下限" step="0.01" defaultValue={1} />
-              <NumberField name="thicknessSpecUpper" label="太さ上限" step="0.01" defaultValue={2} />
+              <NumberField
+                name="thicknessSpecLower"
+                label="太さ下限"
+                step="0.01"
+                defaultValue={1}
+              />
+              <NumberField
+                name="thicknessSpecUpper"
+                label="太さ上限"
+                step="0.01"
+                defaultValue={2}
+              />
               <TextField name="qualityGrade" label="品質等級" defaultValue="A" />
               <NumberField name="count" label="個数" defaultValue={10} />
               <NumberField name="quantity" label="数量" step="0.01" defaultValue={10} />

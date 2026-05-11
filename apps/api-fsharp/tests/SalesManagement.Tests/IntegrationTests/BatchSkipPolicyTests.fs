@@ -12,6 +12,7 @@ let private testYear = 2096
 let private testLocation = "T5"
 
 let private cleanupLotsLocal () = cleanupLots testYear testLocation
+
 let private seedLots (count: int) =
     seedManufacturedLots testYear testLocation count "2096-04-01"
 
