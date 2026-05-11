@@ -1,0 +1,8 @@
+{
+  "name": "ralph-orchestrator",
+  "version": "0.1.0",
+  "description": "DAG-based multi-session RALPH orchestrator. Spawns parallel `claude -p` workers in isolated git worktrees, picks ready tasks from a project-local tasks.toml, verifies completion programmatically, and auto-merges to main. Sibling to ralph-loop (which is in-session).",
+  "author": {
+    "name": "geibee"
+  }
+}
