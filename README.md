@@ -1,7 +1,7 @@
 # sales-management
 
 [仕様駆動開発](https://github.com/geibee/sdd-tutorial)のF#版実装のリポジトリ。  
-販売管理ドメインの PoC リポジトリ。F# (Giraffe) によるバックエンド API と React フロントエンドをモノレポで管理し、マルチエージェントオーケストレーション (`.harness/`) と RALPH ループ (`harness/ralph.sh`) による増分開発を前提とする。
+販売管理ドメインの PoC リポジトリ。F# (Giraffe) によるバックエンド API と React フロントエンドをモノレポで管理する。
 
 ## 構成
 
@@ -13,14 +13,8 @@ sales-management/
 ├── dsl/                   # Stage 1 仕様入力
 │   ├── README.md          # Stage 1 の使い方
 │   └── domain-model.md    # 人間が読むドメインモデル
-├── harness/               # RALPH ループ
-│   └── ralph.sh           # green-loop runner
 ├── pacts/                 # Pact によるコントラクトテスト成果物
-├── .harness/              # マルチエージェントオーケストレーション基盤
 ├── .claude/               # Claude Code 用フック / 設定
-├── docker-compose.harness.yml  # Pact Broker / Jaeger 起動用
-├── prd.md                 # PRD (RALPH ループが消化するタスクリスト)
-├── progress.txt           # RALPH 反復ログ
 └── AGENTS.md              # 開発スタイル / コーディング規約 / 運用ルール
 ```
 
@@ -82,14 +76,6 @@ bash ci.sh        # CI 一式（SARIF を ci-results/ に出力）
 3. `dotnet build` / `dotnet test` で矛盾を検出する
 
 詳細は [`dsl/README.md`](./dsl/README.md) を参照。
-
-### 補助サービス (Pact Broker / Jaeger)
-
-```bash
-docker compose -f docker-compose.harness.yml up -d
-# Pact Broker: http://localhost:9292 (basic auth: pact / pact)
-# Jaeger UI:   http://localhost:16686
-```
 
 ## ローカル起動の流れ
 
@@ -156,29 +142,6 @@ bash apps/api-fsharp/scripts/seed-dev-data.sh
 - **静的検査**: linter または ast-grep に書く（プロンプトに混ぜない）
 
 詳細・命名規約・DSL 解釈ルールは [`AGENTS.md`](./AGENTS.md) を参照。
-
-## マルチエージェント開発と RALPH ループ
-
-本リポジトリは PRD (`prd.md`) を SSoT としたタスクリストを、専門エージェントに分配して消化する。
-
-### タスクを dry-run（inbox 書き込みのみ）
-
-```bash
-python3 .harness/master.py --prd prd.md --dry-run
-```
-
-### RALPH ループ（CI が緑になるまで自己反復）
-
-```bash
-bash harness/ralph.sh
-```
-
-停止条件:
-- `prd.md` の全項目が `[x]` になる
-- `MAX_ITER`（デフォルト 20）到達
-- `BUDGET_USD`（デフォルト 10）到達
-
-エージェント間通信は `.harness/inbox/<agent>/` と `.harness/outbox/<agent>/` の JSON メッセージのみ（直接呼び出しは禁止）。詳細は [`.harness/README.md`](./.harness/README.md) を参照。
 
 ## CI 出力
 

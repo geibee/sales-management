@@ -16,21 +16,6 @@ test-results/
 # CI aggregated results
 ci-results/
 
-# RALPH harness runtime state
-.harness/sessions/
-.harness/inbox/*/[!.]*
-.harness/outbox/*/[!.]*
-
-# ralph-orchestrator runtime state (commit tasks.toml / verify/ / task-prompt.tmpl.md / capture-baseline.sh)
-.ralph/state.json
-.ralph/state.lock
-.ralph/tasks.cache.json
-.ralph/orchestrator.pid
-.ralph/halted
-.ralph/stop-requested
-.ralph/logs/
-.hypothesis/
-
 # Python
 .venv/
 __pycache__/

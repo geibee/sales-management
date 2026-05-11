@@ -13,7 +13,7 @@ echo "=== Jaeger 起動チェック ==="
 if curl -fs --max-time 3 http://localhost:16686/api/services >/dev/null 2>&1; then
     echo "Jaeger UP — エージェントトレースを送信できます"
 else
-    echo "Jaeger 未起動または無応答 (任意): docker compose -f ../../docker-compose.harness.yml up -d jaeger"
+    echo "Jaeger 未起動または無応答 (任意)"
 fi
 
 echo "=== マイグレーション ==="
@@ -73,7 +73,7 @@ if curl -fsu pact:pact --max-time 3 "$PACT_BROKER_URL/diagnostic/status/heartbea
     bash scripts/pact-publish.sh
 else
     echo "Pact Broker 未起動 — Pact ステージをスキップします"
-    echo "起動するには: docker compose -f ../../docker-compose.harness.yml up -d pact-broker pact-broker-db"
+    echo "  PACT_BROKER_URL を設定して再実行してください"
 fi
 
 echo "=== シークレット検出 (SARIF) ==="
@@ -162,7 +162,7 @@ if [ "$ZAP_ENABLED" = "1" ]; then
     set -e
 else
     echo "=== DAST (OWASP ZAP) — SKIPPED (ZAP_ENABLED=0) ==="
-    echo "  ralph 反復時等の高速モード。最終検証時は ZAP_ENABLED=1 ./ci.sh を実行してください"
+    echo "  高速モード。最終検証時は ZAP_ENABLED=1 ./ci.sh を実行してください"
     ZAP_EXIT=0
     # 古い zap.sarif が SARIF マージに混ざらないように削除
     rm -f "$RESULTS_DIR/sarif/zap.sarif" "$RESULTS_DIR/zap-report.json" "$RESULTS_DIR/zap-report.html" "$RESULTS_DIR/zap-report.md"
@@ -290,9 +290,5 @@ grep -E "Dependency extraction complete|fileCount|depCount" "$RESULTS_DIR/renova
 
 echo "=== AGENTS.md 自動更新差分 ==="
 git -C ../.. diff --stat AGENTS.md || true
-
-echo "=== Phase 2 RALPH ハーネス完成 ==="
-echo "Phase 2 (Step 21–30) 完了。sales-management/harness/ralph.sh で完全自律ループを起動できます。"
-echo "  例: cd ../.. && MAX_ITER=5 BUDGET_USD=2 ./harness/ralph.sh prd.md"
 
 echo "=== CI完了 ==="
