@@ -10,15 +10,11 @@ sales-management/
 ├── apps/
 │   ├── api-fsharp/        # F# (Giraffe + Donald) によるバックエンド
 │   └── frontend/          # React 19 + Vite + TanStack Router フロントエンド
-├── dsl/                   # DSL (SSoT)
-│   ├── domain-model.md    # ドメインモデル DSL 本体
-│   └── grammar.ebnf       # DSL の形式文法 ([CORE] / [VERIFICATION] 層に区分)
-├── harness/               # RALPH ループ + 意味論ガイド
-│   ├── SEMANTICS.md       # DSL → 各ターゲット言語の翻訳規則
-│   ├── reference/         # 言語別リファレンス実装（ゴールド標準）
+├── dsl/                   # Stage 1 仕様入力
+│   ├── README.md          # Stage 1 の使い方
+│   └── domain-model.md    # 人間が読むドメインモデル
+├── harness/               # RALPH ループ
 │   └── ralph.sh           # green-loop runner
-├── tools/
-│   └── dsl-parser/        # DSL → AST パーサー (Python / uv)
 ├── pacts/                 # Pact によるコントラクトテスト成果物
 ├── .harness/              # マルチエージェントオーケストレーション基盤
 ├── .claude/               # Claude Code 用フック / 設定
@@ -77,17 +73,15 @@ dotnet test
 bash ci.sh        # CI 一式（SARIF を ci-results/ に出力）
 ```
 
-### DSL パーサー (`tools/dsl-parser/`)
+### Stage 1 仕様入力
 
-`dsl/domain-model.md` を AST に変換するツール。SDD で各派生物（F# 型・Alloy・TLA+ 等）を生成する際の入力。
+このリポジトリでは、仕様駆動開発の最小対応として `dsl/domain-model.md` を人間が読む仕様入力にする。専用パーサーやIR生成は前提にしない。
 
-```bash
-cd tools/dsl-parser
-uv sync
-uv run pytest          # ゴールデンテスト + ドメインモデル全体のスモークテスト
-uv run dsl-parser ../../dsl/domain-model.md   # AST を JSON で出力
-bash ci.sh             # CI 一式
-```
+1. `dsl/domain-model.md` に型と `behavior` の型シグネチャを小さく書く
+2. AI がそれを読んで `apps/api-fsharp/src/SalesManagement/Domain/` の型・純粋関数を更新する
+3. `dotnet build` / `dotnet test` で矛盾を検出する
+
+詳細は [`dsl/README.md`](./dsl/README.md) を参照。
 
 ### 補助サービス (Pact Broker / Jaeger)
 

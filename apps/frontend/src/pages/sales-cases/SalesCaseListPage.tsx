@@ -45,7 +45,9 @@ const STATUS_OPTIONS = [
   "consignment_result_entered",
 ] as const;
 
-function detailRouteFor(caseType: string): "/sales-cases/$id" | "/reservation-cases/$id" | "/consignment-cases/$id" {
+function detailRouteFor(
+  caseType: string,
+): "/sales-cases/$id" | "/reservation-cases/$id" | "/consignment-cases/$id" {
   if (caseType === "reservation") return "/reservation-cases/$id";
   if (caseType === "consignment") return "/consignment-cases/$id";
   return "/sales-cases/$id";
@@ -111,7 +113,9 @@ export function SalesCaseListPage() {
           <SelectContent>
             {STATUS_OPTIONS.map((s) => (
               <SelectItem key={s} value={s}>
-                {s === "all" ? "(すべて)" : caseStatusLabel(caseType === "all" ? null : caseType, s)}
+                {s === "all"
+                  ? "(すべて)"
+                  : caseStatusLabel(caseType === "all" ? null : caseType, s)}
               </SelectItem>
             ))}
           </SelectContent>

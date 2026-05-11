@@ -31,12 +31,9 @@ ci-results/
 .ralph/logs/
 .hypothesis/
 
-# Python (tools/dsl-parser)
+# Python
 .venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
-
-# evaluation/ — AI が毎回生成する派生物
-evaluation/case-*/generated.*

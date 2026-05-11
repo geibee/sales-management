@@ -21,7 +21,11 @@ function buildPath(q: SalesCasesListQuery): string {
 
 export function useSalesCasesList(q: SalesCasesListQuery) {
   const key = buildPath(q);
-  return useSWR<SalesCasesListResponse>(key, (k: string) => apiGet(k, SalesCasesListResponseSchema), {
-    keepPreviousData: true,
-  });
+  return useSWR<SalesCasesListResponse>(
+    key,
+    (k: string) => apiGet(k, SalesCasesListResponseSchema),
+    {
+      keepPreviousData: true,
+    },
+  );
 }

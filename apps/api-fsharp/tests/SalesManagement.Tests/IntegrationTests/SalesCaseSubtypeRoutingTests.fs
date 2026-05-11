@@ -177,10 +177,7 @@ type ConsignmentUrlTests(fixture: AuthOffFixture) =
 
         // consignment cancel designation (DELETE /designation)
         let! cancelResp =
-            deleteWithBody
-                client
-                (sprintf "/sales-cases/%s/consignment/designation" caseId)
-                (Some """{"version":2}""")
+            deleteWithBody client (sprintf "/sales-cases/%s/consignment/designation" caseId) (Some """{"version":2}""")
 
         Assert.Equal(HttpStatusCode.OK, cancelResp.StatusCode)
 

@@ -60,15 +60,11 @@ export async function deleteSalesCase(id: string): Promise<void> {
 type AppraisalBody = Record<string, unknown>;
 
 export async function createAppraisal(id: string, body: AppraisalBody): Promise<void> {
-  await withConflictRefresh(id, () =>
-    apiSend("POST", `/sales-cases/${id}/appraisals`, body),
-  );
+  await withConflictRefresh(id, () => apiSend("POST", `/sales-cases/${id}/appraisals`, body));
 }
 
 export async function updateAppraisal(id: string, body: AppraisalBody): Promise<void> {
-  await withConflictRefresh(id, () =>
-    apiSend("PUT", `/sales-cases/${id}/appraisals`, body),
-  );
+  await withConflictRefresh(id, () => apiSend("PUT", `/sales-cases/${id}/appraisals`, body));
 }
 
 export async function deleteAppraisal(id: string, version: number): Promise<void> {
@@ -79,9 +75,7 @@ export async function deleteAppraisal(id: string, version: number): Promise<void
 
 // ---- Contract ----
 export async function createContract(id: string, body: AppraisalBody): Promise<void> {
-  await withConflictRefresh(id, () =>
-    apiSend("POST", `/sales-cases/${id}/contracts`, body),
-  );
+  await withConflictRefresh(id, () => apiSend("POST", `/sales-cases/${id}/contracts`, body));
 }
 
 export async function deleteContract(id: string, version: number): Promise<void> {
