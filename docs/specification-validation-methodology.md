@@ -221,6 +221,82 @@ status: informal | classified | dsl | tested | model_checked | deferred
 
 これらは DSL の外に捨てるのではなく、DSL の behavior に紐づく assumption、postcondition、property test、scenario、TLA+、Alloy、API contract へ接続する。
 
+## 拡張の方向性: 軽量 DSL と生成 IR
+
+この節はマスタープランではなく、将来 DSL/IR を拡張する場合の設計指針である。現時点の `dsl/domain-model.md` を重くすることは前提にしない。
+
+最大の制約は、業務記述を担当するビジネスコンサルタントが DSL/IR を使いこなせなくなることである。したがって、ビジネス側の入力は軽く保ち、検査やコード生成に必要な重い構造はツールまたは LLM が生成する。
+
+| 層 | 主な利用者 | 役割 | 例 |
+| --- | --- | --- | --- |
+| 業務記述 | ビジネスコンサルタント | 日本語で業務概念、ルール、例外、ユースケースを書く | 業務説明、正例、反例 |
+| 軽量 DSL | ビジネスコンサルタント + 開発者 | 型、状態、主要 behavior だけを固定する | `data`、`behavior`、`AND`、`OR`、`List<T>`、`?` |
+| 生成 IR / 検査仕様 | ツール + 開発者 | traceability、assumption、postcondition、検査対象を機械処理する | YAML/JSON IR、property、OpenAPI、TLA+/Alloy |
+
+コンサルタントが直接書く対象は、原則として業務記述と軽量 DSL までに限定する。`encoded_by_types`、`assumptions`、`postconditions_not_encoded_by_types`、`checks` などの重い構造は、LLM/パーサーが候補生成し、開発者がレビューする。
+
+軽量 DSL は、次の程度の表現力に抑える。
+
+```text
+data 販売案件状態 = 下書き OR 審査済み OR 契約済み OR キャンセル済み
+
+behavior 契約を作成する =
+  審査済み販売案件 AND 1件以上の在庫引当
+  -> 契約
+  OR 契約作成エラー
+```
+
+DSL を豊かにする代わりに、業務側には正例と反例を追加してもらう。
+
+```text
+成立する例:
+- 審査済み販売案件に在庫引当がある場合、契約を作成できる
+
+成立しない例:
+- 下書き販売案件は契約できない
+- キャンセル済み販売案件は契約できない
+- 在庫引当がない場合は契約できない
+```
+
+ツール側は、軽量 DSL と例から次の生成物を作る。
+
+```text
+日本語の業務要求
+  -> 軽量 DSL
+  -> generated IR
+  -> F# / Kotlin などの型
+  -> workflow 実装候補
+  -> unit/property/API test
+  -> traceability
+```
+
+レビュー時にコンサルタントへ提示するのは、IR 全体ではなく、解釈の要約と差分にする。
+
+```text
+解釈:
+- 「契約を作成する」は、販売案件が審査済みであることを前提にしています。
+- 「在庫引当」は1件以上必要です。
+- 下書き、契約済み、キャンセル済みの販売案件では契約できません。
+```
+
+この方向性を採用する場合も、LLM に全ソースコードを自由生成させない。契約層と検査層を先に固定し、LLM は候補生成と修正支援に使う。
+
+```text
+自然言語要求
+  -> atomic requirement
+  -> 軽量 DSL / generated IR
+  -> deterministic generator で型・契約層を生成
+  -> LLM で workflow 実装候補とテスト候補を生成
+  -> build / test / property test / API contract で選別・修正
+```
+
+導入判断は、次の条件を満たす場合に限る。
+
+- 軽量 DSL の人間向け構文を増やさずに済む。
+- generated IR を人間が常時手書きしなくてよい。
+- コンサルタントのレビュー単位が、構文ではなく業務解釈と正例/反例になっている。
+- 生成物は build、test、schema validation、property test のいずれかで検査できる。
+
 ## 本リポジトリでの適用方針
 
 ### 初期対象
@@ -267,7 +343,7 @@ status: informal | classified | dsl | tested | model_checked | deferred
 - 反例、失敗テスト、Schemathesis の failure は、要求の分類または DSL の改善候補として扱う。
 - 仕様が曖昧な場合は、実装で吸収せず、atomic requirement の open question として残す。
 
-## 今後のタスク
+## 次に検討する候補
 
 - `docs/requirements-traceability.md` を追加し、既存 DSL から atomic requirement を起こす。
 - `dsl/domain-model.md` の behavior ごとに、型で表せる前提/結果、assumption、postcondition、正例/反例を対応付ける。
