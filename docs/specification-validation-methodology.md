@@ -1,0 +1,236 @@
+# 仕様検査方法論
+
+作成日: 2026-05-13
+
+## 目的
+
+本ドキュメントは、販売管理ドメインの自然言語要求を、最小 DSL、実行可能な検査、形式仕様、ユースケース例に分解して扱うための方法論を定義する。
+
+一般的な業務システムでは、すべての仕様を単一の形式体系へ決定論的に書き下すことは現実的ではない。したがって、本リポジトリでは「完全な形式仕様」を最初から目指すのではなく、重要な要求を分類し、検査可能な仕様カーネルを育てる。
+
+## 基本方針
+
+- 自然言語要求は、まず atomic requirement に分解する。
+- 重要な要求は、関数型ドメインモデリング用 DSL に落とし込む。
+- DSL で表現しきれない要求は、性質に応じて property test、API contract、TLA+、Alloy、ユースケース例に分岐する。
+- 各要求は、元要求、DSL 断片、正例、反例、検査手段、検査状態を追跡可能にする。
+- verifier や型検査を通ることを、仕様が正しいこととは見なさない。仕様の正しさは、要求との対応、正例、反例、反証可能性で別途確認する。
+
+## 背景となる知見
+
+2025-2026 年の形式仕様支援研究では、単に LLM で形式仕様を生成するのではなく、次の方向が重視されている。
+
+- 形式仕様が verifier を通っても、過剰制約または過少制約により、要求意図とずれることがある。
+- 自然言語要求は、大きな仕様へ一括変換するより、atomic requirement へ分解し、要求単位で traceability を持たせるほうが修正しやすい。
+- positive example と negative example は、仕様そのものの妥当性を検査する補助証拠として有効である。
+- postcondition だけではなく、precondition、guard、assumption を仕様の一部として明示する必要がある。
+- LLM は仕様を一発生成する役割より、候補仕様の分解、反例生成、局所修正、説明補助に使うほうが現実的である。
+
+参考:
+
+- [VeriAct: Beyond Verifiability -- Agentic Synthesis of Correct and Complete Formal Specifications](https://arxiv.org/abs/2604.00280)
+- [Intent-aligned Formal Specification Synthesis via Traceable Refinement](https://arxiv.org/abs/2604.10392)
+- [Validating Formal Specifications with LLM-generated Test Cases](https://arxiv.org/abs/2510.23350)
+- [Beyond Postconditions: Can Large Language Models infer Formal Contracts for Automatic Software Verification?](https://arxiv.org/abs/2510.12702)
+- [Neuro-Symbolic Generation and Validation of Memory-Aware Formal Function Specifications](https://arxiv.org/abs/2603.13414)
+- [ModelWisdom: An Integrated Toolkit for TLA+ Model Visualization, Digest and Repair](https://arxiv.org/abs/2602.12058)
+
+## 要求の分類
+
+自然言語要求は、次の分類を付与してから仕様化する。
+
+| 分類 | 内容 | 主な表現先 | 主な検査 |
+| --- | --- | --- | --- |
+| 型 | 値、識別子、列挙、必須/任意、非空リスト | DSL `data`、F# 型、OpenAPI schema | build、schema validation |
+| 状態 | 販売案件、契約、ロットなどの状態 | DSL `data`、判別共用体 | FsCheck、単体テスト |
+| 遷移 | ある状態から別状態へ移る操作 | DSL `behavior`、純粋関数 | FsCheck、integration test |
+| 不変条件 | 常に破ってはいけない制約 | DSL コメント、property、TLA+/Alloy | property test、model check |
+| 前提条件 | 操作が有効になる条件 | DSL `behavior` の Error、guard | unit/property/API test |
+| 事後条件 | 操作後に成立すべき条件 | workflow 実装、property | unit/property test |
+| 構造制約 | 関連、多重度、循環禁止、存在/非存在 | Alloy、DB constraint | Alloy、migration test |
+| 時間/順序 | 期限、順序、eventual、並行性 | TLA+、state machine property | TLC、Coyote 相当、自前 PBT |
+| 境界契約 | API 入出力、エラー形式、互換性 | OpenAPI、Pact | Schemathesis、contract test |
+| 裁量/曖昧語 | 業務判断、例外運用、優先順位 | atomic requirement、正例/反例 | review、scenario test |
+
+## 仕様化ワークフロー
+
+### 1. Atomic requirement へ分解する
+
+自然言語要求は、1つの検査可能な性質ごとに分割する。
+
+悪い例:
+
+```text
+販売案件は審査後に契約でき、在庫が足りない場合はエラーにし、キャンセル時には引当を戻す。
+```
+
+よい例:
+
+```text
+R-SALES-001: 販売案件は appraised 状態のときだけ契約できる。
+R-SALES-002: 契約時に必要数量を満たす在庫引当が存在しない場合、契約は失敗する。
+R-SALES-003: 契約前の販売案件をキャンセルした場合、関連する引当は解放される。
+```
+
+### 2. 仕様カーネルへ落とす
+
+DSL に落とせるものは、最小の型と behavior にする。
+
+```text
+data SalesCaseStatus = Draft OR Appraised OR Contracted OR Cancelled
+
+behavior CreateContract =
+  AppraisedSalesCase AND NonEmptyList<InventoryReservation>
+  -> SalesContract
+  OR ContractCreationError
+```
+
+この段階では、すべての業務例外を DSL に詰め込まない。DSL は「型、状態、遷移、主要なエラー」を固定する仕様カーネルとして扱う。
+
+### 3. 正例と反例を付ける
+
+仕様カーネルだけでは、意図とずれた仕様も成立し得る。各 atomic requirement には、最低限の positive example と negative example を付ける。
+
+```yaml
+id: R-SALES-001
+source: "販売案件は審査後に契約できる"
+kind: precondition
+dsl:
+  behavior: CreateContract
+positive_examples:
+  - salesCase.status = Appraised の場合、契約作成に進める
+negative_examples:
+  - salesCase.status = Draft の場合、契約作成は失敗する
+  - salesCase.status = Cancelled の場合、契約作成は失敗する
+checks:
+  - unit
+  - property
+status: dsl
+```
+
+### 4. 検査手段を割り当てる
+
+各要求に、最も安い検査から割り当てる。
+
+| 優先 | 検査手段 | 適用条件 |
+| --- | --- | --- |
+| 1 | 型/F# build | 不正状態を型で除外できる |
+| 2 | unit test | 代表例で十分に意図を固定できる |
+| 3 | FsCheck | 入力空間、境界値、状態遷移が広い |
+| 4 | API contract / Schemathesis | OpenAPI 境界で破れる |
+| 5 | Alloy | 構造制約、多重度、存在/非存在を確認したい |
+| 6 | TLA+ | 並行性、順序、eventual、deadlock を扱う |
+| 7 | review only | 業務裁量で、機械検査に落とす価値が低い |
+
+### 5. 反例を仕様改善に戻す
+
+テストやモデル検査で反例が出たら、反例を単なるバグ報告で終わらせず、要求に戻す。
+
+- DSL が不足しているなら DSL を更新する。
+- 前提条件が曖昧なら precondition/guard を追加する。
+- 仕様が過剰制約なら negative example を見直す。
+- 仕様が過少制約なら invariant または postcondition を追加する。
+- 実装だけが誤っているならテストを追加して実装を修正する。
+
+## Traceability スキーマ
+
+要求ごとに次の情報を持つ。最初は Markdown/YAML でよい。必要になったら JSON/YAML として機械処理する。
+
+```yaml
+id: R-XXX-000
+title: "短い要求名"
+source: "元の自然言語要求"
+kind: type | state | transition | invariant | precondition | postcondition | structure | temporal | api | policy
+risk: high | medium | low
+dsl:
+  data: []
+  behavior: []
+  note: ""
+examples:
+  positive: []
+  negative: []
+checks:
+  - type: build | unit | property | api | alloy | tla | review
+    target: ""
+    status: planned | implemented | passing | failing | skipped
+coverage:
+  implementation: []
+  tests: []
+  specs: []
+open_questions: []
+status: informal | classified | dsl | tested | model_checked | deferred
+```
+
+## DSL で表すもの、表さないもの
+
+### DSL で表す
+
+- ドメイン型
+- 識別子
+- 状態
+- 状態遷移
+- 主要な入力/出力
+- 主要なエラー
+- 非空、任意、列挙、多重度などの静的制約
+
+### DSL だけで表さない
+
+- 複数 aggregate にまたがる eventual consistency
+- 並行実行時の線形化可能性
+- 時間制約や retry/backoff
+- 外部 API 障害や補償処理
+- 複雑な権限、監査、運用裁量
+- 仕様の妥当性を支える正例/反例
+
+これらは DSL の外に出すのではなく、DSL を中心に、property test、scenario、TLA+、Alloy、API contract へ接続する。
+
+## 本リポジトリでの適用方針
+
+### 初期対象
+
+まず次の領域を対象にする。
+
+- 在庫ロット状態遷移
+- 販売案件状態遷移
+- 引当と委託
+- 契約作成の前提条件
+- API schema と domain type の整合性
+
+### 成果物
+
+| 成果物 | 役割 |
+| --- | --- |
+| `dsl/domain-model.md` | 仕様カーネル |
+| `docs/specification-validation-methodology.md` | 本方法論 |
+| `docs/requirements-traceability.md` | atomic requirement と検査証拠の一覧。今後追加する |
+| `apps/api-fsharp/tests/SalesManagement.Tests/` | unit/property/integration test |
+| `apps/api-fsharp/openapi.yaml` | API 境界契約 |
+| `specs/tla/` | 時間・順序・並行性仕様。必要になった段階で追加する |
+| `specs/alloy/` | 構造制約仕様。必要になった段階で追加する |
+
+### 完了条件
+
+この方法論を適用した要求は、少なくとも次のいずれかを満たす。
+
+- 型で不正状態を表現不能にしている。
+- DSL の型または behavior に対応している。
+- 正例と反例があり、unit/property/API test のいずれかで検査されている。
+- TLA+ または Alloy の model に対応している。
+- 機械検査しない理由が明示されている。
+
+## 運用ルール
+
+- 新しい重要要求を追加するときは、最初に分類と risk を付ける。
+- high risk の要求は、正例と反例なしに実装しない。
+- DSL 変更は、対応するテストまたは検査計画と一緒に行う。
+- LLM で生成した仕様は、verifier 通過だけで採用しない。
+- 反例、失敗テスト、Schemathesis の failure は、要求の分類または DSL の改善候補として扱う。
+- 仕様が曖昧な場合は、実装で吸収せず、atomic requirement の open question として残す。
+
+## 今後のタスク
+
+- `docs/requirements-traceability.md` を追加し、既存 DSL から atomic requirement を起こす。
+- `dsl/domain-model.md` の behavior ごとに、正例/反例を最低1つずつ対応付ける。
+- high risk な状態遷移から FsCheck property を追加する。
+- 並行性を含む要求を抽出し、TLA+ または state-machine property test の対象にする。
+- 構造制約を抽出し、Alloy へ落とす価値があるものを分類する。

@@ -77,6 +77,8 @@ bash ci.sh        # CI 一式（SARIF を ci-results/ に出力）
 
 詳細は [`dsl/README.md`](./dsl/README.md) を参照。
 
+仕様をすべて単一の形式体系へ落とすのではなく、要求を分類し、DSL、正例/反例、property test、API contract、TLA+/Alloy などの検査証拠へ接続する方針は [`docs/specification-validation-methodology.md`](./docs/specification-validation-methodology.md) を参照。
+
 ## ローカル起動の流れ
 
 API + フロントを実際に動かす手順。各コマンドはリポジトリルートからの相対パスで記載。
