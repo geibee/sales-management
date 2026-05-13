@@ -158,3 +158,45 @@ type LotStateMachinePropertyTests(fixture: AuthOffFixture) =
             Assert.Equal("manufactured", status)
             Assert.Equal(2, version)
         }
+
+    [<Fact>]
+    [<Trait("Category", "PBT")>]
+    [<Trait("Category", "Integration")>]
+    member _.``任意コマンド列に対してモデルとHTTPレスポンスの成功/失敗が一致する``() =
+        task {
+            use client = fixture.NewClient()
+
+            let runCommands (commands: LotCommand list) =
+                (task {
+                    let! lotId = createLot client
+                    let mutable modelState = MManufacturing
+                    let mutable version = 1
+
+                    for cmd in commands do
+                        let modelResult = stepModel cmd modelState
+                        let! resp = executeCommand client lotId version cmd
+
+                        match modelResult with
+                        | Ok nextState ->
+                            if resp.StatusCode <> HttpStatusCode.OK then
+                                failwithf "モデルはOkだがHTTPは%A。状態=%A, コマンド=%A" resp.StatusCode modelState cmd
+
+                            let! (status, newVersion) = parseResponse resp
+                            let actualState = parseStatus status
+
+                            if actualState <> nextState then
+                                failwithf "状態不一致。モデル=%A, 実際=%A, コマンド=%A" nextState actualState cmd
+
+                            modelState <- nextState
+                            version <- newVersion
+                        | Error _ ->
+                            if resp.StatusCode = HttpStatusCode.OK then
+                                failwithf "モデルはErrorだがHTTPは200。状態=%A, コマンド=%A" modelState cmd
+                })
+                    .GetAwaiter()
+                    .GetResult()
+
+            let config = Config.QuickThrowOnFailure.WithMaxTest(30)
+            let prop = Prop.forAll (Arb.fromGen lotCommandListGen) runCommands
+            Check.One(config, prop)
+        }
