@@ -18,6 +18,29 @@ type LotCommand =
     | InstructItemConversion of ConversionDestinationInfo
     | CancelItemConversionInstruction
 
+// ── モデル状態 ──
+
+type LotModelState =
+    | MManufacturing
+    | MManufactured
+    | MShippingInstructed
+    | MShipped
+    | MConversionInstructed
+
+// ── モデル遷移 ──
+
+type LotTransitionError = InvalidTransition of fromStatus: string * command: string
+
+let stepModel (command: LotCommand) (state: LotModelState) : Result<LotModelState, LotTransitionError> =
+    match state, command with
+    | MManufacturing, CompleteManufacturing _ -> Ok MManufactured
+    | MManufactured, CancelManufacturingCompletion -> Ok MManufacturing
+    | MManufactured, InstructShipping _ -> Ok MShippingInstructed
+    | MShippingInstructed, CompleteShipping _ -> Ok MShipped
+    | MManufactured, InstructItemConversion _ -> Ok MConversionInstructed
+    | MConversionInstructed, CancelItemConversionInstruction -> Ok MManufactured
+    | _ -> Error(InvalidTransition(sprintf "%A" state, sprintf "%A" command))
+
 // ── Generator ──
 
 let private conversionInfoGen = gen {
