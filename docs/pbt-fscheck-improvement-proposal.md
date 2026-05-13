@@ -137,6 +137,8 @@ FsCheck を「ドメイン純粋関数の性質検証」として強化する。
 
 最初はロット状態遷移に限定する。
 
+詳細な実装計画は [`stateful-pbt-fscheck-implementation-plan.md`](./stateful-pbt-fscheck-implementation-plan.md) を参照する。
+
 モデル:
 
 - `Manufacturing`
