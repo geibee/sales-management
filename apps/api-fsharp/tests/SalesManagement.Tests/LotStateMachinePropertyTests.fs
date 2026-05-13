@@ -1,11 +1,15 @@
 module SalesManagement.Tests.LotStateMachinePropertyTests
 
 open System
+open System.Net
 open Xunit
 open FsCheck
 open FsCheck.FSharp
 open FsCheck.Xunit
 open SalesManagement.Domain.Types
+open SalesManagement.Tests.Support.ApiFixture
+open SalesManagement.Tests.Support.HttpHelpers
+open SalesManagement.Tests.Support.RequestBuilders
 open SalesManagement.Tests.Support.Generators
 
 // ── コマンド型 ──
@@ -41,6 +45,53 @@ let stepModel (command: LotCommand) (state: LotModelState) : Result<LotModelStat
     | MConversionInstructed, CancelItemConversionInstruction -> Ok MManufactured
     | _ -> Error(InvalidTransition(sprintf "%A" state, sprintf "%A" command))
 
+// ── HTTP adapter ──
+
+let private formatDate (d: DateOnly) = d.ToString("yyyy-MM-dd")
+
+let executeCommand (client: Net.Http.HttpClient) (lotId: string) (version: int) (command: LotCommand) =
+    task {
+        match command with
+        | CompleteManufacturing date ->
+            let body = sprintf """{"date": "%s", "version": %d}""" (formatDate date) version
+            return! postJson client (sprintf "/lots/%s/complete-manufacturing" lotId) body
+        | CancelManufacturingCompletion ->
+            let body = sprintf """{"version": %d}""" version
+            return! postJson client (sprintf "/lots/%s/cancel-manufacturing-completion" lotId) body
+        | InstructShipping date ->
+            let body = sprintf """{"deadline": "%s", "version": %d}""" (formatDate date) version
+            return! postJson client (sprintf "/lots/%s/instruct-shipping" lotId) body
+        | CompleteShipping date ->
+            let body = sprintf """{"date": "%s", "version": %d}""" (formatDate date) version
+            return! postJson client (sprintf "/lots/%s/complete-shipping" lotId) body
+        | InstructItemConversion info ->
+            let body = sprintf """{"destinationItem": "%s", "version": %d}""" info.DestinationItem version
+            return! postJson client (sprintf "/lots/%s/instruct-item-conversion" lotId) body
+        | CancelItemConversionInstruction ->
+            let body = sprintf """{"version": %d}""" version
+            return! deleteWithBody client (sprintf "/lots/%s/instruct-item-conversion" lotId) (Some body)
+    }
+
+// ── レスポンス解釈 ──
+
+let parseStatus (statusStr: string) : LotModelState =
+    match statusStr with
+    | "manufacturing" -> MManufacturing
+    | "manufactured" -> MManufactured
+    | "shipping_instructed" -> MShippingInstructed
+    | "shipped" -> MShipped
+    | "conversion_instructed" -> MConversionInstructed
+    | s -> failwithf "unknown status: %s" s
+
+let parseResponse (resp: Net.Http.HttpResponseMessage) =
+    task {
+        let! body = readBody resp
+        let json = parseJson body
+        let status = json.GetProperty("status").GetString()
+        let version = json.GetProperty("version").GetInt32()
+        return status, version
+    }
+
 // ── Generator ──
 
 let private conversionInfoGen = gen {
@@ -65,12 +116,45 @@ type StateMachineArbitraries =
     static member LotCommon() = Domain.Arbitraries.LotCommon()
     static member DateOnly() = Domain.Arbitraries.DateOnly()
 
-// ── 最小 property: コマンド列が生成・shrink 可能であることの確認 ──
+// ── ロット作成ヘルパー ──
 
-[<Properties(Arbitrary = [| typeof<StateMachineArbitraries> |])>]
-module Tests =
+let private createLot (client: Net.Http.HttpClient) =
+    task {
+        let r = Random()
+        let year = 3000 + r.Next(0, 5000)
+        let seq = r.Next(1, 9999)
+        let lotId = sprintf "%d-T-%04d" year seq
 
-    [<Property>]
+        let body =
+            createLotBody
+                { emptyLotOverrides with
+                    Year = Some(JInt year)
+                    Location = Some(JString "T")
+                    Seq = Some(JInt seq) }
+
+        let! resp = postJson client "/lots" body
+        assert (resp.StatusCode = HttpStatusCode.OK)
+        return lotId
+    }
+
+// ── Property ──
+
+[<Collection("ApiAuthOff")>]
+type LotStateMachinePropertyTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
+
+    [<Fact>]
     [<Trait("Category", "PBT")>]
-    let ``コマンド列が生成され、長さは0〜20の範囲`` (commands: LotCommand list) =
-        commands.Length >= 0 && commands.Length <= 20
+    [<Trait("Category", "Integration")>]
+    member _.``単一コマンド: 製造中ロットに製造完了を指示すると200が返りstatusがmanufacturedになる``() =
+        task {
+            use client = fixture.NewClient()
+            let! lotId = createLot client
+
+            let! resp = executeCommand client lotId 1 (CompleteManufacturing(DateOnly(2026, 4, 22)))
+            Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
+
+            let! (status, version) = parseResponse resp
+            Assert.Equal("manufactured", status)
+            Assert.Equal(2, version)
+        }
