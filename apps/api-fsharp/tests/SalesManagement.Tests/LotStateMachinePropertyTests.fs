@@ -123,7 +123,7 @@ let private createLot (client: Net.Http.HttpClient) =
         let r = Random()
         let year = 3000 + r.Next(0, 5000)
         let seq = r.Next(1, 9999)
-        let lotId = sprintf "%d-T-%04d" year seq
+        let lotId = sprintf "%d-T-%d" year seq
 
         let body =
             createLotBody
@@ -192,6 +192,64 @@ type LotStateMachinePropertyTests(fixture: AuthOffFixture) =
                         | Error _ ->
                             if resp.StatusCode = HttpStatusCode.OK then
                                 failwithf "モデルはErrorだがHTTPは200。状態=%A, コマンド=%A" modelState cmd
+                })
+                    .GetAwaiter()
+                    .GetResult()
+
+            let config = Config.QuickThrowOnFailure.WithMaxTest(30)
+            let prop = Prop.forAll (Arb.fromGen lotCommandListGen) runCommands
+            Check.One(config, prop)
+        }
+
+    [<Fact>]
+    [<Trait("Category", "PBT")>]
+    [<Trait("Category", "Integration")>]
+    member _.``不正遷移後も状態が維持され、lotNumberは全遷移を通じて不変``() =
+        task {
+            use client = fixture.NewClient()
+
+            let runCommands (commands: LotCommand list) =
+                (task {
+                    let! lotId = createLot client
+                    let mutable modelState = MManufacturing
+                    let mutable version = 1
+
+                    for cmd in commands do
+                        let modelResult = stepModel cmd modelState
+                        let! resp = executeCommand client lotId version cmd
+
+                        match modelResult with
+                        | Ok nextState ->
+                            if resp.StatusCode <> HttpStatusCode.OK then
+                                failwithf "モデルはOkだがHTTPは%A。状態=%A, コマンド=%A" resp.StatusCode modelState cmd
+
+                            let! (status, newVersion) = parseResponse resp
+                            modelState <- parseStatus status
+                            version <- newVersion
+                        | Error _ ->
+                            // 不正遷移後、GETで状態が変わっていないことを確認
+                            let! getResp = getReq client (sprintf "/lots/%s" lotId)
+
+                            if getResp.StatusCode <> HttpStatusCode.OK then
+                                failwithf "GET失敗。lotId=%s" lotId
+
+                            let! (getStatus, getVersion) = parseResponse getResp
+                            let actualState = parseStatus getStatus
+
+                            if actualState <> modelState then
+                                failwithf "不正遷移後に状態が変化。期待=%A, 実際=%A, コマンド=%A" modelState actualState cmd
+
+                            if getVersion <> version then
+                                failwithf "不正遷移後にversionが変化。期待=%d, 実際=%d, コマンド=%A" version getVersion cmd
+
+                    // 全コマンド実行後、lotNumberが初期値と一致することを確認
+                    let! finalResp = getReq client (sprintf "/lots/%s" lotId)
+                    let! finalBody = readBody finalResp
+                    let finalJson = parseJson finalBody
+                    let finalLotNumber = finalJson.GetProperty("lotNumber").GetString()
+
+                    if finalLotNumber <> lotId then
+                        failwithf "lotNumberが変化。期待=%s, 実際=%s" lotId finalLotNumber
                 })
                     .GetAwaiter()
                     .GetResult()
