@@ -34,6 +34,7 @@
 | [Validating Formal Specifications with LLM-generated Test Cases](https://arxiv.org/abs/2510.23350) | DSL 仕様そのものを、正例/反例で検査する運用の参考にする。LLM は DSL 生成よりも、仕様 validation 用の例生成に使う。 |
 | [Beyond Postconditions: Can Large Language Models infer Formal Contracts for Automatic Software Verification?](https://arxiv.org/abs/2510.12702) | `behavior` の前提と結果を、型で表せる部分と assumption/postcondition として補足すべき部分に分ける参考にする。 |
 | [VeriAct: Beyond Verifiability -- Agentic Synthesis of Correct and Complete Formal Specifications](https://arxiv.org/abs/2604.00280) | verifier を通る仕様でも、要求意図に対して過剰制約または過少制約になり得るという注意点の根拠にする。 |
+| [ConCodeEval: Evaluating Large Language Models for Code Constraints in Domain-Specific Languages](https://arxiv.org/abs/2407.03387) | LLM が DSL/schema の細粒度制約を安定して満たせないことを、生成 IR に対する parser/validator 必須化の根拠にする。 |
 
 ### 今回は主参考にしない研究
 
@@ -227,7 +228,7 @@ status: informal | classified | dsl | tested | model_checked | deferred
 
 最大の制約は、業務記述を担当するビジネスコンサルタントが DSL/IR を使いこなせなくなることである。したがって、ビジネス側の入力は軽く保ち、検査やコード生成に必要な重い構造はツールまたは LLM が生成する。
 
-ただし、LLM が生成した IR をそのまま信頼しない。ConCodeEval の知見が示すように、LLM は DSL や schema の細粒度制約を安定して満たせず、妥当性判定も機械的 validator の代替にはならない。したがって、IR 生成を採用する場合は、静的 parser、schema validator、semantic validator を同時に実装する。
+ただし、LLM が生成した IR をそのまま信頼しない。[ConCodeEval](https://arxiv.org/abs/2407.03387) の知見が示すように、LLM は DSL や schema の細粒度制約を安定して満たせず、妥当性判定も機械的 validator の代替にはならない。したがって、IR 生成を採用する場合は、静的 parser、schema validator、semantic validator を同時に実装する。
 
 | 層 | 主な利用者 | 役割 | 例 |
 | --- | --- | --- | --- |
