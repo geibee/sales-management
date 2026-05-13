@@ -26,14 +26,21 @@
 - postcondition だけではなく、precondition、guard、assumption を仕様の一部として明示する必要がある。
 - LLM は仕様を一発生成する役割より、候補仕様の分解、反例生成、局所修正、説明補助に使うほうが現実的である。
 
-参考:
+### 主に参考にする研究
 
-- [VeriAct: Beyond Verifiability -- Agentic Synthesis of Correct and Complete Formal Specifications](https://arxiv.org/abs/2604.00280)
-- [Intent-aligned Formal Specification Synthesis via Traceable Refinement](https://arxiv.org/abs/2604.10392)
-- [Validating Formal Specifications with LLM-generated Test Cases](https://arxiv.org/abs/2510.23350)
-- [Beyond Postconditions: Can Large Language Models infer Formal Contracts for Automatic Software Verification?](https://arxiv.org/abs/2510.12702)
-- [Neuro-Symbolic Generation and Validation of Memory-Aware Formal Function Specifications](https://arxiv.org/abs/2603.13414)
-- [ModelWisdom: An Integrated Toolkit for TLA+ Model Visualization, Digest and Repair](https://arxiv.org/abs/2602.12058)
+| 研究 | 本リポジトリでの使いどころ |
+| --- | --- |
+| [Intent-aligned Formal Specification Synthesis via Traceable Refinement](https://arxiv.org/abs/2604.10392) | 自然言語要求を atomic requirement に分解し、要求ごとに traceability と局所修正単位を持たせる設計の参考にする。 |
+| [Validating Formal Specifications with LLM-generated Test Cases](https://arxiv.org/abs/2510.23350) | DSL 仕様そのものを、正例/反例で検査する運用の参考にする。LLM は DSL 生成よりも、仕様 validation 用の例生成に使う。 |
+| [Beyond Postconditions: Can Large Language Models infer Formal Contracts for Automatic Software Verification?](https://arxiv.org/abs/2510.12702) | `behavior` を単なる入出力ではなく、precondition、postcondition、error、assumption を含む契約として整理する参考にする。 |
+| [VeriAct: Beyond Verifiability -- Agentic Synthesis of Correct and Complete Formal Specifications](https://arxiv.org/abs/2604.00280) | verifier を通る仕様でも、要求意図に対して過剰制約または過少制約になり得るという注意点の根拠にする。 |
+
+### 今回は主参考にしない研究
+
+| 研究 | 今回の扱い |
+| --- | --- |
+| [ModelWisdom: An Integrated Toolkit for TLA+ Model Visualization, Digest and Repair](https://arxiv.org/abs/2602.12058) | TLA+ モデルを本格導入した後の反例理解、状態遷移グラフ可視化、修正支援には役立つ可能性がある。ただし、現時点の課題である要求分類、DSL 化、正例/反例による仕様 validation には直接効かないため保留する。 |
+| [Neuro-Symbolic Generation and Validation of Memory-Aware Formal Function Specifications](https://arxiv.org/abs/2603.13414) | C のメモリ操作関数仕様が主対象で、本リポジトリの業務ドメイン DSL とは距離がある。LLM 生成仕様を反例と symbolic feedback で検査する一般パターンは参考になるが、その知見は VeriAct と LLM-generated test cases の論文で足りるため、主参考から外す。 |
 
 ## 要求の分類
 
