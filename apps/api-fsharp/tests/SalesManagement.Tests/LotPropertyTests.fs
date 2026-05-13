@@ -2,67 +2,12 @@ module SalesManagement.Tests.LotPropertyTests
 
 open System
 open Xunit
-open FsCheck
-open FsCheck.FSharp
 open FsCheck.Xunit
 open SalesManagement.Domain.Types
 open SalesManagement.Domain.LotWorkflows
+open SalesManagement.Tests.Support.Generators
 
-let private mustCount n =
-    match Count.tryCreate n with
-    | Ok c -> c
-    | Error e -> failwithf "test setup: %s" e
-
-let private mustQuantity v =
-    match Quantity.tryCreate v with
-    | Ok q -> q
-    | Error e -> failwithf "test setup: %s" e
-
-let private lotDetailGen = gen {
-    return
-        { ItemCategory = General
-          PremiumCategory = None
-          ProductCategoryCode = "A分類"
-          LengthSpecLower = 100m
-          ThicknessSpecLower = 10m
-          ThicknessSpecUpper = 20m
-          QualityGrade = "A"
-          Count = mustCount 10
-          Quantity = mustQuantity 5.0m
-          InspectionResultCategory = None }
-}
-
-let private lotCommonGen = gen {
-    let! year = Gen.choose (2020, 2030)
-    let! seq = Gen.choose (1, 9999)
-    let! detail = lotDetailGen
-
-    return
-        { LotNumber =
-            { Year = year
-              Location = "A"
-              Seq = seq }
-          DivisionCode = DivisionCode 1
-          DepartmentCode = DepartmentCode 1
-          SectionCode = SectionCode 1
-          ProcessCategory = 1
-          InspectionCategory = 1
-          ManufacturingCategory = 1
-          Details = { Head = detail; Tail = [] } }
-}
-
-let private dateGen = gen {
-    let! year = Gen.choose (2020, 2030)
-    let! month = Gen.choose (1, 12)
-    let! day = Gen.choose (1, 28)
-    return DateOnly(year, month, day)
-}
-
-type Arbitraries =
-    static member LotCommon() : Arbitrary<LotCommon> = Arb.fromGen lotCommonGen
-    static member DateOnly() : Arbitrary<DateOnly> = Arb.fromGen dateGen
-
-[<Properties(Arbitrary = [| typeof<Arbitraries> |])>]
+[<Properties(Arbitrary = [| typeof<Domain.Arbitraries> |])>]
 module Tests =
 
     [<Property>]
