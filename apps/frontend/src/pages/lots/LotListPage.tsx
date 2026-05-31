@@ -1,3 +1,4 @@
+import { SalesCaseCreateDialog } from "@/components/sales-cases/SalesCaseCreateDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,7 @@ import { useLotsList } from "@/hooks/use-lots-list";
 import { describeApiError } from "@/lib/api-client";
 import { lotStatusLabel } from "@/lib/format";
 import { Link } from "@tanstack/react-router";
+import { BriefcaseBusiness } from "lucide-react";
 import { useState } from "react";
 
 const PAGE_SIZE = 20;
@@ -41,14 +43,40 @@ export function LotListPage() {
   const page = Math.floor(offset / PAGE_SIZE) + 1;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const toggle = (lotNumber: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(lotNumber)) next.delete(lotNumber);
+      else next.add(lotNumber);
+      return next;
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="font-semibold text-2xl">在庫ロット一覧</h1>
-        <Link to="/lots/new" className="text-sm font-medium underline underline-offset-4">
-          新規作成
-        </Link>
+        <div className="flex items-center gap-3">
+          {selected.size > 0 && (
+            <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
+              <BriefcaseBusiness className="size-4" />
+              販売案件新規登録（{selected.size}）
+            </Button>
+          )}
+          <Link to="/lots/new" className="text-sm font-medium underline underline-offset-4">
+            新規作成
+          </Link>
+        </div>
       </div>
+
+      <SalesCaseCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        lotNumbers={[...selected]}
+      />
 
       <div className="flex items-center gap-3">
         <span className="text-muted-foreground text-sm">状態:</span>
@@ -79,6 +107,7 @@ export function LotListPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10" />
               <TableHead>ロット番号</TableHead>
               <TableHead>状態</TableHead>
               <TableHead>製造完了日</TableHead>
@@ -88,19 +117,32 @@ export function LotListPage() {
           <TableBody>
             {isLoading && items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
+                <TableCell colSpan={5} className="text-muted-foreground">
                   読み込み中…
                 </TableCell>
               </TableRow>
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
+                <TableCell colSpan={5} className="text-muted-foreground">
                   該当するロットがありません
                 </TableCell>
               </TableRow>
             ) : (
               items.map((it) => (
                 <TableRow key={it.lotNumber}>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      className="size-4 disabled:opacity-40"
+                      checked={selected.has(it.lotNumber)}
+                      disabled={it.status !== "manufactured"}
+                      onChange={() => toggle(it.lotNumber)}
+                      aria-label={`ロット ${it.lotNumber} を選択`}
+                      title={
+                        it.status !== "manufactured" ? "製造完了ロットのみ選択できます" : undefined
+                      }
+                    />
+                  </TableCell>
                   <TableCell>
                     <Link
                       to="/lots/$id"

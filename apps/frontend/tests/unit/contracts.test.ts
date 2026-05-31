@@ -18,6 +18,12 @@ describe("contracts", () => {
       shippingDeadlineDate: null,
       shippedDate: null,
       destinationItem: null,
+      division: { code: 1, name: "第一事業部" },
+      department: { code: 10, name: "営業部" },
+      section: { code: 100, name: "第一営業課" },
+      processCategory: { code: 1, name: "通常工程" },
+      inspectionCategory: { code: 1, name: "標準検査" },
+      manufacturingCategory: { code: 1, name: "量産" },
       details: [
         {
           itemCategory: "general",
@@ -43,6 +49,12 @@ describe("contracts", () => {
       lotNumber: "2026-A-1",
       status: "manufactured",
       version: 2,
+      division: { code: 1, name: null },
+      department: { code: 10, name: null },
+      section: { code: 100, name: null },
+      processCategory: { code: 1, name: null },
+      inspectionCategory: { code: 1, name: null },
+      manufacturingCategory: { code: 1, name: null },
       details: [],
       auditCreatedBy: "user-1",
     });

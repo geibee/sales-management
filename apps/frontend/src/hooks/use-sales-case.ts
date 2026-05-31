@@ -56,6 +56,14 @@ export async function deleteSalesCase(id: string): Promise<void> {
   await apiSend("DELETE", salesCaseKey(id));
 }
 
+// ---- Edit lots (価格/査定登録前の direct・consignment のみ) ----
+export async function updateSalesCaseLots(
+  id: string,
+  body: { lots: string[]; version: number },
+): Promise<void> {
+  await withConflictRefresh(id, () => apiSend("PUT", `/sales-cases/${id}/lots`, body));
+}
+
 // ---- Appraisal ----
 type AppraisalBody = Record<string, unknown>;
 

@@ -1,4 +1,5 @@
 import { Guard } from "@/components/auth/Guard";
+import { LotSelectDialog } from "@/components/lots/LotSelectDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,21 +15,18 @@ import { createSalesCase } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, BriefcaseBusiness, Save } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, PackageSearch, Save } from "lucide-react";
+import { useState } from "react";
 import { type UseFormRegisterReturn, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
+  CASE_TYPE_OPTIONS,
   type SalesCaseCreateFormValues,
+  caseDetailRoute,
   salesCaseCreateDefaultValues,
   salesCaseCreateFormSchema,
   toCreateSalesCaseBody,
 } from "./sales-case-create-validation";
-
-const CASE_TYPE_OPTIONS: Array<[SalesCaseCreateFormValues["caseType"], string]> = [
-  ["direct", "直接販売"],
-  ["reservation", "予約"],
-  ["consignment", "委託"],
-];
 
 export function SalesCaseCreatePage() {
   const navigate = useNavigate();
@@ -45,18 +43,14 @@ export function SalesCaseCreatePage() {
   });
 
   const caseType = watch("caseType");
+  const lots = watch("lots");
+  const [lotDialogOpen, setLotDialogOpen] = useState(false);
 
   const onSubmit = handleSubmit(async (values) => {
     try {
       const created = await createSalesCase(toCreateSalesCaseBody(values));
       toast.success("案件を作成しました");
-      const target =
-        values.caseType === "reservation"
-          ? "/reservation-cases/$id"
-          : values.caseType === "consignment"
-            ? "/consignment-cases/$id"
-            : "/sales-cases/$id";
-      navigate({ to: target, params: { id: created.salesCaseNumber } });
+      navigate({ to: caseDetailRoute(values.caseType), params: { id: created.salesCaseNumber } });
     } catch (e) {
       toast.error(describeApiError(e));
     }
@@ -117,17 +111,43 @@ export function SalesCaseCreatePage() {
               </Select>
               <FieldError message={errors.caseType?.message} />
             </div>
-            <div className="space-y-1 lg:row-span-3">
-              <Label htmlFor="lotsText">ロット ID</Label>
-              <textarea
-                id="lotsText"
-                rows={7}
-                placeholder="2026-A-001, 2026-A-002"
-                aria-invalid={!!errors.lotsText}
-                className="w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20"
-                {...register("lotsText")}
+            <div className="space-y-2 lg:row-span-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label>対象ロット</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLotDialogOpen(true)}
+                >
+                  <PackageSearch className="size-4" />
+                  ロットを選択
+                </Button>
+              </div>
+              {lots.length === 0 ? (
+                <p className="text-muted-foreground text-sm">ロットが選択されていません</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {lots.map((lotNumber) => (
+                    <span
+                      key={lotNumber}
+                      className="rounded-md border bg-muted/40 px-2 py-1 font-mono text-xs"
+                    >
+                      {lotNumber}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <FieldError message={errors.lots?.message} />
+              <LotSelectDialog
+                open={lotDialogOpen}
+                onOpenChange={setLotDialogOpen}
+                value={lots}
+                onConfirm={(picked) =>
+                  setValue("lots", picked, { shouldDirty: true, shouldValidate: true })
+                }
+                title="対象ロットを選択"
               />
-              <FieldError message={errors.lotsText?.message} />
             </div>
             <NumberField
               label="事業部コード"

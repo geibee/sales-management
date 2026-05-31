@@ -37,6 +37,10 @@ export type CreatedSalesCaseResponse = z.infer<typeof schemas.CreatedSalesCaseRe
 export type SalesCasesListResponse = z.infer<typeof schemas.SalesCasesListResponse>;
 export type SalesCaseType = z.infer<typeof schemas.SalesCaseType>;
 export type SalesCaseDetailResponse = z.infer<typeof schemas.SalesCaseDetailResponse>;
+export const CodeMastersResponseSchema = schemas.CodeMastersResponse;
+export const AvailableLotsResponseSchema = schemas.AvailableLotsResponse;
+export type CodeMastersResponse = z.infer<typeof schemas.CodeMastersResponse>;
+export type AvailableLotsResponse = z.infer<typeof schemas.AvailableLotsResponse>;
 
 // ---- Hand-written extensions ----
 

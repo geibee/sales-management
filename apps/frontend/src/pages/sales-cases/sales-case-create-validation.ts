@@ -1,6 +1,13 @@
 import { z } from "zod";
 
 export const CASE_TYPES = ["direct", "reservation", "consignment"] as const;
+export type CaseType = (typeof CASE_TYPES)[number];
+
+export const CASE_TYPE_OPTIONS: Array<[CaseType, string]> = [
+  ["direct", "直接販売"],
+  ["reservation", "予約"],
+  ["consignment", "委託"],
+];
 
 const LOT_NUMBER_PATTERN = /^\d+-[^-\s]+-\d+$/;
 const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -45,47 +52,80 @@ export function parseLotNumbers(value: string): string[] {
     .filter(Boolean);
 }
 
-export const salesCaseCreateFormSchema = z.object({
-  caseType: z.enum(CASE_TYPES, {
-    errorMap: () => ({ message: "案件種別を選択してください" }),
-  }),
-  lotsText: z.string().superRefine((value, ctx) => {
-    const lotNumbers = parseLotNumbers(value);
-
-    if (lotNumbers.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "ロット ID を1つ以上入力してください",
-      });
-      return;
-    }
-
-    const invalid = lotNumbers.filter((lotNumber) => !LOT_NUMBER_PATTERN.test(lotNumber));
+// ---- 個別フィールドスキーマ（ページ／モーダルで共有） ----
+export const caseTypeSchema = z.enum(CASE_TYPES, {
+  errorMap: () => ({ message: "案件種別を選択してください" }),
+});
+export const divisionCodeSchema = positiveIntInput("事業部コード");
+export const salesDateSchema = z
+  .string()
+  .trim()
+  .refine(isIsoDate, "販売日は yyyy-MM-dd 形式で入力してください");
+export const lotsSchema = z
+  .array(z.string())
+  .min(1, "ロットを1つ以上選択してください")
+  .superRefine((lots, ctx) => {
+    const invalid = lots.filter((lotNumber) => !LOT_NUMBER_PATTERN.test(lotNumber));
     if (invalid.length > 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `ロット ID は 年度-保管場所-連番 の形式で入力してください: ${invalid.join(", ")}`,
       });
     }
-  }),
-  divisionCode: positiveIntInput("事業部コード"),
-  salesDate: z.string().trim().refine(isIsoDate, "販売日は yyyy-MM-dd 形式で入力してください"),
+  });
+
+/** ロットを選択式で持つ作成フォーム（販売案件作成ページ用）。 */
+export const salesCaseCreateFormSchema = z.object({
+  caseType: caseTypeSchema,
+  lots: lotsSchema,
+  divisionCode: divisionCodeSchema,
+  salesDate: salesDateSchema,
+});
+
+/** ロット一覧から選択済みのロットで起動するモーダル用（lots は props で受け取る）。 */
+export const salesCaseCreateModalSchema = z.object({
+  caseType: caseTypeSchema,
+  divisionCode: divisionCodeSchema,
+  salesDate: salesDateSchema,
 });
 
 export type SalesCaseCreateFormValues = z.infer<typeof salesCaseCreateFormSchema>;
+export type SalesCaseCreateModalValues = z.infer<typeof salesCaseCreateModalSchema>;
 
 export const salesCaseCreateDefaultValues: SalesCaseCreateFormValues = {
   caseType: "direct",
-  lotsText: "",
+  lots: [],
   divisionCode: 1,
   salesDate: "",
 };
 
-export function toCreateSalesCaseBody(values: SalesCaseCreateFormValues) {
+export const salesCaseCreateModalDefaultValues: SalesCaseCreateModalValues = {
+  caseType: "direct",
+  divisionCode: 1,
+  salesDate: "",
+};
+
+type CreateSalesCaseBody = {
+  lots: string[];
+  divisionCode: number;
+  salesDate: string;
+  caseType: CaseType;
+};
+
+export function toCreateSalesCaseBody(values: SalesCaseCreateFormValues): CreateSalesCaseBody {
   return {
-    lots: parseLotNumbers(values.lotsText),
+    lots: values.lots,
     divisionCode: values.divisionCode,
     salesDate: values.salesDate,
     caseType: values.caseType,
   };
+}
+
+/** 案件種別に応じた詳細ページのルート。 */
+export function caseDetailRoute(
+  caseType: CaseType,
+): "/sales-cases/$id" | "/reservation-cases/$id" | "/consignment-cases/$id" {
+  if (caseType === "reservation") return "/reservation-cases/$id";
+  if (caseType === "consignment") return "/consignment-cases/$id";
+  return "/sales-cases/$id";
 }

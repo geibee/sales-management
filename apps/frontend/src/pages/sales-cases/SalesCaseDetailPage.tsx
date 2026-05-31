@@ -1,4 +1,5 @@
 import { Guard } from "@/components/auth/Guard";
+import { LotSelectDialog } from "@/components/lots/LotSelectDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import {
   deleteSalesCase,
   instructSalesShipping,
   updateAppraisal,
+  updateSalesCaseLots,
   useSalesCase,
 } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";
@@ -28,12 +30,13 @@ import {
   Layers3,
   type LucideIcon,
   Package,
+  PackageSearch,
   ReceiptText,
   Trash2,
   Truck,
   Undo2,
 } from "lucide-react";
-import { type ReactNode, useActionState } from "react";
+import { type ReactNode, useActionState, useState } from "react";
 import { toast } from "sonner";
 import {
   DateVersionActionForm,
@@ -86,11 +89,24 @@ export function SalesCaseDetailPage({ id }: { id: string }) {
     return null;
   }, null);
 
+  const [editLotsOpen, setEditLotsOpen] = useState(false);
+
   if (isLoading) return <p>読み込み中…</p>;
   if (error) return <p className="text-destructive">エラー: {describeApiError(error)}</p>;
   if (!data) return null;
 
   const statusLabel = caseStatusLabel(data.caseType, data.status);
+  // 直接販売は査定登録前のみロット修正可。
+  const editLotsAllowed = data.caseType === "direct" && data.status === "before_appraisal";
+
+  const onEditLots = async (lots: string[]) => {
+    try {
+      await updateSalesCaseLots(id, { lots, version: data.version });
+      toast.success("対象ロットを更新しました");
+    } catch (e) {
+      toast.error(describeApiError(e));
+    }
+  };
   const lotCount = data.lots.length;
 
   return (
@@ -138,9 +154,24 @@ export function SalesCaseDetailPage({ id }: { id: string }) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[0.85fr_1.15fr]">
         <section className="space-y-3 rounded-lg border p-4" data-testid="sales-case-lots">
-          <div className="flex items-center gap-2">
-            <Package className="size-4 text-muted-foreground" />
-            <h2 className="font-medium text-base">対象ロット</h2>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Package className="size-4 text-muted-foreground" />
+              <h2 className="font-medium text-base">対象ロット</h2>
+            </div>
+            {editLotsAllowed && (
+              <Guard requiredRole="operator">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditLotsOpen(true)}
+                >
+                  <PackageSearch className="size-4" />
+                  ロットを修正
+                </Button>
+              </Guard>
+            )}
           </div>
           <div className="grid gap-2">
             {data.lots.map((lotNumber) => (
@@ -155,6 +186,17 @@ export function SalesCaseDetailPage({ id }: { id: string }) {
               </Link>
             ))}
           </div>
+          {editLotsAllowed && (
+            <LotSelectDialog
+              open={editLotsOpen}
+              onOpenChange={setEditLotsOpen}
+              value={data.lots}
+              excludeCase={id}
+              onConfirm={onEditLots}
+              title="対象ロットを修正"
+              confirmLabel="更新"
+            />
+          )}
         </section>
 
         <section className="space-y-3 rounded-lg border p-4" data-testid="sales-case-business-data">
