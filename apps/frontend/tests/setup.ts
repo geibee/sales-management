@@ -5,23 +5,23 @@ import { useAuth } from "@/stores/auth-store";
 import { resetCapturedRequests, server } from "./support/server";
 
 // ---- MSW lifecycle ----
-// `onUnhandledRequest: "error"` ensures every test explicitly mocks
-// the endpoints it touches — silent passthrough would mask oversight.
+// `onUnhandledRequest: "error"` で未モック URL を明示的にエラーにする。
+// 通り抜け (silent passthrough) を許すとモック漏れに気付けないため。
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   cleanup();
   server.resetHandlers();
   resetCapturedRequests();
-  // auth-store is module-level zustand state; reset between tests so
-  // role from a prior case doesn't leak into the next.
+  // auth-store はモジュールレベル zustand 状態のため、テスト間で前ケース
+  // のロールが漏れないよう毎回リセットする。
   useAuth.getState().clear();
   vi.restoreAllMocks();
 });
 afterAll(() => server.close());
 
 // ---- window.matchMedia ----
-// jsdom doesn't implement matchMedia; sonner (Toaster) and next-themes
-// both call it during mount. Return a deterministic "not matched" stub.
+// jsdom は matchMedia を実装していない。sonner (Toaster) と next-themes が
+// mount 時に呼ぶので、常に「マッチしない」を返す stub を入れる。
 if (typeof window.matchMedia !== "function") {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
@@ -39,17 +39,17 @@ if (typeof window.matchMedia !== "function") {
 }
 
 // ---- window.confirm ----
-// Default to "accept" so destructive flows proceed; tests that exercise
-// the cancel branch can re-stub with `vi.spyOn(window, "confirm")`.
+// 既定は「常に承諾」。破壊系フローを進行させたいため。キャンセル分岐を
+// 検証したいテストは個別に `vi.spyOn(window, "confirm")` で上書きする。
 vi.stubGlobal(
   "confirm",
   vi.fn(() => true),
 );
 
 // ---- URL.createObjectURL / revokeObjectURL ----
-// jsdom doesn't implement these; CSV download (`apiDownload`) needs both.
-// `vi.fn()` returns undefined which is fine for revoke; createObjectURL
-// gets a deterministic stub so tests can assert on the href.
+// jsdom は両方とも未実装。CSV ダウンロード (`apiDownload`) が両方を使う。
+// revoke は undefined を返すだけで十分。createObjectURL は固定値を返す
+// stub にして、テストから href をアサートできるようにする。
 if (typeof URL.createObjectURL !== "function") {
   Object.defineProperty(URL, "createObjectURL", {
     configurable: true,
@@ -64,9 +64,9 @@ if (typeof URL.revokeObjectURL !== "function") {
 }
 
 // ---- HTMLAnchorElement.click ----
-// `apiDownload` programmatically creates an <a download> and clicks it.
-// jsdom navigates on click which throws "Not implemented: navigation".
-// Stub it as a no-op so the download flow can be exercised in tests.
+// `apiDownload` は `<a download>` を組み立てて click する。jsdom の click
+// は navigation を試みて "Not implemented: navigation" を投げるので、
+// no-op の stub に差し替えてダウンロード経路を検証可能にする。
 if (typeof HTMLAnchorElement.prototype.click === "function") {
   HTMLAnchorElement.prototype.click = vi.fn();
 }

@@ -1,15 +1,16 @@
 /**
- * MSW node server for unit/component tests.
+ * unit / component テスト用の MSW node server。
  *
- * Two responsibilities:
- *   1. `server` — the `setupServer()` instance. Lifecycle (listen /
- *      resetHandlers / close) is wired in `tests/setup.ts`.
- *   2. `capturedRequests` — every intercepted request is appended so
- *      tests can assert URL / method / body / headers without re-mocking
- *      `fetch`. Reset between tests by `tests/setup.ts`.
+ * 主な役割は 2 つ:
+ *   1. `server` — `setupServer()` インスタンス。lifecycle (listen /
+ *      resetHandlers / close) は `tests/setup.ts` で配線する。
+ *   2. `capturedRequests` — 介入したリクエストを順次追記するので、
+ *      テスト側は `fetch` を再モックせずに URL / method / body /
+ *      headers をアサートできる。各テスト後に `tests/setup.ts` から
+ *      リセットされる。
  *
- * `BASE` mirrors `src/lib/api-client.ts` so handlers can be authored
- * either as full `${BASE}/path` or as relative `/api/path` strings.
+ * `BASE` は `src/lib/api-client.ts` と同じ値にしてあるので、handler は
+ * フル URL (`${BASE}/path`) でも相対 (`/api/path`) でも書ける。
  */
 import { setupServer } from "msw/node";
 
@@ -29,8 +30,7 @@ export const capturedRequests: CapturedRequest[] = [];
 export const server = setupServer();
 
 server.events.on("request:start", async ({ request }) => {
-  // Clone before reading the body — the original is consumed by the
-  // resolver downstream.
+  // body を読む前に clone する — オリジナルは下流の resolver で消費される。
   const cloned = request.clone();
   let body: unknown = null;
   const ct = cloned.headers.get("content-type") ?? "";
@@ -66,12 +66,12 @@ export function resetCapturedRequests(): void {
   capturedRequests.length = 0;
 }
 
-/** Filter captured requests by pathname (exact match). */
+/** pathname の完全一致で捕捉済みリクエストを抽出する。 */
 export function requestsFor(pathname: string): CapturedRequest[] {
   return capturedRequests.filter((r) => r.pathname === pathname);
 }
 
-/** Count captured requests by pathname (exact match). */
+/** pathname の完全一致で捕捉済みリクエストの件数を返す。 */
 export function requestCount(pathname: string): number {
   return requestsFor(pathname).length;
 }

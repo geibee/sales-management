@@ -1,16 +1,17 @@
 /**
- * Phase 2e — `LotSelectDialog` (FE-COMP-LOT-SELECT-001..006).
+ * Phase 2e — `LotSelectDialog` (FE-COMP-LOT-SELECT-001..006)。
  *
- * The dialog is the shared lot picker used by SalesCaseCreatePage /
- * SalesCaseCreateDialog / 「ロットを修正」. It owns:
- *   - SWR fetch of `/lots/available` (or `?excludeCase=...`) gated on
- *     `open`
- *   - a multi-row table with one checkbox per item (aria-label =
+ * このダイアログは SalesCaseCreatePage / SalesCaseCreateDialog /
+ * 「ロットを修正」(SalesCase/Consignment) で共有される共通ロット
+ * ピッカー。責務は以下:
+ *   - `open` の間だけ SWR で `/lots/available` (または
+ *     `?excludeCase=...`) を取得
+ *   - 各行に checkbox を持つ複数行テーブル (aria-label =
  *     `ロット {lotNumber} を選択`)
- *   - a confirm button disabled while no row is checked
+ *   - 選択 0 件のときは「確定」ボタンを disabled にする
  *
- * MSW request capture lets us assert URL and query shape without
- * mocking `useAvailableLots`.
+ * MSW の request capture を使うと、`useAvailableLots` をモックせず
+ * URL とクエリ形状を直接検査できる。
  */
 import { LotSelectDialog } from "@/components/lots/LotSelectDialog";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
@@ -37,7 +38,7 @@ function renderDialog(props: Partial<Parameters<typeof LotSelectDialog>[0]> = {}
 }
 
 describe("<LotSelectDialog> (FE-COMP-LOT-SELECT-*)", () => {
-  it("FE-COMP-LOT-SELECT-001: open 時に GET /lots/available を呼び、行 + checkbox が出る", async () => {
+  it("FE-COMP-LOT-SELECT-001: open 時に GET /lots/available を呼び、行 + checkbox を描画する", async () => {
     server.use(
       http.get("/api/lots/available", () =>
         HttpResponse.json(
@@ -49,7 +50,9 @@ describe("<LotSelectDialog> (FE-COMP-LOT-SELECT-*)", () => {
       ),
     );
     renderDialog();
-    expect(await screen.findByRole("checkbox", { name: "ロット 2026-A-1 を選択" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("checkbox", { name: "ロット 2026-A-1 を選択" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "ロット 2026-A-2 を選択" })).toBeInTheDocument();
     // 初期状態は全 unchecked
     for (const cb of screen.getAllByRole("checkbox")) {
@@ -58,7 +61,7 @@ describe("<LotSelectDialog> (FE-COMP-LOT-SELECT-*)", () => {
     await waitFor(() => expect(requestsFor("/api/lots/available")).toHaveLength(1));
   });
 
-  it("FE-COMP-LOT-SELECT-002: excludeCase 付き open → query に excludeCase が入る", async () => {
+  it("FE-COMP-LOT-SELECT-002: excludeCase 付き open → クエリに excludeCase が入る", async () => {
     server.use(
       http.get("/api/lots/available", () => HttpResponse.json(makeAvailableLotsResponse([]))),
     );
@@ -68,7 +71,7 @@ describe("<LotSelectDialog> (FE-COMP-LOT-SELECT-*)", () => {
     expect(call.search).toContain("excludeCase=2026-S-001");
   });
 
-  it("FE-COMP-LOT-SELECT-003: 選択 → 確定 → onConfirm(selectedIds)", async () => {
+  it("FE-COMP-LOT-SELECT-003: 選択 → 確定 → onConfirm(selectedIds) が呼ばれる", async () => {
     server.use(
       http.get("/api/lots/available", () =>
         HttpResponse.json(
@@ -89,7 +92,7 @@ describe("<LotSelectDialog> (FE-COMP-LOT-SELECT-*)", () => {
     expect(onConfirm).toHaveBeenCalledWith(["2026-A-1", "2026-A-2"]);
   });
 
-  it("FE-COMP-LOT-SELECT-004: 選択 0 件で 確定 button disabled", async () => {
+  it("FE-COMP-LOT-SELECT-004: 選択 0 件のとき「確定」ボタンが disabled", async () => {
     server.use(
       http.get("/api/lots/available", () =>
         HttpResponse.json(makeAvailableLotsResponse([makeAvailableLot()])),
@@ -112,7 +115,7 @@ describe("<LotSelectDialog> (FE-COMP-LOT-SELECT-*)", () => {
     expect(await screen.findByText(/エラー:/)).toBeInTheDocument();
   });
 
-  it("FE-COMP-LOT-SELECT-006: pending 中は `読み込み中…` 表示", async () => {
+  it("FE-COMP-LOT-SELECT-006: pending 中は「読み込み中…」を表示", async () => {
     const d = deferred<Response>();
     server.use(http.get("/api/lots/available", () => d.promise));
     renderDialog();

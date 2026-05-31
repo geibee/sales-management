@@ -1,18 +1,18 @@
 /**
- * Phase 2b — `LotActionForm` (FE-COMP-LOT-ACTION-001..007, FE-A11Y-LOT-ACTION-001).
+ * Phase 2b — `LotActionForm` (FE-COMP-LOT-ACTION-001..007, FE-A11Y-LOT-ACTION-001)。
  *
- * `LotActionForm` is the generic card used by `LotDetailPage` for
- * status-transition actions (complete manufacturing / instruct
- * shipping / cancel / ...). It owns:
- *   - one optional `date` input + one optional `text` input
- *   - a submit button that flips to "実行中…" while pending
- *   - sonner toast for both validation errors and onSubmit failures
+ * `LotActionForm` は `LotDetailPage` で状態遷移ボタン (製造完了 /
+ * 出荷指示 / キャンセル / 品目転換 / …) ごとに使い回される薄い
+ * 共通カード component。責務は以下:
+ *   - 任意の date 入力 + 任意の text 入力を 1 つずつ持つ
+ *   - submit 中は button ラベルを「実行中…」に切り替える
+ *   - validation エラーも onSubmit 失敗も sonner toast で通知する
  *
- * The plan documents validation as "field 下 error + aria-invalid",
- * but the current component uses `required` + `toast.error` instead.
- * Tests below cover the *current* observable contract (toast + zero
- * request count). The plan's stricter field-level oracle is marked
- * `it.todo` so the intent stays visible until the UI catches up.
+ * テスト計画では validation を「field 直下 error + aria-invalid」と
+ * 規定しているが、現行 component は `required` 属性 + `toast.error`
+ * で実装されている。下のテストは現状の観測契約 (toast + API 未呼出)
+ * を検査する。計画どおりの field-level oracle は UI が追従するまで
+ * `it.todo` で意図だけ残してある。
  */
 import { LotActionForm } from "@/pages/lots/actions/LotActionForm";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
@@ -50,7 +50,7 @@ describe("LotActionForm (FE-COMP-LOT-ACTION-*)", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("FE-COMP-LOT-ACTION-003: 有効な date を入れて submit → onSubmit(date, undefined) + success toast", async () => {
+  it("FE-COMP-LOT-ACTION-003: 有効な date を入れて submit → onSubmit(date, undefined) + 成功 toast", async () => {
     const toastSuccess = vi.spyOn(toast, "success");
     const { onSubmit } = setup({ withDate: true, dateLabel: "完了日" });
     fireEvent.change(screen.getByLabelText("完了日"), { target: { value: "2026-04-28" } });
@@ -68,7 +68,7 @@ describe("LotActionForm (FE-COMP-LOT-ACTION-*)", () => {
     expect(onSubmit).toHaveBeenCalledWith(undefined, "2026-T-902");
   });
 
-  it("FE-COMP-LOT-ACTION-005: 二重 submit → onSubmit 呼出は 1 回、pending label に切り替わる", async () => {
+  it("FE-COMP-LOT-ACTION-005: 二重 submit でも onSubmit 呼出は 1 回、pending ラベルに切り替わる", async () => {
     const d = deferred<void>();
     const onSubmit = vi.fn<(date?: string, text?: string) => Promise<void>>(() => d.promise);
     renderWithApp(
@@ -104,10 +104,10 @@ describe("LotActionForm (FE-COMP-LOT-ACTION-*)", () => {
   });
 
   it.todo(
-    "FE-COMP-LOT-ACTION-007: 未 touched (mount 後 blur なし) では aria-invalid が立たない — 現状 UI は field-level error を持たないため Red",
+    "FE-COMP-LOT-ACTION-007: 未操作 (mount 後 blur なし) では aria-invalid が立たない — 現状 UI は field-level error を持たないため Red",
   );
 
-  it("FE-A11Y-LOT-ACTION-001: date label と input が htmlFor で紐付く", () => {
+  it("FE-A11Y-LOT-ACTION-001: date ラベルと input が htmlFor で紐付く", () => {
     setup({ withDate: true, dateLabel: "完了日" });
     const input = screen.getByLabelText("完了日");
     expect(input).toHaveAttribute("type", "date");

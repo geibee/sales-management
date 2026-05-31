@@ -1,15 +1,15 @@
 /**
- * Phase 2a — `<Guard>` role matrix (FE-COMP-GUARD-001..008).
+ * Phase 2a — `<Guard>` のロール階層マトリクス (FE-COMP-GUARD-001..008)。
  *
- * The oracle is the table in `docs/frontend-component-page-test-plan.md`
- * §Role Matrix. Each case exercises the combination of:
- *   - backend `/auth/config` `enabled` flag (true / false)
- *   - the JWT roles in `useAuth`
- *   - the `requiredRole` prop on `<Guard>`
+ * oracle は `docs/frontend-component-page-test-plan.md` §Role Matrix の表。
+ * 各ケースは以下 3 要素の組み合わせを検査する:
+ *   - バックエンド `/auth/config` の `enabled` (true / false)
+ *   - `useAuth` の JWT に入っているロール
+ *   - `<Guard requiredRole=...>` で要求しているロール
  *
- * `<Guard>` blocks render until `useAuthConfig` resolves, so each case
- * has to `findBy*` rather than `getBy*` — that's the SWR loading
- * window collapsing on first paint.
+ * `<Guard>` は `useAuthConfig` が解決するまで何も描画しないため、
+ * 各ケースは `getBy*` ではなく `findBy*` を使う必要がある (SWR の
+ * 初回ロード窓を吸収するため)。
  */
 import { Guard } from "@/components/auth/Guard";
 import { useAuth } from "@/stores/auth-store";
@@ -30,9 +30,8 @@ function b64url(obj: object): string {
 }
 
 /**
- * Forge a JWT that `jose.decodeJwt` will accept. Only the payload is
- * read — header alg/sig are never verified, so a literal "sig"
- * suffix is fine.
+ * `jose.decodeJwt` が受け取れる最小限の JWT を生成する。decodeJwt は
+ * payload しか読まないので、署名は固定の "sig" でよい。
  */
 function makeToken(roles: string[]): string {
   const header = b64url({ alg: "none", typ: "JWT" });
@@ -48,12 +47,12 @@ function mockAuthConfig(enabled: boolean): void {
   );
 }
 
-describe("<Guard> role matrix (FE-COMP-GUARD-001..008)", () => {
+describe("<Guard> ロール階層マトリクス (FE-COMP-GUARD-001..008)", () => {
   beforeEach(() => {
     useAuth.getState().clear();
   });
 
-  it("FE-COMP-GUARD-001: auth disabled + anonymous + requiredRole=admin → children", async () => {
+  it("FE-COMP-GUARD-001: 認証 OFF + 未ログイン + admin 要求 → children 表示", async () => {
     mockAuthConfig(false);
     renderWithApp(
       <Guard requiredRole="admin" fallback={fallback}>
@@ -64,7 +63,7 @@ describe("<Guard> role matrix (FE-COMP-GUARD-001..008)", () => {
     expect(screen.queryByText(FALLBACK)).not.toBeInTheDocument();
   });
 
-  it("FE-COMP-GUARD-002: auth enabled + anonymous + viewer required → fallback", async () => {
+  it("FE-COMP-GUARD-002: 認証 ON + 未ログイン + viewer 要求 → fallback 表示", async () => {
     mockAuthConfig(true);
     renderWithApp(
       <Guard requiredRole="viewer" fallback={fallback}>
@@ -75,7 +74,7 @@ describe("<Guard> role matrix (FE-COMP-GUARD-001..008)", () => {
     expect(screen.queryByText(CHILDREN)).not.toBeInTheDocument();
   });
 
-  it("FE-COMP-GUARD-003: enabled + viewer token + viewer required → children", async () => {
+  it("FE-COMP-GUARD-003: 認証 ON + viewer トークン + viewer 要求 → children 表示", async () => {
     mockAuthConfig(true);
     useAuth.getState().setToken(makeToken(["viewer"]));
     renderWithApp(
@@ -86,7 +85,7 @@ describe("<Guard> role matrix (FE-COMP-GUARD-001..008)", () => {
     expect(await screen.findByText(CHILDREN)).toBeInTheDocument();
   });
 
-  it("FE-COMP-GUARD-004: enabled + viewer token + operator required → fallback", async () => {
+  it("FE-COMP-GUARD-004: 認証 ON + viewer トークン + operator 要求 → fallback 表示", async () => {
     mockAuthConfig(true);
     useAuth.getState().setToken(makeToken(["viewer"]));
     renderWithApp(
@@ -98,7 +97,7 @@ describe("<Guard> role matrix (FE-COMP-GUARD-001..008)", () => {
     expect(screen.queryByText(CHILDREN)).not.toBeInTheDocument();
   });
 
-  it("FE-COMP-GUARD-005: enabled + operator token + viewer required → children (higher role passes)", async () => {
+  it("FE-COMP-GUARD-005: 認証 ON + operator トークン + viewer 要求 → children 表示 (上位ロールは下位を満たす)", async () => {
     mockAuthConfig(true);
     useAuth.getState().setToken(makeToken(["operator"]));
     renderWithApp(
@@ -109,7 +108,7 @@ describe("<Guard> role matrix (FE-COMP-GUARD-001..008)", () => {
     expect(await screen.findByText(CHILDREN)).toBeInTheDocument();
   });
 
-  it("FE-COMP-GUARD-006: enabled + operator + operator required → children", async () => {
+  it("FE-COMP-GUARD-006: 認証 ON + operator + operator 要求 → children 表示", async () => {
     mockAuthConfig(true);
     useAuth.getState().setToken(makeToken(["operator"]));
     renderWithApp(
@@ -120,7 +119,7 @@ describe("<Guard> role matrix (FE-COMP-GUARD-001..008)", () => {
     expect(await screen.findByText(CHILDREN)).toBeInTheDocument();
   });
 
-  it("FE-COMP-GUARD-007: enabled + operator + admin required → fallback", async () => {
+  it("FE-COMP-GUARD-007: 認証 ON + operator + admin 要求 → fallback 表示", async () => {
     mockAuthConfig(true);
     useAuth.getState().setToken(makeToken(["operator"]));
     renderWithApp(
@@ -131,7 +130,7 @@ describe("<Guard> role matrix (FE-COMP-GUARD-001..008)", () => {
     expect(await screen.findByText(FALLBACK)).toBeInTheDocument();
   });
 
-  it("FE-COMP-GUARD-008: enabled + admin → children for viewer / operator / admin", async () => {
+  it("FE-COMP-GUARD-008: 認証 ON + admin → viewer / operator / admin の全要求で children 表示", async () => {
     mockAuthConfig(true);
     useAuth.getState().setToken(makeToken(["admin"]));
     for (const role of ["viewer", "operator", "admin"] as const) {

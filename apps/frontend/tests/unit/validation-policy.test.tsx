@@ -1,18 +1,19 @@
 /**
- * Phase 2g — 共通 Validation 表示ポリシー (FE-VAL-POLICY-001..007).
+ * Phase 2g — 共通 Validation 表示ポリシー (FE-VAL-POLICY-001..007)。
  *
- * Cross-form policy from `docs/frontend-component-page-test-plan.md`:
- *   001  ブラウザ標準 popup を使わない  → form は `noValidate`
- *   002  error は該当 field 直下に出る
+ * `docs/frontend-component-page-test-plan.md` の form 横断ポリシー:
+ *   001  ブラウザ標準 popup を使わない → form は `noValidate`
+ *   002  エラーは該当 field 直下に出る
  *   003  違反している全項目を同時に表示する
- *   004  未操作 field は赤くしない (rhf `mode:"onTouched"` / RichAction touched 集合)
- *   005  修正後は field の error を即消す
+ *   004  未操作 field は赤くしない (rhf `mode:"onTouched"` /
+ *                                    RichAction の touched 集合)
+ *   005  修正後は field のエラーを即消す
  *   006  submit 時は全 invalid に aria-invalid=true、API 未呼出
- *   007  ロットID 入力は全件列挙する
+ *   007  ロット ID 入力は全件列挙する
  *
  * 代表 form 3 種で検査:
  *   - LotCreatePage (rhf + zod)
- *   - SalesCaseCreatePage (rhf + zod, ロット superRefine で 007)
+ *   - SalesCaseCreatePage (rhf + zod、ロット superRefine で 007)
  *   - DirectAppraisalForm (RichActionForms / FieldReader)
  */
 import { LotCreatePage } from "@/pages/lots/LotCreatePage";
@@ -40,7 +41,7 @@ describe("Validation 表示ポリシー (FE-VAL-POLICY-*)", () => {
     expect(form).toHaveAttribute("noValidate");
   });
 
-  it("FE-VAL-POLICY-002: error は該当 field 直下に出る (LotCreatePage `年度`)", async () => {
+  it("FE-VAL-POLICY-002: エラーは該当 field 直下に出る (LotCreatePage `年度`)", async () => {
     authDisabled();
     renderWithRouter(<LotCreatePage />);
     const year = (await screen.findByLabelText("年度")) as HTMLInputElement;
@@ -48,7 +49,8 @@ describe("Validation 表示ポリシー (FE-VAL-POLICY-*)", () => {
     fireEvent.click(screen.getByRole("button", { name: "作成" }));
     // input が aria-invalid になるまで待つ
     await waitFor(() => expect(year).toHaveAttribute("aria-invalid", "true"));
-    // 同 wrapper 内に role="alert" の error 要素が居ることを確認 (メッセージ本文は schema 都合で揺れ得る)
+    // 同 wrapper 内に role="alert" のエラー要素が居ることを確認
+    // (メッセージ本文は zod schema 都合で揺れ得るので含有チェックに留める)
     const wrapper = year.closest("div.space-y-1") as HTMLElement;
     expect(wrapper).not.toBeNull();
     const alert = wrapper.querySelector('[role="alert"]');
@@ -84,7 +86,7 @@ describe("Validation 表示ポリシー (FE-VAL-POLICY-*)", () => {
     }
   });
 
-  it("FE-VAL-POLICY-005: 修正後は error を即消す (LotCreatePage `年度`)", async () => {
+  it("FE-VAL-POLICY-005: 修正後はエラーを即消す (LotCreatePage `年度`)", async () => {
     authDisabled();
     renderWithRouter(<LotCreatePage />);
     const year = (await screen.findByLabelText("年度")) as HTMLInputElement;
@@ -96,7 +98,7 @@ describe("Validation 表示ポリシー (FE-VAL-POLICY-*)", () => {
     await waitFor(() => expect(year).toHaveAttribute("aria-invalid", "false"));
   });
 
-  it("FE-VAL-POLICY-006: submit 時に全 invalid に aria-invalid=true、API 未呼出", async () => {
+  it("FE-VAL-POLICY-006: submit 時に全 invalid へ aria-invalid=true、API 未呼出", async () => {
     authDisabled();
     renderWithRouter(<LotCreatePage />);
     const year = (await screen.findByLabelText("年度")) as HTMLInputElement;
@@ -110,9 +112,10 @@ describe("Validation 表示ポリシー (FE-VAL-POLICY-*)", () => {
     expect(requestsFor("/api/lots")).toHaveLength(0);
   });
 
-  it("FE-VAL-POLICY-007: 不正 ロットID は全件列挙する (lotsSchema superRefine)", async () => {
+  it("FE-VAL-POLICY-007: 不正ロット ID は全件列挙する (lotsSchema superRefine)", async () => {
     // UI 経由では LotSelectDialog が正しい lotNumber しか返さないため、
-    // schema 直接呼びで「複数の invalid id が同一 issue にまとめて出る」ことを検査する。
+    // schema 直接呼びで「複数の invalid id が同一 issue にまとめて出る」
+    // ことを検査する。
     const { lotsSchema } = await import("@/pages/sales-cases/sales-case-create-validation");
     const result = lotsSchema.safeParse(["ok-1-2", "BAD", "2026-A-1", "WRONG"]);
     expect(result.success).toBe(false);

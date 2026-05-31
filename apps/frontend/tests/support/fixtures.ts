@@ -1,14 +1,14 @@
 /**
- * Test fixtures — small factory helpers that return shapes matching
- * the OpenAPI-generated zod schemas in `src/contracts/`.
+ * テスト用 fixture — `src/contracts/` の zod スキーマ形状に合致する
+ * オブジェクトを返す小さな factory ヘルパー群。
  *
- * Each factory accepts a partial override so callers can express
- * "default lot, but status = shipping" in one line:
+ * 各 factory は部分上書きを受け取れるので、テストは「デフォルトの
+ * lot だが status だけ shipping」を 1 行で表現できる:
  *
  *   const lot = makeLot({ status: "shipping" });
  *
- * Keep these factories side-effect free; nothing here may import from
- * `tests/support/server.ts` or `tests/setup.ts`.
+ * 副作用なしに保つ。`tests/support/server.ts` や `tests/setup.ts`
+ * を import してはならない。
  */
 import type {
   AvailableLotsResponse,
@@ -59,7 +59,7 @@ export function makeLot(overrides: DeepPartial<LotResponse> = {}): LotResponse {
   return { ...base, ...overrides } as LotResponse;
 }
 
-// ---- sales case ----
+// ---- 販売案件 ----
 
 export function makeSalesCase(
   overrides: DeepPartial<SalesCaseDetailResponse> = {},
@@ -108,7 +108,7 @@ export function makePriceQuote(overrides: Partial<PriceCheckResponse> = {}): Pri
   };
 }
 
-// ---- code masters ----
+// ---- コードマスタ ----
 
 export function makeCodeMasters(
   overrides: DeepPartial<CodeMastersResponse> = {},
@@ -133,7 +133,7 @@ export function makeCodeMasters(
   return { ...base, ...overrides } as CodeMastersResponse;
 }
 
-// ---- available lots (for LotSelectDialog) ----
+// ---- 利用可能ロット (LotSelectDialog 用) ----
 
 export function makeAvailableLot(
   overrides: Partial<AvailableLotsResponse["items"][number]> = {},

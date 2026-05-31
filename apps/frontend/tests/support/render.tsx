@@ -1,19 +1,19 @@
 /**
- * Render helpers used by component/page tests.
+ * component / page テストで使う render ヘルパー。
  *
- * `renderWithApp` — wraps `ui` in the providers a real page expects
- * (SWRConfig with caching disabled + `<Toaster>` so `toast.*` is a
- * no-op rather than throwing). It does NOT mount the router; pages
- * that need routing should use `renderWithRouter`.
+ * `renderWithApp` — 実 page が期待する provider 群 (SWR キャッシュを
+ * テストごとに隔離した SWRConfig + sonner の `<Toaster>` で `toast.*`
+ * を no-op にする) を巻いて描画する。ルータは載せないので、`<Link>` や
+ * `useNavigate` を使う page は `renderWithRouter` を使う。
  *
- * `renderWithRouter` — boots a real TanStack Router with an in-memory
- * history starting at `initialPath`. Use this when the test exercises
- * navigation (route guards, `navigate({to})` after a mutation, etc.).
+ * `renderWithRouter` — メモリ history で本物の TanStack Router を
+ * `initialPath` から起動する。ルーティング (ガード、mutation 成功後の
+ * `navigate({to})` など) を試したいテスト向け。
  *
- * Tests are expected to reset `useAuth.getState().clear()` in their
- * own `beforeEach` (the auth store is module-level and zustand does
- * not auto-reset between tests). Both render helpers leave the store
- * alone so a `setToken(...)` performed before render survives.
+ * `useAuth` (zustand) はモジュールレベル状態のため、各テストは
+ * `beforeEach` で `useAuth.getState().clear()` するのが前提。
+ * render ヘルパー側では auth-store に触れないので、render 前に
+ * `setToken(...)` した内容はそのまま残る。
  */
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -32,7 +32,7 @@ function AppProviders({ children }: { children: ReactNode }) {
   return (
     <SWRConfig
       value={{
-        // Avoid cross-test contamination via SWR's module-level cache.
+        // SWR のモジュールレベルキャッシュ経由でテスト間に値が漏れないよう、テストごとに新しい Map を割り当てる。
         provider: () => new Map(),
         revalidateOnFocus: false,
         dedupingInterval: 0,
@@ -46,8 +46,6 @@ function AppProviders({ children }: { children: ReactNode }) {
 }
 
 export function renderWithApp(ui: ReactElement): RenderResult {
-  // Note: auth-store is reset by tests via `beforeEach` so a render
-  // can be paired with a `useAuth.setToken(...)` call without losing it.
   return render(<AppProviders>{ui}</AppProviders>);
 }
 
@@ -56,13 +54,11 @@ export interface RenderWithRouterOptions {
 }
 
 /**
- * Render `ui` inside a real TanStack Router. The router is built ad
- * hoc with a single catch-all route that renders `ui`, so callers
- * don't depend on the production `routeTree.gen.ts`.
+ * 即席で組んだ catch-all ルート 1 本のうえに `ui` を載せて TanStack
+ * Router を立ち上げる。production の `routeTree.gen.ts` に依存しない。
  *
- * Tests that need the real route tree should import `routeTree` and
- * pass their own initial path; that's deferred to whichever Phase 6
- * (router integration) test needs it.
+ * 本物のルートツリーが要るテスト (Phase 6 など) は `routeTree` を
+ * import して自前の initialPath で起動する想定 (現時点では未使用)。
  */
 export function renderWithRouter(
   ui: ReactElement,

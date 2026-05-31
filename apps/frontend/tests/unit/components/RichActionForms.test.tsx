@@ -1,21 +1,20 @@
 /**
- * Phase 2c — RichActionForms (FE-COMP-RICH-DA-* / SC-* / DV-* / RP-* / RC-* / CD-* / CR-* / COMMON-*).
+ * Phase 2c — RichActionForms (FE-COMP-RICH-DA-* / SC-* / DV-* / RP-* / RC-* / CD-* / CR-* / COMMON-*)。
  *
- * Each form in `pages/sales-cases/actions/RichActionForms.tsx` is
- * exercised via its observable contract:
- *   - submit without input → API not called, error text appears at
- *     each invalid field (FieldReader collects ALL errors at once)
- *   - rate inputs (DirectAppraisalForm / SalesContractForm) accept
- *     90〜110 and reject 89 / 111
- *   - boundary 90 / 110 / 100 round-trip to 0.9 / 1.1 / 1.0 in the
- *     submitted body
- *   - double submit / triple submit while pending → onSubmit fires
- *     exactly once
- *   - untouched fields stay clean (no aria-invalid until blur or
- *     submit)
+ * `pages/sales-cases/actions/RichActionForms.tsx` には 7 種類の form が
+ * あり、観測契約を以下のように検査する:
+ *   - 入力なしで submit → API 未呼出、各 invalid field にエラーが
+ *     同時表示される (FieldReader が全項目をまとめて検査するため)
+ *   - 調整率入力 (DirectAppraisalForm / SalesContractForm) は
+ *     90〜110 を受け入れ 89 / 111 を拒否
+ *   - 境界値 90 / 110 / 100 は submit body 上で 0.9 / 1.1 / 1.0 に
+ *     換算される
+ *   - pending 中の二重 / 三重 submit でも onSubmit は 1 回だけ走る
+ *   - 未操作 field は赤くしない (blur or submit までは touched に
+ *     入らない)
  *
- * Tests build a fixture `salesCase` via `makeSalesCase` and render the
- * target form directly, capturing the submit body via `vi.fn()`.
+ * 各テストは `makeSalesCase` で fixture を組み立て、対象 form を直接
+ * 描画して `vi.fn()` で submit body を捕捉する。
  */
 import {
   ConsignmentDesignationForm,
@@ -33,7 +32,9 @@ import { makeSalesCase } from "../../support/fixtures";
 import { renderWithApp } from "../../support/render";
 
 function fill(label: string, value: string | number): void {
-  fireEvent.change(screen.getByLabelText(label, { exact: false }), { target: { value: String(value) } });
+  fireEvent.change(screen.getByLabelText(label, { exact: false }), {
+    target: { value: String(value) },
+  });
 }
 
 function submitForm(buttonName: string | RegExp): void {
@@ -44,7 +45,7 @@ function submitForm(buttonName: string | RegExp): void {
 // ---------- DirectAppraisalForm ----------
 
 describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
-  it("FE-COMP-RICH-DA-001: 必須空で submit → API 未呼出、全 invalid field に error", async () => {
+  it("FE-COMP-RICH-DA-001: 必須空で submit → API 未呼出、全 invalid field にエラー", async () => {
     const onSubmit = vi.fn();
     const data = makeSalesCase({ lots: ["2026-A-1"] });
     renderWithApp(
@@ -66,7 +67,7 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("FE-COMP-RICH-DA-002: 期中調整率 89 (範囲外) → field error、API 未呼出", async () => {
+  it("FE-COMP-RICH-DA-002: 期中調整率 89 (範囲外) → field エラー、API 未呼出", async () => {
     const onSubmit = vi.fn();
     const data = makeSalesCase({ lots: ["2026-A-1"] });
     renderWithApp(
@@ -78,7 +79,7 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("FE-COMP-RICH-DA-003: 期中調整率 90 / 取引先調整率 110 (境界) → API 受理、body は ÷100", async () => {
+  it("FE-COMP-RICH-DA-003: 期中調整率 90 / 取引先調整率 110 (境界) → API 受理、body は ÷100 換算", async () => {
     const onSubmit = vi.fn<(body: Record<string, unknown>) => Promise<void>>(async () => {});
     const data = makeSalesCase({ lots: ["2026-A-1"] });
     renderWithApp(
@@ -139,7 +140,7 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
     expect(total).not.toBeDisabled();
   });
 
-  it("FE-COMP-RICH-DA-006: 「変更する」→ cancel → total は自動計算のまま (hidden input)", async () => {
+  it("FE-COMP-RICH-DA-006: 「変更する」→ キャンセル → total は自動計算のまま (hidden input)", async () => {
     const data = makeSalesCase({ lots: ["2026-A-1"] });
     renderWithApp(
       <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={vi.fn()} />,
@@ -175,7 +176,7 @@ describe("SalesContractForm (FE-COMP-RICH-SC-*)", () => {
 // ---------- DateVersionActionForm ----------
 
 describe("DateVersionActionForm (FE-COMP-RICH-DV-*)", () => {
-  it("FE-COMP-RICH-DV-001: 必須 date 空 → API 未呼出、field 直下 error", async () => {
+  it("FE-COMP-RICH-DV-001: 必須 date 空 → API 未呼出、field 直下にエラー", async () => {
     const onSubmit = vi.fn();
     renderWithApp(
       <DateVersionActionForm
@@ -192,7 +193,7 @@ describe("DateVersionActionForm (FE-COMP-RICH-DV-*)", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("FE-COMP-RICH-DV-002: 有効 date + version → submit body に date と version", async () => {
+  it("FE-COMP-RICH-DV-002: 有効 date + version → submit body に date と version が含まれる", async () => {
     const onSubmit = vi.fn<(body: Record<string, unknown>) => Promise<void>>(async () => {});
     renderWithApp(
       <DateVersionActionForm
@@ -213,7 +214,7 @@ describe("DateVersionActionForm (FE-COMP-RICH-DV-*)", () => {
 // ---------- ReservationPriceForm ----------
 
 describe("ReservationPriceForm (FE-COMP-RICH-RP-*)", () => {
-  it("FE-COMP-RICH-RP-001: 予約金額が空 → field error、API 未呼出", async () => {
+  it("FE-COMP-RICH-RP-001: 予約金額が空 → field エラー、API 未呼出", async () => {
     const onSubmit = vi.fn();
     const data = makeSalesCase();
     renderWithApp(<ReservationPriceForm data={data} onSubmit={onSubmit} />);
@@ -227,7 +228,7 @@ describe("ReservationPriceForm (FE-COMP-RICH-RP-*)", () => {
 // ---------- ReservationConfirmationForm ----------
 
 describe("ReservationConfirmationForm (FE-COMP-RICH-RC-*)", () => {
-  it("FE-COMP-RICH-RC-001: 確定金額空 → field error、API 未呼出", async () => {
+  it("FE-COMP-RICH-RC-001: 確定金額空 → field エラー、API 未呼出", async () => {
     const onSubmit = vi.fn();
     const data = makeSalesCase();
     renderWithApp(<ReservationConfirmationForm data={data} onSubmit={onSubmit} />);
@@ -241,7 +242,7 @@ describe("ReservationConfirmationForm (FE-COMP-RICH-RC-*)", () => {
 // ---------- ConsignmentDesignationForm ----------
 
 describe("ConsignmentDesignationForm (FE-COMP-RICH-CD-*)", () => {
-  it("FE-COMP-RICH-CD-001: 委託先名空 → field error、API 未呼出", async () => {
+  it("FE-COMP-RICH-CD-001: 委託先名空 → field エラー、API 未呼出", async () => {
     const onSubmit = vi.fn();
     const data = makeSalesCase();
     renderWithApp(<ConsignmentDesignationForm data={data} onSubmit={onSubmit} />);
@@ -255,7 +256,7 @@ describe("ConsignmentDesignationForm (FE-COMP-RICH-CD-*)", () => {
 // ---------- ConsignmentResultForm ----------
 
 describe("ConsignmentResultForm (FE-COMP-RICH-CR-*)", () => {
-  it("FE-COMP-RICH-CR-001: 結果金額空 → field error、API 未呼出", async () => {
+  it("FE-COMP-RICH-CR-001: 結果金額空 → field エラー、API 未呼出", async () => {
     const onSubmit = vi.fn();
     const data = makeSalesCase();
     renderWithApp(<ConsignmentResultForm data={data} onSubmit={onSubmit} />);
@@ -268,7 +269,7 @@ describe("ConsignmentResultForm (FE-COMP-RICH-CR-*)", () => {
 
 // ---------- COMMON ----------
 
-describe("RichActionForms common (FE-COMP-RICH-COMMON-*)", () => {
+describe("RichActionForms 共通 (FE-COMP-RICH-COMMON-*)", () => {
   it("FE-COMP-RICH-COMMON-001: 二重 submit (有効入力) でも onSubmit 呼出は 1 回", async () => {
     const d = deferred<void>();
     const onSubmit = vi.fn(() => d.promise);
@@ -292,7 +293,7 @@ describe("RichActionForms common (FE-COMP-RICH-COMMON-*)", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
-  it("FE-COMP-RICH-COMMON-002: mount 直後 (blur なし) は error 非表示", () => {
+  it("FE-COMP-RICH-COMMON-002: mount 直後 (blur なし) はエラー非表示", () => {
     const data = makeSalesCase();
     renderWithApp(
       <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={vi.fn()} />,

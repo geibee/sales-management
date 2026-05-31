@@ -1,22 +1,22 @@
 /**
- * Phase 2d — 共通 a11y / form (FE-A11Y-FORM-001..004).
+ * Phase 2d — 共通 a11y / form (FE-A11Y-FORM-001..004)。
  *
- * The plan asks us to verify, across forms, that:
- *   001  validation error sits inside the field wrapper (visual proximity)
- *   002  invalid input carries `aria-invalid="true"`
- *   003  invalid input and its error text are linked via `aria-describedby`
- *   004  Enter inside an input submits the form (same body / count as click)
+ * 計画では form 横断で以下を検査するよう求められている:
+ *   001  validation エラーは field wrapper 内に出る (視覚的に近接させる)
+ *   002  invalid input には `aria-invalid="true"` が付く
+ *   003  invalid input とエラーテキストは `aria-describedby` で紐付く
+ *   004  input 上で Enter 押下が submit と同じ body / 同じ回数で呼ばれる
  *
- * The codebase has two flavours of form:
- *   - `react-hook-form` + zod resolver pages (`LotCreatePage`,
- *     `SalesCaseCreatePage`, `SalesCaseCreateDialog`) — these emit
- *     `<p role="alert">` next to the field and `aria-invalid` on the
- *     input, but do NOT wire `aria-describedby`. So 003 is TODO.
- *   - `RichActionForms` — same shape (field + alert + aria-invalid),
- *     also no aria-describedby; 003 likewise TODO there.
+ * 本プロジェクトには 2 系統の form がある:
+ *   - `react-hook-form` + zod ページ (`LotCreatePage`,
+ *     `SalesCaseCreatePage`, `SalesCaseCreateDialog`) —
+ *     `<p role="alert">` を field 直下に出し、input に `aria-invalid`
+ *     を付けるが、`aria-describedby` の紐付けは未実装 → 003 は TODO
+ *   - `RichActionForms` — 構造は同じ (field + alert + aria-invalid)、
+ *     こちらも describedby なし → 003 は同じく TODO
  *
- * Tests below cover what the current implementation already satisfies
- * and mark the rest `it.todo`.
+ * 下のテストは現状 UI が満たしている範囲を検査し、残りは `it.todo`
+ * で意図だけ残してある。
  */
 import { SalesCaseCreatePage } from "@/pages/sales-cases/SalesCaseCreatePage";
 import { DateVersionActionForm } from "@/pages/sales-cases/actions/RichActionForms";
@@ -28,8 +28,8 @@ import { renderWithApp, renderWithRouter } from "../../support/render";
 import { server } from "../../support/server";
 
 describe("Form a11y (FE-A11Y-FORM-*)", () => {
-  it("FE-A11Y-FORM-001: 不正 submit で error が field wrapper 内に出る (SalesCaseCreatePage)", async () => {
-    // SalesCaseCreatePage は Guard で operator 必要 → auth disabled で bypass
+  it("FE-A11Y-FORM-001: 不正 submit でエラーが field wrapper 内に出る (SalesCaseCreatePage)", async () => {
+    // SalesCaseCreatePage は Guard で operator 要求 → 認証 OFF で bypass
     server.use(
       http.get("/api/auth/config", () => HttpResponse.json({ enabled: false })),
       http.get("/api/code-masters", () => HttpResponse.json(makeCodeMasters())),
@@ -46,7 +46,7 @@ describe("Form a11y (FE-A11Y-FORM-*)", () => {
     expect(wrapper!.textContent).toContain("対象ロット");
   });
 
-  it("FE-A11Y-FORM-002: invalid submit 後、対応 input に aria-invalid=true", async () => {
+  it("FE-A11Y-FORM-002: invalid submit 後、対応する input に aria-invalid=true が付く", async () => {
     server.use(
       http.get("/api/auth/config", () => HttpResponse.json({ enabled: false })),
       http.get("/api/code-masters", () => HttpResponse.json(makeCodeMasters())),
@@ -60,7 +60,7 @@ describe("Form a11y (FE-A11Y-FORM-*)", () => {
   });
 
   it.todo(
-    "FE-A11Y-FORM-003: invalid input と error が aria-describedby で紐付く — 現状 UI は describedby 未対応",
+    "FE-A11Y-FORM-003: invalid input とエラーが aria-describedby で紐付く — 現状 UI は describedby 未対応",
   );
 
   it("FE-A11Y-FORM-004: input 上で Enter 押下が submit と同じ body を送る (DateVersionActionForm)", async () => {

@@ -1,18 +1,19 @@
-import { LotResponseSchema } from "@/contracts";
 /**
- * Phase 1 infrastructure smoke — proves `tests/support/*` works end
- * to end before component/page tests start consuming it.
+ * Phase 1 のテスト基盤スモーク — component / page テストが
+ * `tests/support/*` を本格利用する前に、基盤が端から端まで動くことを
+ * 確認する。
  *
- * Covers:
- *   - MSW intercepts a `fetch` request and the handler reply round-trips
- *     through zod validation in `apiGet`
- *   - request capture records the URL/method/body
- *   - `resetHandlers` + `resetCapturedRequests` isolate cases
- *   - `deferred<T>()` lets a test observe loading state
- *   - `renderWithApp` mounts providers (SWR + Toaster) without throwing
- *   - the global `URL.createObjectURL` / anchor-click stubs from
- *     `tests/setup.ts` are in place for CSV download tests
+ * 検査範囲:
+ *   - MSW が `fetch` を介入し、handler の応答が `apiGet` 内の zod
+ *     検証まで往復する
+ *   - request capture が URL / method / body を記録する
+ *   - `resetHandlers` と `resetCapturedRequests` がケース間で隔離する
+ *   - `deferred<T>()` で loading 状態を観測できる
+ *   - `renderWithApp` が provider (SWR + Toaster) を例外なく mount する
+ *   - `tests/setup.ts` のグローバル stub (`URL.createObjectURL` / anchor
+ *     click) が CSV ダウンロードテストで使える状態にある
  */
+import { LotResponseSchema } from "@/contracts";
 import { apiDownload, apiGet, apiSend } from "@/lib/api-client";
 import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
@@ -22,8 +23,8 @@ import { makeCodeMasters, makeLot, makePriceQuote } from "../support/fixtures";
 import { renderWithApp } from "../support/render";
 import { capturedRequests, requestCount, requestsFor, server } from "../support/server";
 
-describe("tests/support infrastructure", () => {
-  it("MSW intercepts fetch and zod-parses the response", async () => {
+describe("tests/support 基盤", () => {
+  it("MSW が fetch を介入し、応答を zod でパースできる", async () => {
     server.use(
       http.get("/api/lots/L-0001", () => HttpResponse.json(makeLot({ lotNumber: "L-0001" }))),
     );
@@ -32,7 +33,7 @@ describe("tests/support infrastructure", () => {
     expect(lot.status).toBe("manufacturing");
   });
 
-  it("captures request URL / method / body", async () => {
+  it("リクエストの URL / method / body を捕捉する", async () => {
     server.use(
       http.post(
         "/api/lots/L-1/complete-manufacturing",
@@ -50,13 +51,13 @@ describe("tests/support infrastructure", () => {
     expect(requestCount("/api/lots/L-1/complete-manufacturing")).toBe(1);
   });
 
-  it("resets handlers and capture between tests", () => {
-    // If reset didn't work, the previous test's handler would still be
-    // registered and `capturedRequests` would already contain entries.
+  it("handler と捕捉済みリクエストはテスト間でリセットされる", () => {
+    // リセットが効いていなければ、前テストの handler が残っているか
+    // `capturedRequests` に前ケースの記録が残っているはず。
     expect(capturedRequests).toHaveLength(0);
   });
 
-  it("deferred<T> exposes resolve/reject without auto-settling", async () => {
+  it("deferred<T> は自動 settle せず、resolve / reject を外から制御できる", async () => {
     const d = deferred<number>();
     let resolved: number | null = null;
     d.promise.then((v) => {
@@ -69,18 +70,18 @@ describe("tests/support infrastructure", () => {
     expect(resolved).toBe(42);
   });
 
-  it("fixtures produce shapes that satisfy the contract schemas", () => {
+  it("fixture は contract スキーマを満たす形状を返す", () => {
     expect(() => LotResponseSchema.parse(makeLot())).not.toThrow();
     expect(makePriceQuote().basePrice).toBe(1000);
     expect(makeCodeMasters().divisions).toHaveLength(2);
   });
 
-  it("renderWithApp mounts SWR + Toaster without throwing", () => {
+  it("renderWithApp は SWR + Toaster を例外なく mount する", () => {
     renderWithApp(<div data-testid="probe">ok</div>);
     expect(screen.getByTestId("probe")).toHaveTextContent("ok");
   });
 
-  it("URL.createObjectURL + anchor click are stubbed for blob downloads", async () => {
+  it("URL.createObjectURL と anchor click が blob ダウンロード用に stub されている", async () => {
     server.use(http.get("/api/lots/lot-1.csv", () => HttpResponse.text("a,b\n1,2\n")));
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click");
     await apiDownload("/lots/lot-1.csv", "lot-1.csv");

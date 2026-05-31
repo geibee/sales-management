@@ -1,9 +1,9 @@
 /**
- * Manually-controlled promise — lets a test pin a request in the
- * "pending" state while it inspects loading UI, then `resolve()` or
- * `reject()` it on demand.
+ * 手動で settle 可能な promise — テストがリクエストを「pending」状態に
+ * ピン留めしてローディング UI を観測したあと、任意のタイミングで
+ * `resolve()` / `reject()` できるようにする。
  *
- * Typical use:
+ * 典型的な使い方:
  *   const d = deferred<Response>();
  *   server.use(http.get("/api/lots", () => d.promise));
  *   render(<LotListPage />);
