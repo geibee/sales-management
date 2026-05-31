@@ -1,3 +1,4 @@
+import { FieldError } from "@/components/form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { SalesCaseDetailResponse } from "@/contracts";
 import { describeApiError } from "@/lib/api-client";
+import { formatAmount } from "@/lib/format";
 import {
   CalendarDays,
   CircleDollarSign,
@@ -806,8 +808,6 @@ function NumberField({
   );
 }
 
-const AMOUNT_FORMAT = new Intl.NumberFormat("ja-JP");
-
 /**
  * 税抜査定合計フィールド。
  * 既定では明細から自動計算した値をラベル表示し（読み取り専用、hidden で送信）、
@@ -882,7 +882,7 @@ function EstimatedTotalField({
       <Label htmlFor={name}>{label}</Label>
       <div className="flex items-center gap-2">
         <span className="font-medium text-sm tabular-nums" aria-live="polite">
-          {AMOUNT_FORMAT.format(computedValue)}
+          {formatAmount(computedValue)}
         </span>
         <Button type="button" variant="outline" size="sm" onClick={openModal}>
           変更する
@@ -934,15 +934,6 @@ function EstimatedTotalField({
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null;
-  return (
-    <p role="alert" className="text-destructive text-xs">
-      {message}
-    </p>
   );
 }
 

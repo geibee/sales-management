@@ -1,3 +1,4 @@
+import { FieldError } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -154,14 +155,5 @@ export function SalesCaseCreateDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null;
-  return (
-    <p role="alert" className="text-destructive text-xs">
-      {message}
-    </p>
   );
 }

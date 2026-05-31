@@ -1,8 +1,8 @@
 import { Guard } from "@/components/auth/Guard";
+import { FieldError, TextField } from "@/components/form";
 import { LotSelectDialog } from "@/components/lots/LotSelectDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -18,7 +18,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, BriefcaseBusiness, PackageSearch, Save } from "lucide-react";
 import { useState } from "react";
-import { type UseFormRegisterReturn, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
   CASE_TYPE_OPTIONS,
@@ -189,34 +189,5 @@ export function SalesCaseCreatePage() {
         </CardContent>
       </Card>
     </Guard>
-  );
-}
-
-function TextField({
-  label,
-  registration,
-  error,
-  type = "text",
-}: {
-  label: string;
-  registration: UseFormRegisterReturn;
-  error?: string;
-  type?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label htmlFor={registration.name}>{label}</Label>
-      <Input id={registration.name} type={type} aria-invalid={!!error} {...registration} />
-      <FieldError message={error} />
-    </div>
-  );
-}
-
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null;
-  return (
-    <p role="alert" className="text-destructive text-xs">
-      {message}
-    </p>
   );
 }

@@ -18,7 +18,7 @@ import {
   useSalesCase,
 } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";
-import { caseStatusLabel } from "@/lib/format";
+import { caseStatusLabel, formatAmount } from "@/lib/format";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -505,7 +505,7 @@ function recordString(source: unknown, key: string, fallback: string): string {
 }
 
 function formatFieldValue(value: unknown): string {
-  if (typeof value === "number") return new Intl.NumberFormat("ja-JP").format(value);
+  if (typeof value === "number") return formatAmount(value);
   if (typeof value === "string") return value;
   if (typeof value === "boolean") return value ? "true" : "false";
   if (Array.isArray(value)) return value.map(formatFieldValue).join(", ");

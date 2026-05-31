@@ -1,22 +1,14 @@
 import { Guard } from "@/components/auth/Guard";
+import { NumberField, SelectField, TextField } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createLot } from "@/hooks/use-lot";
 import { describeApiError } from "@/lib/api-client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, PackagePlus, Save } from "lucide-react";
-import { type UseFormRegisterReturn, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
   type LotCreateFormValues,
@@ -275,91 +267,5 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <p className="font-medium text-sm">{title}</p>
       <div className="space-y-2">{children}</div>
     </div>
-  );
-}
-
-function NumberField({
-  label,
-  registration,
-  error,
-  step,
-}: {
-  label: string;
-  registration: UseFormRegisterReturn;
-  error?: string;
-  step?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label htmlFor={registration.name}>{label}</Label>
-      <Input
-        id={registration.name}
-        type="number"
-        step={step}
-        aria-invalid={!!error}
-        {...registration}
-      />
-      <FieldError message={error} />
-    </div>
-  );
-}
-
-function TextField({
-  label,
-  registration,
-  error,
-}: {
-  label: string;
-  registration: UseFormRegisterReturn;
-  error?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label htmlFor={registration.name}>{label}</Label>
-      <Input id={registration.name} type="text" aria-invalid={!!error} {...registration} />
-      <FieldError message={error} />
-    </div>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  options,
-  onValueChange,
-  error,
-}: {
-  label: string;
-  value: string;
-  options: Array<[string, string]>;
-  onValueChange: (value: string) => void;
-  error?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label>{label}</Label>
-      <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className="w-full" aria-invalid={!!error}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map(([optionValue, optionLabel]) => (
-            <SelectItem key={optionValue} value={optionValue}>
-              {optionLabel}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <FieldError message={error} />
-    </div>
-  );
-}
-
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null;
-  return (
-    <p role="alert" className="text-destructive text-xs">
-      {message}
-    </p>
   );
 }

@@ -14,7 +14,13 @@ import {
   useLot,
 } from "@/hooks/use-lot";
 import { describeApiError } from "@/lib/api-client";
-import { lotActionEnabled, lotStatusLabel } from "@/lib/format";
+import {
+  codeName,
+  formatAmount,
+  formatQuantity,
+  lotActionEnabled,
+  lotStatusLabel,
+} from "@/lib/format";
 import { Link } from "@tanstack/react-router";
 import { useActionState } from "react";
 import { toast } from "sonner";
@@ -114,7 +120,7 @@ export function LotDetailPage({ id }: { id: string }) {
                       {formatQuantity(detail.quantity)}
                     </td>
                     <td className="py-2 pr-4 text-right tabular-nums">
-                      {formatNumber(detail.count)}
+                      {formatAmount(detail.count)}
                     </td>
                     <td className="py-2 pr-4">
                       {detail.inspectionResultCategory
@@ -214,22 +220,6 @@ const INSPECTION_RESULT_LABEL: Record<string, string> = {
   pass: "合格",
   fail: "不合格",
 };
-
-const QUANTITY_FORMAT = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 3 });
-const INTEGER_FORMAT = new Intl.NumberFormat("ja-JP");
-
-function formatQuantity(value: number): string {
-  return QUANTITY_FORMAT.format(value);
-}
-
-function formatNumber(value: number): string {
-  return INTEGER_FORMAT.format(value);
-}
-
-/** {code, name} を「名称 (コード)」で表示。名称未登録（null）はコードのみ。 */
-function codeName(cn: { code: number; name?: string | null }): string {
-  return cn.name ? `${cn.name} (${cn.code})` : String(cn.code);
-}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
