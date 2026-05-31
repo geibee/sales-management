@@ -55,8 +55,10 @@ let private fetchManufacturedLots (conn: NpgsqlConnection) (lotIds: string[]) : 
                 match LotRepository.load conn lotNumber with
                 | Error e -> Error e
                 | Ok None -> Error(sprintf "Lot %s not found" (LotNumber.toString lotNumber))
-                | Ok(Some(Manufactured lot)) -> Ok lot
-                | Ok(Some _) -> Error(sprintf "Lot %s is not in manufactured state" (LotNumber.toString lotNumber)))
+                | Ok(Some lot) ->
+                    match requireManufacturedLot lot with
+                    | Ok m -> Ok m
+                    | Error(LotNotManufactured id) -> Error(sprintf "Lot %s is not in manufactured state" id))
 
     let folded =
         lookups

@@ -34,6 +34,35 @@ let private lotBody (year: int) (location: string) (seq: int) =
         location
         seq
 
+let private completeManufacturingBody (version: int) (date: string) =
+    sprintf """{"date":"%s","version":%d}""" date version
+
+let private directCaseBody (lotId: string) =
+    sprintf """{"lots":["%s"],"divisionCode":1,"salesDate":"2026-01-15","caseType":"direct"}""" lotId
+
+let private lotStatus (connectionString: string) (year: int) (location: string) (seq: int) : string =
+    use conn = new NpgsqlConnection(connectionString)
+    conn.Open()
+    use cmd = conn.CreateCommand()
+
+    cmd.CommandText <-
+        "SELECT status FROM lot WHERE lot_number_year = @y AND lot_number_location = @l AND lot_number_seq = @s"
+
+    let py = cmd.CreateParameter()
+    py.ParameterName <- "y"
+    py.Value <- year
+    cmd.Parameters.Add py |> ignore
+    let pl = cmd.CreateParameter()
+    pl.ParameterName <- "l"
+    pl.Value <- location
+    cmd.Parameters.Add pl |> ignore
+    let ps = cmd.CreateParameter()
+    ps.ParameterName <- "s"
+    ps.Value <- seq
+    cmd.Parameters.Add ps |> ignore
+
+    cmd.ExecuteScalar().ToString()
+
 [<Collection("ApiAuthOn")>]
 type LotLifecycleTests(fixture: AuthOnFixture) =
     do fixture.Reset()
@@ -140,4 +169,76 @@ type LotLifecycleTests(fixture: AuthOnFixture) =
             resp.Headers.WwwAuthenticate |> Seq.map (fun h -> h.Scheme) |> List.ofSeq
 
         Assert.Contains("Bearer", wwwAuth)
+    }
+
+[<Collection("ApiAuthOff")>]
+type LotManufacturingCancellationTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
+
+    [<Fact>]
+    [<Trait("Category", "LotLifecycle")>]
+    [<Trait("Category", "Integration")>]
+    member _.``cancel-manufacturing-completion is rejected when lot is referenced by a sales case``() = task {
+        use client = fixture.NewClient()
+        let year, location, seq, lotId = uniqueLot ()
+
+        let! createResp = postJson client "/lots" (lotBody year location seq)
+        Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
+
+        let! mfgResp =
+            postJson client (sprintf "/lots/%s/complete-manufacturing" lotId) (completeManufacturingBody 1 "2026-01-10")
+
+        Assert.Equal(HttpStatusCode.OK, mfgResp.StatusCode)
+
+        let! caseResp = postJson client "/sales-cases" (directCaseBody lotId)
+        Assert.Equal(HttpStatusCode.OK, caseResp.StatusCode)
+        let! caseBody = readBody caseResp
+        let caseNumber = (parseJson caseBody).GetProperty("salesCaseNumber").GetString()
+
+        // Lot is manufactured (version 2) and now referenced by the sales case.
+        let! resp = postJson client (sprintf "/lots/%s/cancel-manufacturing-completion" lotId) """{"version":2}"""
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode)
+        Assert.Equal("application/problem+json", resp.Content.Headers.ContentType.MediaType)
+        let! text = readBody resp
+        let root = parseJson text
+        Assert.Equal("invalid-state-transition", root.GetProperty("type").GetString())
+        Assert.Equal(400, root.GetProperty("status").GetInt32())
+        let detail = root.GetProperty("detail").GetString()
+        Assert.Contains("LotReferencedBySalesCase", detail)
+        Assert.Contains(caseNumber, detail)
+
+        // The lot must remain manufactured.
+        Assert.Equal("manufactured", lotStatus fixture.ConnectionString year location seq)
+    }
+
+    [<Fact>]
+    [<Trait("Category", "LotLifecycle")>]
+    [<Trait("Category", "Integration")>]
+    member _.``cancel-manufacturing-completion succeeds after the referencing sales case is deleted``() = task {
+        use client = fixture.NewClient()
+        let year, location, seq, lotId = uniqueLot ()
+
+        let! createResp = postJson client "/lots" (lotBody year location seq)
+        Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
+
+        let! mfgResp =
+            postJson client (sprintf "/lots/%s/complete-manufacturing" lotId) (completeManufacturingBody 1 "2026-01-10")
+
+        Assert.Equal(HttpStatusCode.OK, mfgResp.StatusCode)
+
+        let! caseResp = postJson client "/sales-cases" (directCaseBody lotId)
+        Assert.Equal(HttpStatusCode.OK, caseResp.StatusCode)
+        let! caseBody = readBody caseResp
+        let caseNumber = (parseJson caseBody).GetProperty("salesCaseNumber").GetString()
+
+        // Delete the sales case (before_appraisal -> 204), then the lot is unreferenced.
+        let! delResp = deleteWithBody client (sprintf "/sales-cases/%s" caseNumber) None
+        Assert.Equal(HttpStatusCode.NoContent, delResp.StatusCode)
+
+        let! resp = postJson client (sprintf "/lots/%s/cancel-manufacturing-completion" lotId) """{"version":2}"""
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
+        let! text = readBody resp
+        Assert.Equal("manufacturing", (parseJson text).GetProperty("status").GetString())
+
+        Assert.Equal("manufacturing", lotStatus fixture.ConnectionString year location seq)
     }

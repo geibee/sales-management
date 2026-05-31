@@ -336,6 +336,30 @@ let private mapLotKey (rd: IDataReader) : LotNumber =
       Location = rd.GetString(rd.GetOrdinal "lot_number_location")
       Seq = rd.GetInt32(rd.GetOrdinal "lot_number_seq") }
 
+/// Sales case numbers that reference the given lot (via sales_case_lot).
+/// Used to enforce the invariant: a lot referenced by a sales case must not
+/// have its manufacturing completion cancelled.
+let findCaseNumbersByLot (conn: NpgsqlConnection) (lotNumber: LotNumber) : SalesCaseNumber list =
+    conn
+    |> Db.newCommand
+        """
+        SELECT sales_case_number_year, sales_case_number_month, sales_case_number_seq
+          FROM sales_case_lot
+         WHERE lot_number_year = @lot_year
+           AND lot_number_location = @lot_location
+           AND lot_number_seq = @lot_seq
+         ORDER BY sales_case_number_year, sales_case_number_month, sales_case_number_seq
+        """
+    |> Db.setParams
+        [ "lot_year", SqlType.Int32 lotNumber.Year
+          "lot_location", SqlType.String lotNumber.Location
+          "lot_seq", SqlType.Int32 lotNumber.Seq ]
+    |> Db.setCommandBehavior CommandBehavior.Default
+    |> Db.query (fun rd ->
+        { Year = rd.GetInt32(rd.GetOrdinal "sales_case_number_year")
+          Month = rd.GetInt32(rd.GetOrdinal "sales_case_number_month")
+          Seq = rd.GetInt32(rd.GetOrdinal "sales_case_number_seq") })
+
 let private resolveManufacturedLot (conn: NpgsqlConnection) (lotNumber: LotNumber) : Result<ManufacturedLot, string> =
     match LotRepository.load conn lotNumber with
     | Error e -> Error e
