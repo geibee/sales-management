@@ -814,6 +814,9 @@ const AMOUNT_FORMAT = new Intl.NumberFormat("ja-JP");
  * 「変更する」→モーダルで上長承認を確認したうえでのみ直接入力に切り替えられる。
  * 承認情報はフロント側の入力ガードであり、現状バックエンドには保存しない。
  */
+// ユーザー情報テーブルが無いため、承認者は固定値とする（編集不可）。
+const FIXED_APPROVER = "営業部長（システム既定）";
+
 function EstimatedTotalField({
   name,
   label,
@@ -827,32 +830,27 @@ function EstimatedTotalField({
 }) {
   const error = errors[name];
 
-  // 直接入力モードと、その際に記録した上長承認内容
+  // 直接入力モード
   const [manual, setManual] = useState(false);
   const [manualValue, setManualValue] = useState(() => String(computedValue));
-  const [approvalNote, setApprovalNote] = useState("");
 
-  // モーダルの一時状態（確定するまで上の state には反映しない）
+  // モーダルの一時状態（確定するまで反映しない）
   const [open, setOpen] = useState(false);
   const [approved, setApproved] = useState(false);
-  const [note, setNote] = useState("");
 
   const openModal = () => {
     setApproved(false);
-    setNote("");
     setOpen(true);
   };
 
   const enableManualInput = () => {
     setManualValue(String(computedValue));
-    setApprovalNote(note.trim());
     setManual(true);
     setOpen(false);
   };
 
   const backToAuto = () => {
     setManual(false);
-    setApprovalNote("");
   };
 
   if (manual) {
@@ -869,7 +867,7 @@ function EstimatedTotalField({
           aria-invalid={!!error}
         />
         <div className="flex items-start justify-between gap-2">
-          <p className="text-muted-foreground text-xs">上長承認済み: {approvalNote}</p>
+          <p className="text-muted-foreground text-xs">上長承認済み: {FIXED_APPROVER}</p>
           <Button type="button" variant="ghost" size="sm" onClick={backToAuto}>
             自動計算に戻す
           </Button>
@@ -901,7 +899,7 @@ function EstimatedTotalField({
           <DialogHeader>
             <DialogTitle>税抜査定合計を直接入力</DialogTitle>
             <DialogDescription>
-              査定合計を自動計算値から変更するには、上長の承認が必要です。承認を得ていることを確認のうえ、承認者・承認内容を記入してください。
+              査定合計を自動計算値から変更するには、上長の承認が必要です。承認を得ていることを確認してください。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -915,13 +913,13 @@ function EstimatedTotalField({
               <span>上長の承認を得ています</span>
             </label>
             <div className="space-y-1">
-              <Label htmlFor={`${name}-approval-note`}>承認者・承認内容</Label>
-              {/* name を付けないことでフォームの FormData / onBlur 検証に混入させない */}
+              <Label htmlFor={`${name}-approver`}>承認者</Label>
+              {/* 承認者は固定値（読み取り専用）。name を付けず FormData / 検証に混入させない */}
               <Input
-                id={`${name}-approval-note`}
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                placeholder="例: 営業部長 山田 / 承認番号 A-123"
+                id={`${name}-approver`}
+                value={FIXED_APPROVER}
+                readOnly
+                className="bg-muted/50"
               />
             </div>
           </div>
@@ -929,11 +927,7 @@ function EstimatedTotalField({
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               キャンセル
             </Button>
-            <Button
-              type="button"
-              onClick={enableManualInput}
-              disabled={!approved || note.trim() === ""}
-            >
+            <Button type="button" onClick={enableManualInput} disabled={!approved}>
               直接入力を有効化
             </Button>
           </DialogFooter>

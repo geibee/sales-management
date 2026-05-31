@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createLot } from "@/hooks/use-lot";
 import { describeApiError } from "@/lib/api-client";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -40,6 +41,40 @@ export function LotCreatePage() {
 
   const itemCategory = watch("itemCategory");
   const inspectionResultCategory = watch("inspectionResultCategory");
+
+  const { data: masters } = useCodeMasters();
+  const divisionCode = watch("divisionCode");
+  const departmentCode = watch("departmentCode");
+
+  const divisions = masters?.divisions ?? [];
+  const departments = (masters?.departments ?? []).filter((d) => d.divisionCode === divisionCode);
+  const sections = (masters?.sections ?? []).filter((s) => s.departmentCode === departmentCode);
+  const asOptions = (xs: Array<{ code: number; name: string }>): Array<[string, string]> =>
+    xs.map((x) => [String(x.code), x.name]);
+
+  // 事業部を変えたら配下の部・課を先頭候補にリセットする（階層の整合性を保つ）。
+  const onDivisionChange = (v: string) => {
+    const code = Number(v);
+    setValue("divisionCode", code, { shouldValidate: true, shouldDirty: true });
+    const firstDept = (masters?.departments ?? []).find((d) => d.divisionCode === code);
+    if (firstDept) {
+      setValue("departmentCode", firstDept.code, { shouldValidate: true });
+      const firstSec = (masters?.sections ?? []).find((s) => s.departmentCode === firstDept.code);
+      if (firstSec) setValue("sectionCode", firstSec.code, { shouldValidate: true });
+    }
+  };
+
+  const onDepartmentChange = (v: string) => {
+    const code = Number(v);
+    setValue("departmentCode", code, { shouldValidate: true, shouldDirty: true });
+    const firstSec = (masters?.sections ?? []).find((s) => s.departmentCode === code);
+    if (firstSec) setValue("sectionCode", firstSec.code, { shouldValidate: true });
+  };
+
+  const setCode =
+    (field: "sectionCode" | "processCategory" | "inspectionCategory" | "manufacturingCategory") =>
+    (v: string) =>
+      setValue(field, Number(v), { shouldValidate: true, shouldDirty: true });
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -96,34 +131,46 @@ export function LotCreatePage() {
               />
             </Section>
             <Section title="区分">
-              <NumberField
+              <SelectField
                 label="事業部"
-                registration={register("divisionCode")}
+                value={String(divisionCode)}
+                options={asOptions(divisions)}
+                onValueChange={onDivisionChange}
                 error={errors.divisionCode?.message}
               />
-              <NumberField
+              <SelectField
                 label="部"
-                registration={register("departmentCode")}
+                value={String(departmentCode)}
+                options={asOptions(departments)}
+                onValueChange={onDepartmentChange}
                 error={errors.departmentCode?.message}
               />
-              <NumberField
+              <SelectField
                 label="課"
-                registration={register("sectionCode")}
+                value={String(watch("sectionCode"))}
+                options={asOptions(sections)}
+                onValueChange={setCode("sectionCode")}
                 error={errors.sectionCode?.message}
               />
-              <NumberField
+              <SelectField
                 label="工程"
-                registration={register("processCategory")}
+                value={String(watch("processCategory"))}
+                options={asOptions(masters?.processCategories ?? [])}
+                onValueChange={setCode("processCategory")}
                 error={errors.processCategory?.message}
               />
-              <NumberField
+              <SelectField
                 label="検査"
-                registration={register("inspectionCategory")}
+                value={String(watch("inspectionCategory"))}
+                options={asOptions(masters?.inspectionCategories ?? [])}
+                onValueChange={setCode("inspectionCategory")}
                 error={errors.inspectionCategory?.message}
               />
-              <NumberField
+              <SelectField
                 label="製造"
-                registration={register("manufacturingCategory")}
+                value={String(watch("manufacturingCategory"))}
+                options={asOptions(masters?.manufacturingCategories ?? [])}
+                onValueChange={setCode("manufacturingCategory")}
                 error={errors.manufacturingCategory?.message}
               />
             </Section>

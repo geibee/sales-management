@@ -67,6 +67,12 @@ export function LotDetailPage({ id }: { id: string }) {
         </CardHeader>
         <CardContent className="space-y-1 text-sm">
           <Field label="ロット番号">{lot.lotNumber}</Field>
+          <Field label="事業部">{codeName(lot.division)}</Field>
+          <Field label="部">{codeName(lot.department)}</Field>
+          <Field label="課">{codeName(lot.section)}</Field>
+          <Field label="工程区分">{codeName(lot.processCategory)}</Field>
+          <Field label="検査区分">{codeName(lot.inspectionCategory)}</Field>
+          <Field label="製造区分">{codeName(lot.manufacturingCategory)}</Field>
           <Field label="製造完了日">{lot.manufacturingCompletedDate ?? "(未設定)"}</Field>
           <Field label="出荷期限日">{lot.shippingDeadlineDate ?? "(未設定)"}</Field>
           <Field label="出荷完了日">{lot.shippedDate ?? "(未設定)"}</Field>
@@ -218,6 +224,11 @@ function formatQuantity(value: number): string {
 
 function formatNumber(value: number): string {
   return INTEGER_FORMAT.format(value);
+}
+
+/** {code, name} を「名称 (コード)」で表示。名称未登録（null）はコードのみ。 */
+function codeName(cn: { code: number; name?: string | null }): string {
+  return cn.name ? `${cn.name} (${cn.code})` : String(cn.code);
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
