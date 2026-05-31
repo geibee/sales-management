@@ -3,14 +3,14 @@
  * で値を制御する page (LotCreatePage / SalesCaseCreatePage / Dialog
  * 系) で使う想定。旧 `LotCreatePage.SelectField` を抽出したもの。
  */
-import { Label } from "@/components/ui/label";
+import { Label } from "@/components/atoms/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/atoms/select";
 import { FieldError } from "./FieldError";
 
 export interface SelectFieldProps {

@@ -15,7 +15,7 @@
  * render ヘルパー側では auth-store に触れないので、render 前に
  * `setToken(...)` した内容はそのまま残る。
  */
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster } from "@/components/atoms/sonner";
 import {
   Outlet,
   RouterProvider,

@@ -1,8 +1,8 @@
+import { Badge } from "@/components/atoms/badge";
+import { Button } from "@/components/atoms/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
+import { Separator } from "@/components/atoms/separator";
 import { Guard } from "@/components/auth/Guard";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import {
   cancelReservationConfirmation,
   confirmReservation,

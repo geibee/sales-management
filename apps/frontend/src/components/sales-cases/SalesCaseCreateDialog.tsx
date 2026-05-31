@@ -1,5 +1,4 @@
-import { FieldError } from "@/components/form";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/atoms/button";
 import {
   Dialog,
   DialogContent,
@@ -7,16 +6,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/components/atoms/dialog";
+import { Input } from "@/components/atoms/input";
+import { Label } from "@/components/atoms/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/atoms/select";
+import { FieldError } from "@/components/molecules";
 import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createSalesCase } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";

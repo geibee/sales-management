@@ -1,13 +1,12 @@
-import { SalesCaseCreateDialog } from "@/components/sales-cases/SalesCaseCreateDialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/atoms/badge";
+import { Button } from "@/components/atoms/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/atoms/select";
 import {
   Table,
   TableBody,
@@ -15,7 +14,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/atoms/table";
+import { SalesCaseCreateDialog } from "@/components/sales-cases/SalesCaseCreateDialog";
 import { useLotsList } from "@/hooks/use-lots-list";
 import { describeApiError } from "@/lib/api-client";
 import { lotStatusLabel } from "@/lib/format";

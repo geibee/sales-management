@@ -8,8 +8,8 @@
  *   - `required=false` のとき label 末尾に「(任意)」を付ける
  *     (旧 RichActionForms.TextField 由来)
  */
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/components/atoms/input";
+import { Label } from "@/components/atoms/label";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { FieldError } from "./FieldError";
 

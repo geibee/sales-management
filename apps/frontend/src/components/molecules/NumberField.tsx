@@ -4,8 +4,8 @@
  *   - `step` / `min` / `max` 任意
  *   - `required=false` で「(任意)」表示
  */
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/components/atoms/input";
+import { Label } from "@/components/atoms/label";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { FieldError } from "./FieldError";
 

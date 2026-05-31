@@ -1,7 +1,6 @@
-import { FieldError } from "@/components/form";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/atoms/badge";
+import { Button } from "@/components/atoms/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
 import {
   Dialog,
   DialogContent,
@@ -9,9 +8,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/components/atoms/dialog";
+import { Input } from "@/components/atoms/input";
+import { Label } from "@/components/atoms/label";
+import { FieldError } from "@/components/molecules";
 import type { SalesCaseDetailResponse } from "@/contracts";
 import { describeApiError } from "@/lib/api-client";
 import { formatAmount } from "@/lib/format";
