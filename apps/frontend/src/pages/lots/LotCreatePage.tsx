@@ -1,14 +1,15 @@
 import { Button } from "@/components/atoms/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
+import { Card, CardContent, CardHeader } from "@/components/atoms/card";
 import { Form } from "@/components/atoms/form";
 import { NumberField, SelectField, TextField } from "@/components/molecules";
 import { Guard } from "@/components/organisms/auth/Guard";
+import { PageHeader } from "@/components/templates/PageHeader";
 import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createLot } from "@/hooks/use-lot";
 import { describeApiError } from "@/lib/api-client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, PackagePlus, Save } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { PackagePlus, Save } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
@@ -75,23 +76,16 @@ export function LotCreatePage() {
     >
       <Card className="rounded-lg">
         <CardHeader>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-xl">
+          <PageHeader
+            title={
+              <>
                 <PackagePlus className="size-5" />
                 在庫ロット 新規作成
-              </CardTitle>
-              <p className="text-muted-foreground text-sm">
-                バックエンドの境界値に合わせて入力時に検証します。
-              </p>
-            </div>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/lots">
-                <ArrowLeft className="size-4" />
-                一覧
-              </Link>
-            </Button>
-          </div>
+              </>
+            }
+            description="バックエンドの境界値に合わせて入力時に検証します。"
+            backTo="/lots"
+          />
         </CardHeader>
         <CardContent>
           <Form {...form}>

@@ -1,16 +1,17 @@
 import { Button } from "@/components/atoms/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
+import { Card, CardContent, CardHeader } from "@/components/atoms/card";
 import { Form } from "@/components/atoms/form";
 import { Label } from "@/components/atoms/label";
 import { FieldError, SelectField, TextField } from "@/components/molecules";
 import { Guard } from "@/components/organisms/auth/Guard";
 import { LotSelectDialog } from "@/components/organisms/dialogs/LotSelectDialog";
+import { PageHeader } from "@/components/templates/PageHeader";
 import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createSalesCase } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, BriefcaseBusiness, PackageSearch, Save } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { BriefcaseBusiness, PackageSearch, Save } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -58,23 +59,16 @@ export function SalesCaseCreatePage() {
     >
       <Card className="rounded-lg">
         <CardHeader>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-xl">
+          <PageHeader
+            title={
+              <>
                 <BriefcaseBusiness className="size-5" />
                 販売案件 新規作成
-              </CardTitle>
-              <p className="text-muted-foreground text-sm">
-                製造完了済みロットを指定して販売案件を起票します。
-              </p>
-            </div>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/sales-cases">
-                <ArrowLeft className="size-4" />
-                一覧
-              </Link>
-            </Button>
-          </div>
+              </>
+            }
+            description="製造完了済みロットを指定して販売案件を起票します。"
+            backTo="/sales-cases"
+          />
         </CardHeader>
         <CardContent>
           <Form {...form}>

@@ -17,11 +17,9 @@
  */
 import { Toaster } from "@/components/atoms/sonner";
 import {
-  Outlet,
   RouterProvider,
   createMemoryHistory,
   createRootRoute,
-  createRoute,
   createRouter,
 } from "@tanstack/react-router";
 import { type RenderResult, render } from "@testing-library/react";
@@ -64,14 +62,11 @@ export function renderWithRouter(
   ui: ReactElement,
   { initialPath = "/" }: RenderWithRouterOptions = {},
 ): RenderResult {
-  const rootRoute = createRootRoute({ component: () => <Outlet /> });
-  const catchAll = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "$",
-    component: () => ui,
-  });
+  // root route 自身を `ui` のレンダリング先にする。catch-all や index
+  // route を組み立てるよりも、initialPath が "/" でも確実に発火する。
+  const rootRoute = createRootRoute({ component: () => ui });
   const router = createRouter({
-    routeTree: rootRoute.addChildren([catchAll]),
+    routeTree: rootRoute,
     history: createMemoryHistory({ initialEntries: [initialPath] }),
   });
   return render(
