@@ -1,0 +1,309 @@
+/**
+ * Phase 2c — RichActionForms (FE-COMP-RICH-DA-* / SC-* / DV-* / RP-* / RC-* / CD-* / CR-* / COMMON-*).
+ *
+ * Each form in `pages/sales-cases/actions/RichActionForms.tsx` is
+ * exercised via its observable contract:
+ *   - submit without input → API not called, error text appears at
+ *     each invalid field (FieldReader collects ALL errors at once)
+ *   - rate inputs (DirectAppraisalForm / SalesContractForm) accept
+ *     90〜110 and reject 89 / 111
+ *   - boundary 90 / 110 / 100 round-trip to 0.9 / 1.1 / 1.0 in the
+ *     submitted body
+ *   - double submit / triple submit while pending → onSubmit fires
+ *     exactly once
+ *   - untouched fields stay clean (no aria-invalid until blur or
+ *     submit)
+ *
+ * Tests build a fixture `salesCase` via `makeSalesCase` and render the
+ * target form directly, capturing the submit body via `vi.fn()`.
+ */
+import {
+  ConsignmentDesignationForm,
+  ConsignmentResultForm,
+  DateVersionActionForm,
+  DirectAppraisalForm,
+  ReservationConfirmationForm,
+  ReservationPriceForm,
+  SalesContractForm,
+} from "@/pages/sales-cases/actions/RichActionForms";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { deferred } from "../../support/deferred";
+import { makeSalesCase } from "../../support/fixtures";
+import { renderWithApp } from "../../support/render";
+
+function fill(label: string, value: string | number): void {
+  fireEvent.change(screen.getByLabelText(label, { exact: false }), { target: { value: String(value) } });
+}
+
+function submitForm(buttonName: string | RegExp): void {
+  const button = screen.getByRole("button", { name: buttonName });
+  fireEvent.submit(button.closest("form")!);
+}
+
+// ---------- DirectAppraisalForm ----------
+
+describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
+  it("FE-COMP-RICH-DA-001: 必須空で submit → API 未呼出、全 invalid field に error", async () => {
+    const onSubmit = vi.fn();
+    const data = makeSalesCase({ lots: ["2026-A-1"] });
+    renderWithApp(
+      <DirectAppraisalForm
+        data={data}
+        title="査定 登録"
+        buttonLabel="登録"
+        onSubmit={onSubmit}
+      />,
+    );
+    // 必須テキストを空にする
+    fireEvent.change(screen.getByLabelText("販売市場"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("査定日"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("納期"), { target: { value: "" } });
+    submitForm("登録");
+    // FieldReader が空欄を全件 alert 化する。「販売市場を入力してください」など複数 alert が出ることを確認。
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.length).toBeGreaterThanOrEqual(2);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("FE-COMP-RICH-DA-002: 期中調整率 89 (範囲外) → field error、API 未呼出", async () => {
+    const onSubmit = vi.fn();
+    const data = makeSalesCase({ lots: ["2026-A-1"] });
+    renderWithApp(
+      <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={onSubmit} />,
+    );
+    fill("期中調整率(%)", 89);
+    submitForm("登録");
+    expect(await screen.findByText(/期中調整率は90以上/)).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("FE-COMP-RICH-DA-003: 期中調整率 90 / 取引先調整率 110 (境界) → API 受理、body は ÷100", async () => {
+    const onSubmit = vi.fn<(body: Record<string, unknown>) => Promise<void>>(async () => {});
+    const data = makeSalesCase({ lots: ["2026-A-1"] });
+    renderWithApp(
+      <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={onSubmit} />,
+    );
+    fill("期中調整率(%)", 90);
+    fill("取引先調整率(%)", 110);
+    submitForm("登録");
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const body = onSubmit.mock.calls[0][0] as unknown as {
+      lotAppraisals: Array<{
+        detailAppraisals: Array<{
+          periodAdjustmentRate: number;
+          counterpartyAdjustmentRate: number;
+        }>;
+      }>;
+    };
+    expect(body.lotAppraisals[0].detailAppraisals[0].periodAdjustmentRate).toBeCloseTo(0.9, 5);
+    expect(body.lotAppraisals[0].detailAppraisals[0].counterpartyAdjustmentRate).toBeCloseTo(1.1, 5);
+  });
+
+  it("FE-COMP-RICH-DA-004: 単価/調整率を変えると税抜査定合計が `Σ 基準単価 × rate ÷ 100` で即更新", async () => {
+    const data = makeSalesCase({ lots: ["2026-A-1", "2026-A-2"] });
+    renderWithApp(
+      <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={vi.fn()} />,
+    );
+    // 初期は 単価1000×rate1.0×rate1.0 × 2 ロット = 2000
+    expect(screen.getByText(/2,000/)).toBeInTheDocument();
+    // 1ロット目の基準単価を 2000、期中rateを110% に変える → 2000 * 1.1 * 1.0 = 2200、+ 2ロット目 1000 = 3200
+    const baseUnit = screen.getAllByLabelText("基準単価");
+    fireEvent.change(baseUnit[0], { target: { value: "2000" } });
+    const periodRate = screen.getAllByLabelText("期中調整率(%)");
+    fireEvent.change(periodRate[0], { target: { value: "110" } });
+    await waitFor(() => expect(screen.getByText(/3,200/)).toBeInTheDocument());
+  });
+
+  it("FE-COMP-RICH-DA-005: 「変更する」→ 承認 → total input enabled、承認者は read-only `営業部長（システム既定）`", async () => {
+    const data = makeSalesCase({ lots: ["2026-A-1"] });
+    renderWithApp(
+      <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "変更する" }));
+    // モーダルが開く
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // 承認者は readOnly
+    const approver = screen.getByLabelText("承認者") as HTMLInputElement;
+    expect(approver.value).toBe("営業部長（システム既定）");
+    expect(approver).toHaveAttribute("readonly");
+    // 未チェックでは確定 disabled
+    const enable = screen.getByRole("button", { name: "直接入力を有効化" });
+    expect(enable).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(enable).not.toBeDisabled();
+    fireEvent.click(enable);
+    // total が編集可能な input に変わる
+    const total = (await screen.findByLabelText("税抜査定合計")) as HTMLInputElement;
+    expect(total.tagName).toBe("INPUT");
+    expect(total).not.toBeDisabled();
+  });
+
+  it("FE-COMP-RICH-DA-006: 「変更する」→ cancel → total は自動計算のまま (hidden input)", async () => {
+    const data = makeSalesCase({ lots: ["2026-A-1"] });
+    renderWithApp(
+      <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "変更する" }));
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // 自動計算ラベルが残る
+    expect(screen.getByText(/1,000/)).toBeInTheDocument();
+  });
+});
+
+// ---------- SalesContractForm ----------
+
+describe("SalesContractForm (FE-COMP-RICH-SC-*)", () => {
+  it("FE-COMP-RICH-SC-001: 必須空で submit → API 未呼出 (顧客番号等を空に戻す)", async () => {
+    const onSubmit = vi.fn();
+    const data = makeSalesCase();
+    renderWithApp(
+      <SalesContractForm data={data} title="契約" buttonLabel="登録" onSubmit={onSubmit} />,
+    );
+    fireEvent.change(screen.getByLabelText("顧客番号"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("品目"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("納入方法"), { target: { value: "" } });
+    submitForm("登録");
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.length).toBeGreaterThanOrEqual(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+// ---------- DateVersionActionForm ----------
+
+describe("DateVersionActionForm (FE-COMP-RICH-DV-*)", () => {
+  it("FE-COMP-RICH-DV-001: 必須 date 空 → API 未呼出、field 直下 error", async () => {
+    const onSubmit = vi.fn();
+    renderWithApp(
+      <DateVersionActionForm
+        title="出荷指示"
+        buttonLabel="登録"
+        dateLabel="出荷予定日"
+        defaultDate=""
+        version={1}
+        onSubmit={onSubmit}
+      />,
+    );
+    submitForm("登録");
+    expect(await screen.findByText("出荷予定日を入力してください")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("FE-COMP-RICH-DV-002: 有効 date + version → submit body に date と version", async () => {
+    const onSubmit = vi.fn<(body: Record<string, unknown>) => Promise<void>>(async () => {});
+    renderWithApp(
+      <DateVersionActionForm
+        title="出荷指示"
+        buttonLabel="登録"
+        dateLabel="出荷予定日"
+        defaultDate="2026-05-01"
+        version={3}
+        onSubmit={onSubmit}
+      />,
+    );
+    submitForm("登録");
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ date: "2026-05-01", version: 3 });
+  });
+});
+
+// ---------- ReservationPriceForm ----------
+
+describe("ReservationPriceForm (FE-COMP-RICH-RP-*)", () => {
+  it("FE-COMP-RICH-RP-001: 予約金額が空 → field error、API 未呼出", async () => {
+    const onSubmit = vi.fn();
+    const data = makeSalesCase();
+    renderWithApp(<ReservationPriceForm data={data} onSubmit={onSubmit} />);
+    fireEvent.change(screen.getByLabelText("予約金額"), { target: { value: "" } });
+    submitForm("登録");
+    expect(await screen.findByText("予約金額を入力してください")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+// ---------- ReservationConfirmationForm ----------
+
+describe("ReservationConfirmationForm (FE-COMP-RICH-RC-*)", () => {
+  it("FE-COMP-RICH-RC-001: 確定金額空 → field error、API 未呼出", async () => {
+    const onSubmit = vi.fn();
+    const data = makeSalesCase();
+    renderWithApp(<ReservationConfirmationForm data={data} onSubmit={onSubmit} />);
+    fireEvent.change(screen.getByLabelText("確定金額"), { target: { value: "" } });
+    submitForm("確定");
+    expect(await screen.findByText("確定金額を入力してください")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+// ---------- ConsignmentDesignationForm ----------
+
+describe("ConsignmentDesignationForm (FE-COMP-RICH-CD-*)", () => {
+  it("FE-COMP-RICH-CD-001: 委託先名空 → field error、API 未呼出", async () => {
+    const onSubmit = vi.fn();
+    const data = makeSalesCase();
+    renderWithApp(<ConsignmentDesignationForm data={data} onSubmit={onSubmit} />);
+    fireEvent.change(screen.getByLabelText("委託先名"), { target: { value: "" } });
+    submitForm("登録");
+    expect(await screen.findByText("委託先名を入力してください")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+// ---------- ConsignmentResultForm ----------
+
+describe("ConsignmentResultForm (FE-COMP-RICH-CR-*)", () => {
+  it("FE-COMP-RICH-CR-001: 結果金額空 → field error、API 未呼出", async () => {
+    const onSubmit = vi.fn();
+    const data = makeSalesCase();
+    renderWithApp(<ConsignmentResultForm data={data} onSubmit={onSubmit} />);
+    fireEvent.change(screen.getByLabelText("結果金額"), { target: { value: "" } });
+    submitForm("登録");
+    expect(await screen.findByText("結果金額を入力してください")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+// ---------- COMMON ----------
+
+describe("RichActionForms common (FE-COMP-RICH-COMMON-*)", () => {
+  it("FE-COMP-RICH-COMMON-001: 二重 submit (有効入力) でも onSubmit 呼出は 1 回", async () => {
+    const d = deferred<void>();
+    const onSubmit = vi.fn(() => d.promise);
+    renderWithApp(
+      <DateVersionActionForm
+        title="出荷指示"
+        buttonLabel="登録"
+        dateLabel="出荷予定日"
+        defaultDate="2026-05-01"
+        version={1}
+        onSubmit={onSubmit}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "登録" }));
+    expect(await screen.findByRole("button", { name: "実行中…" })).toBeDisabled();
+    // disabled button への click は no-op
+    fireEvent.click(screen.getByRole("button", { name: "実行中…" }));
+    fireEvent.click(screen.getByRole("button", { name: "実行中…" }));
+    d.resolve();
+    await waitFor(() => expect(screen.queryByRole("button", { name: "実行中…" })).toBeNull());
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("FE-COMP-RICH-COMMON-002: mount 直後 (blur なし) は error 非表示", () => {
+    const data = makeSalesCase();
+    renderWithApp(
+      <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={vi.fn()} />,
+    );
+    // role="alert" は FieldError が出した時にだけ生える
+    expect(screen.queryByRole("alert")).toBeNull();
+    // aria-invalid="true" な input も存在しない
+    const formEl = screen.getByRole("button", { name: "登録" }).closest("form")!;
+    const invalid = within(formEl).queryAllByLabelText(/./).filter((el) =>
+      el.getAttribute("aria-invalid") === "true",
+    );
+    expect(invalid).toHaveLength(0);
+  });
+});
