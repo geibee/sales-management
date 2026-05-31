@@ -207,6 +207,41 @@ type CodeMasterAndLotEditTests(fixture: AuthOffFixture) =
 
     [<Fact>]
     [<Trait("Category", "Integration")>]
+    member _.``create rejects a lot already assigned to another case``() = task {
+        fixture.Reset()
+        use client = fixture.NewClient()
+
+        let! lotA = seedManufacturedLot client 7420 "DA" 1
+        let! _ = createCase client [ lotA ] "direct"
+
+        // 同じロットで別案件を作ろうとすると 400（二重割当を禁止）
+        let body =
+            createSalesCaseBody
+                { emptySalesCaseOverrides with
+                    Lots = Some(JArray [ JString lotA ])
+                    CaseType = Some(JString "direct") }
+
+        let! resp = postJson client "/sales-cases" body
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode)
+    }
+
+    [<Fact>]
+    [<Trait("Category", "Integration")>]
+    member _.``PUT lots keeps the case own lots (regression)``() = task {
+        fixture.Reset()
+        use client = fixture.NewClient()
+
+        let! lotA = seedManufacturedLot client 7410 "KA" 1
+        let! lotB = seedManufacturedLot client 7410 "KB" 1
+        let! caseId = createCase client [ lotA; lotB ] "direct"
+
+        // 自案件に現在割り当てられている2ロットをそのまま送る → 200 であるべき
+        let! resp = putJson client (sprintf "/sales-cases/%s/lots" caseId) (editLotsBody [ lotA; lotB ] 1)
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
+    }
+
+    [<Fact>]
+    [<Trait("Category", "Integration")>]
     member _.``PUT lots works for consignment before designation``() = task {
         fixture.Reset()
         use client = fixture.NewClient()

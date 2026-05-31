@@ -72,6 +72,11 @@ let private fetchManufacturedLots (conn: NpgsqlConnection) (lotIds: string[]) : 
 
     folded |> Result.map List.rev
 
+// ロットが（いずれかの）販売案件に既に割り当てられているか。
+let private isAssignedToAnyCase (conn: NpgsqlConnection) (lot: ManufacturedLot) : bool =
+    let lotNumber = (InventoryLot.common (Manufactured lot)).LotNumber
+    SalesCaseRepository.findCaseNumbersByLot conn lotNumber |> List.isEmpty |> not
+
 let private resolveCaseType (raw: string) : Result<string * string, string> =
     let normalized = if String.IsNullOrEmpty raw then "direct" else raw
 
@@ -96,6 +101,8 @@ let private createSalesCaseHandler (connectionString: string) : HttpHandler =
 
                 match fetchManufacturedLots conn dto.lots with
                 | Error e -> return! badRequest e next ctx
+                | Ok lots when lots |> List.exists (isAssignedToAnyCase conn) ->
+                    return! badRequest "One or more lots are already assigned to a sales case" next ctx
                 | Ok lots ->
                     let nextSeq =
                         SalesCaseRepository.nextSalesCaseSeq conn salesDate.Year salesDate.Month
