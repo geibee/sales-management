@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createSalesCase } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";
 import {
@@ -58,6 +59,8 @@ export function SalesCaseCreateDialog({
   });
 
   const caseType = watch("caseType");
+  const divisionCode = watch("divisionCode");
+  const { data: masters } = useCodeMasters();
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -109,13 +112,24 @@ export function SalesCaseCreateDialog({
             <FieldError message={errors.caseType?.message} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="dialog-divisionCode">事業部コード</Label>
-            <Input
-              id="dialog-divisionCode"
-              type="number"
-              aria-invalid={!!errors.divisionCode}
-              {...register("divisionCode")}
-            />
+            <Label>事業部</Label>
+            <Select
+              value={divisionCode != null ? String(divisionCode) : ""}
+              onValueChange={(v) =>
+                setValue("divisionCode", Number(v), { shouldDirty: true, shouldValidate: true })
+              }
+            >
+              <SelectTrigger className="w-full" aria-invalid={!!errors.divisionCode}>
+                <SelectValue placeholder="事業部を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {(masters?.divisions ?? []).map((d) => (
+                  <SelectItem key={d.code} value={String(d.code)}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <FieldError message={errors.divisionCode?.message} />
           </div>
           <div className="space-y-1">

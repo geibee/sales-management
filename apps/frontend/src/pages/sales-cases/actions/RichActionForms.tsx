@@ -185,7 +185,7 @@ export function DirectAppraisalForm({
                   defaultValue={RATE_DISPLAY_DEFAULT}
                   min={RATE_DISPLAY_MIN}
                   max={RATE_DISPLAY_MAX}
-                  step="0.1"
+                  step="1"
                   errors={errors}
                 />
                 <NumberField
@@ -194,7 +194,7 @@ export function DirectAppraisalForm({
                   defaultValue={RATE_DISPLAY_DEFAULT}
                   min={RATE_DISPLAY_MIN}
                   max={RATE_DISPLAY_MAX}
-                  step="0.1"
+                  step="1"
                   errors={errors}
                 />
                 <NumberField
@@ -202,7 +202,7 @@ export function DirectAppraisalForm({
                   label="例外調整率(%)"
                   min={RATE_DISPLAY_MIN}
                   max={RATE_DISPLAY_MAX}
-                  step="0.1"
+                  step="1"
                   required={false}
                   errors={errors}
                 />

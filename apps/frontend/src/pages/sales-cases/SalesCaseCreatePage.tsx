@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createSalesCase } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -44,6 +45,8 @@ export function SalesCaseCreatePage() {
 
   const caseType = watch("caseType");
   const lots = watch("lots");
+  const divisionCode = watch("divisionCode");
+  const { data: masters } = useCodeMasters();
   const [lotDialogOpen, setLotDialogOpen] = useState(false);
 
   const onSubmit = handleSubmit(async (values) => {
@@ -149,11 +152,27 @@ export function SalesCaseCreatePage() {
                 title="対象ロットを選択"
               />
             </div>
-            <NumberField
-              label="事業部コード"
-              registration={register("divisionCode")}
-              error={errors.divisionCode?.message}
-            />
+            <div className="space-y-1">
+              <Label>事業部</Label>
+              <Select
+                value={divisionCode != null ? String(divisionCode) : ""}
+                onValueChange={(v) =>
+                  setValue("divisionCode", Number(v), { shouldDirty: true, shouldValidate: true })
+                }
+              >
+                <SelectTrigger className="w-full" aria-invalid={!!errors.divisionCode}>
+                  <SelectValue placeholder="事業部を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(masters?.divisions ?? []).map((d) => (
+                    <SelectItem key={d.code} value={String(d.code)}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError message={errors.divisionCode?.message} />
+            </div>
             <TextField
               label="販売日"
               type="date"
@@ -170,24 +189,6 @@ export function SalesCaseCreatePage() {
         </CardContent>
       </Card>
     </Guard>
-  );
-}
-
-function NumberField({
-  label,
-  registration,
-  error,
-}: {
-  label: string;
-  registration: UseFormRegisterReturn;
-  error?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label htmlFor={registration.name}>{label}</Label>
-      <Input id={registration.name} type="number" aria-invalid={!!error} {...registration} />
-      <FieldError message={error} />
-    </div>
   );
 }
 
