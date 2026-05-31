@@ -10,11 +10,12 @@
  * history starting at `initialPath`. Use this when the test exercises
  * navigation (route guards, `navigate({to})` after a mutation, etc.).
  *
- * Both helpers reset the auth store before mounting so tests don't
- * leak tokens between cases.
+ * Tests are expected to reset `useAuth.getState().clear()` in their
+ * own `beforeEach` (the auth store is module-level and zustand does
+ * not auto-reset between tests). Both render helpers leave the store
+ * alone so a `setToken(...)` performed before render survives.
  */
 import { Toaster } from "@/components/ui/sonner";
-import { useAuth } from "@/stores/auth-store";
 import {
   Outlet,
   RouterProvider,
@@ -45,7 +46,8 @@ function AppProviders({ children }: { children: ReactNode }) {
 }
 
 export function renderWithApp(ui: ReactElement): RenderResult {
-  useAuth.getState().clear();
+  // Note: auth-store is reset by tests via `beforeEach` so a render
+  // can be paired with a `useAuth.setToken(...)` call without losing it.
   return render(<AppProviders>{ui}</AppProviders>);
 }
 
@@ -66,7 +68,6 @@ export function renderWithRouter(
   ui: ReactElement,
   { initialPath = "/" }: RenderWithRouterOptions = {},
 ): RenderResult {
-  useAuth.getState().clear();
   const rootRoute = createRootRoute({ component: () => <Outlet /> });
   const catchAll = createRoute({
     getParentRoute: () => rootRoute,

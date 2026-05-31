@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
+import { useAuth } from "@/stores/auth-store";
 import { resetCapturedRequests, server } from "./support/server";
 
 // ---- MSW lifecycle ----
@@ -11,6 +12,9 @@ afterEach(() => {
   cleanup();
   server.resetHandlers();
   resetCapturedRequests();
+  // auth-store is module-level zustand state; reset between tests so
+  // role from a prior case doesn't leak into the next.
+  useAuth.getState().clear();
   vi.restoreAllMocks();
 });
 afterAll(() => server.close());
