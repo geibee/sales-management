@@ -12,6 +12,11 @@ type CreateSalesCaseDto =
       caseType: string }
 
 [<CLIMutable>]
+type EditCaseLotsDto =
+    { lots: string[]
+      version: System.Nullable<int> }
+
+[<CLIMutable>]
 type LotDetailAppraisalDto =
     { detailIndex: int
       baseUnitPrice: int

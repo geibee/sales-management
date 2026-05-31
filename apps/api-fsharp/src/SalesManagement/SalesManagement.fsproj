@@ -17,6 +17,7 @@
     <Compile Include="Domain/ConsignmentCaseWorkflows.fs" />
     <Compile Include="Infrastructure/LotRepository.fs" />
     <Compile Include="Infrastructure/LotListRepository.fs" />
+    <Compile Include="Infrastructure/CodeMasterRepository.fs" />
     <Compile Include="Infrastructure/SalesCaseRepository.fs" />
     <Compile Include="Infrastructure/SalesCaseListRepository.fs" />
     <Compile Include="Infrastructure/AppraisalRepository.fs" />
@@ -27,6 +28,7 @@
     <Compile Include="Infrastructure/OutboxProcessor.fs" />
     <Compile Include="Api/ProblemDetails.fs" />
     <Compile Include="Api/LotDtos.fs" />
+    <Compile Include="Api/CodeMasterDtos.fs" />
     <Compile Include="Api/Auth.fs" />
     <Compile Include="Api/HealthChecks.fs" />
     <Compile Include="Api/LotCsvExport.fs" />
@@ -40,6 +42,7 @@
     <Compile Include="Infrastructure/CsvImportBatch.fs" />
     <Compile Include="Api/LotListRoutes.fs" />
     <Compile Include="Api/LotRoutes.fs" />
+    <Compile Include="Api/CodeMasterRoutes.fs" />
     <Compile Include="Api/SalesCaseDtos.fs" />
     <Compile Include="Api/ReservationCaseDtos.fs" />
     <Compile Include="Api/ConsignmentCaseDtos.fs" />

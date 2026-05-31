@@ -445,6 +445,34 @@ let private runInTx
 
         reraise ()
 
+/// 案件のロット割当を total replace する（status は据置）。
+/// 既存 sales_case_lot を削除→新規挿入→version+1 を1トランザクションで実施。
+/// version 不一致は OptimisticLockConflict。
+let replaceCaseLots
+    (conn: NpgsqlConnection)
+    (caseNumber: SalesCaseNumber)
+    (lots: ManufacturedLot list)
+    (status: string)
+    (expectedVersion: int)
+    : Result<int, SalesManagement.Domain.Errors.DomainError> =
+    runInTx conn (fun tx ->
+        let tran = tx :> IDbTransaction
+
+        tran
+        |> Db.newCommandForTransaction
+            """
+            DELETE FROM sales_case_lot
+             WHERE sales_case_number_year = @year
+               AND sales_case_number_month = @month
+               AND sales_case_number_seq = @seq
+            """
+        |> Db.setParams (salesCaseKeyParams caseNumber)
+        |> Db.exec
+
+        lots |> List.iter (fun lot -> insertCaseLotRow tran caseNumber (Manufactured lot))
+
+        bumpSalesCaseVersionTx tx caseNumber status expectedVersion)
+
 let insertContract
     (conn: NpgsqlConnection)
     (caseNumber: SalesCaseNumber)

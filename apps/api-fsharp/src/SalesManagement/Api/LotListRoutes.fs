@@ -24,6 +24,8 @@ type ListLotsResponse =
       limit: int
       offset: int }
 
+type AvailableLotsResponse = { items: LotSummary[]; total: int }
+
 let private formatDateOpt (d: DateOnly option) : string option =
     d |> Option.map (fun v -> v.ToString("yyyy-MM-dd"))
 
@@ -110,6 +112,46 @@ let listLotsHandler (connectionString: string) : HttpHandler =
                   total = result.Total
                   limit = result.Limit
                   offset = result.Offset }
+
+            return! json response next ctx
+    }
+
+// 販売案件番号 "年-月-連番" を緩くパースする（SalesCaseDtos はこのファイルより後にコンパイルされるため自前で持つ）。
+let private tryParseCaseNumber (s: string) : (int * int * int) option =
+    let parts = s.Split('-')
+
+    if parts.Length <> 3 then
+        None
+    else
+        match Int32.TryParse parts.[0], Int32.TryParse parts.[1], Int32.TryParse parts.[2] with
+        | (true, y), (true, m), (true, sq) -> Some(y, m, sq)
+        | _ -> None
+
+let availableLotsHandler (connectionString: string) : HttpHandler =
+    fun next ctx -> task {
+        let excludeRaw = tryGetStringQuery ctx "excludeCase"
+
+        match excludeRaw with
+        | Some s when (tryParseCaseNumber s).IsNone ->
+            let err =
+                ValidationFailed
+                    [ { Field = "excludeCase"
+                        Message = "excludeCase must be a valid sales case number (year-month-seq)" } ]
+
+            return! toResponse "Lot" err next ctx
+        | _ ->
+            let exclude = excludeRaw |> Option.bind tryParseCaseNumber
+            use conn = new NpgsqlConnection(connectionString)
+            conn.Open()
+
+            let summaries =
+                LotListRepository.listAvailable conn exclude
+                |> List.map toLotSummary
+                |> List.toArray
+
+            let response: AvailableLotsResponse =
+                { items = summaries
+                  total = summaries.Length }
 
             return! json response next ctx
     }

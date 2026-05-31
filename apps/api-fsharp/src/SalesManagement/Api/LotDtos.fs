@@ -64,6 +64,8 @@ type LotDetailResponse =
       quantity: decimal
       inspectionResultCategory: string option }
 
+type CodeNameResponse = { code: int; name: string option }
+
 type LotResponse =
     { status: string
       lotNumber: string
@@ -71,6 +73,12 @@ type LotResponse =
       shippingDeadlineDate: string option
       shippedDate: string option
       destinationItem: string option
+      division: CodeNameResponse
+      department: CodeNameResponse
+      section: CodeNameResponse
+      processCategory: CodeNameResponse
+      inspectionCategory: CodeNameResponse
+      manufacturingCategory: CodeNameResponse
       details: LotDetailResponse list
       version: int }
 

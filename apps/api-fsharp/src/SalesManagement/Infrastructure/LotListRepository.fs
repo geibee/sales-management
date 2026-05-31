@@ -104,3 +104,41 @@ let list (conn: NpgsqlConnection) (filter: LotListFilter) : LotListResult =
       Total = total
       Limit = filter.Limit
       Offset = filter.Offset }
+
+// 製造完了かつ、どの販売案件にも割り当てられていないロットを返す。
+// excludeCase（年・月・連番）が指定された場合、その案件への割り当ては「未割当」とみなす
+// （案件のロット修正時に、自案件に現在割り当て済みのロットも選択肢に残すため）。
+let private availableSelectSql =
+    """
+    SELECT l.lot_number_year, l.lot_number_location, l.lot_number_seq,
+           l.status, l.manufacturing_completed_date, l.shipping_deadline_date,
+           l.shipped_date, l.destination_item, l.version
+      FROM lot l
+     WHERE l.status = 'manufactured'
+       AND NOT EXISTS (
+           SELECT 1
+             FROM sales_case_lot scl
+            WHERE scl.lot_number_year = l.lot_number_year
+              AND scl.lot_number_location = l.lot_number_location
+              AND scl.lot_number_seq = l.lot_number_seq
+              AND NOT (@exclude_active
+                       AND scl.sales_case_number_year = @ex_year
+                       AND scl.sales_case_number_month = @ex_month
+                       AND scl.sales_case_number_seq = @ex_seq)
+       )
+     ORDER BY l.lot_number_year, l.lot_number_location, l.lot_number_seq
+    """
+
+let listAvailable (conn: NpgsqlConnection) (excludeCase: (int * int * int) option) : LotListItem list =
+    let active, year, month, seq =
+        match excludeCase with
+        | Some(y, m, s) -> true, y, m, s
+        | None -> false, 0, 0, 0
+
+    let parameters: RawDbParams =
+        [ "exclude_active", SqlType.Boolean active
+          "ex_year", SqlType.Int32 year
+          "ex_month", SqlType.Int32 month
+          "ex_seq", SqlType.Int32 seq ]
+
+    queryItems conn availableSelectSql parameters
