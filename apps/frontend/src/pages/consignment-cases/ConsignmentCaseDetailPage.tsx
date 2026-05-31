@@ -5,6 +5,10 @@ import { Separator } from "@/components/atoms/separator";
 import { Guard } from "@/components/organisms/auth/Guard";
 import { LotSelectDialog } from "@/components/organisms/dialogs/LotSelectDialog";
 import {
+  ConsignmentDesignationForm,
+  ConsignmentResultForm,
+} from "@/components/organisms/forms/rich-actions/RichActionForms";
+import {
   cancelDesignation,
   designateConsignment,
   recordConsignmentResult,
@@ -13,10 +17,6 @@ import {
 import { updateSalesCaseLots } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";
 import { caseStatusLabel } from "@/lib/format";
-import {
-  ConsignmentDesignationForm,
-  ConsignmentResultForm,
-} from "@/pages/sales-cases/actions/RichActionForms";
 import { Link } from "@tanstack/react-router";
 import { PackageSearch } from "lucide-react";
 import { useActionState, useState } from "react";

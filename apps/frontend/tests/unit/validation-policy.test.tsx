@@ -1,3 +1,4 @@
+import { DirectAppraisalForm } from "@/components/organisms/forms/rich-actions/RichActionForms";
 /**
  * Phase 2g — 共通 Validation 表示ポリシー (FE-VAL-POLICY-001..007)。
  *
@@ -17,7 +18,6 @@
  *   - DirectAppraisalForm (RichActionForms / FieldReader)
  */
 import { LotCreatePage } from "@/pages/lots/LotCreatePage";
-import { DirectAppraisalForm } from "@/pages/sales-cases/actions/RichActionForms";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";

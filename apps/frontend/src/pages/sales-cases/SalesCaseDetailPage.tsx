@@ -5,6 +5,11 @@ import { Separator } from "@/components/atoms/separator";
 import { Guard } from "@/components/organisms/auth/Guard";
 import { LotSelectDialog } from "@/components/organisms/dialogs/LotSelectDialog";
 import {
+  DateVersionActionForm,
+  DirectAppraisalForm,
+  SalesContractForm,
+} from "@/components/organisms/forms/rich-actions/RichActionForms";
+import {
   cancelSalesShippingInstruction,
   completeSalesShipping,
   createAppraisal,
@@ -38,11 +43,6 @@ import {
 } from "lucide-react";
 import { type ReactNode, useActionState, useState } from "react";
 import { toast } from "sonner";
-import {
-  DateVersionActionForm,
-  DirectAppraisalForm,
-  SalesContractForm,
-} from "./actions/RichActionForms";
 
 const DIRECT_STATUS_FLOW = [
   "before_appraisal",

@@ -1,7 +1,7 @@
 /**
  * Phase 2c — RichActionForms (FE-COMP-RICH-DA-* / SC-* / DV-* / RP-* / RC-* / CD-* / CR-* / COMMON-*)。
  *
- * `pages/sales-cases/actions/RichActionForms.tsx` には 7 種類の form が
+ * `components/organisms/forms/rich-actions/RichActionForms.tsx` には 7 種類の form が
  * あり、観測契約を以下のように検査する:
  *   - 入力なしで submit → API 未呼出、各 invalid field にエラーが
  *     同時表示される (FieldReader が全項目をまとめて検査するため)
@@ -24,12 +24,12 @@ import {
   ReservationConfirmationForm,
   ReservationPriceForm,
   SalesContractForm,
-} from "@/pages/sales-cases/actions/RichActionForms";
+} from "@/components/organisms/forms/rich-actions/RichActionForms";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { deferred } from "../../support/deferred";
-import { makeSalesCase } from "../../support/fixtures";
-import { renderWithApp } from "../../support/render";
+import { deferred } from "../../../../support/deferred";
+import { makeSalesCase } from "../../../../support/fixtures";
+import { renderWithApp } from "../../../../support/render";
 
 function fill(label: string, value: string | number): void {
   fireEvent.change(screen.getByLabelText(label, { exact: false }), {

@@ -4,6 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/car
 import { Separator } from "@/components/atoms/separator";
 import { Guard } from "@/components/organisms/auth/Guard";
 import {
+  DateVersionActionForm,
+  ReservationConfirmationForm,
+  ReservationPriceForm,
+} from "@/components/organisms/forms/rich-actions/RichActionForms";
+import {
   cancelReservationConfirmation,
   confirmReservation,
   createReservationPrice,
@@ -12,11 +17,6 @@ import {
 } from "@/hooks/use-reservation-case";
 import { describeApiError } from "@/lib/api-client";
 import { caseStatusLabel } from "@/lib/format";
-import {
-  DateVersionActionForm,
-  ReservationConfirmationForm,
-  ReservationPriceForm,
-} from "@/pages/sales-cases/actions/RichActionForms";
 import { Link } from "@tanstack/react-router";
 import { Truck } from "lucide-react";
 import { useActionState } from "react";

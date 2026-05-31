@@ -1,3 +1,4 @@
+import { DateVersionActionForm } from "@/components/organisms/forms/rich-actions/RichActionForms";
 /**
  * Phase 2d — 共通 a11y / form (FE-A11Y-FORM-001..004)。
  *
@@ -19,7 +20,6 @@
  * で意図だけ残してある。
  */
 import { SalesCaseCreatePage } from "@/pages/sales-cases/SalesCaseCreatePage";
-import { DateVersionActionForm } from "@/pages/sales-cases/actions/RichActionForms";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
