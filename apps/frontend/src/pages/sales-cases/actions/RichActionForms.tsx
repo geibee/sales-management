@@ -38,6 +38,12 @@ type SubmitBody = (body: ActionBody) => Promise<void>;
 
 type FieldErrors = Record<string, string>;
 
+// 調整率は画面では百分率で入力し（許容 90〜110）、API には 1/100 した値（0.9〜1.1）で送る。
+const RATE_DISPLAY_MIN = 90;
+const RATE_DISPLAY_MAX = 110;
+const RATE_DISPLAY_DEFAULT = 100;
+const RATE_DISPLAY_SCALE = 100;
+
 type BaseFormProps = {
   title: string;
   buttonLabel: string;
@@ -74,12 +80,12 @@ export function DirectAppraisalForm({
         {
           detailIndex: 1,
           baseUnitPrice: r.requiredInt(`baseUnitPrice-${index}`, "基準単価", { min: 0 }),
-          periodAdjustmentRate: r.requiredNumber(`periodAdjustmentRate-${index}`, "期中調整率"),
-          counterpartyAdjustmentRate: r.requiredNumber(
+          periodAdjustmentRate: r.requiredRate(`periodAdjustmentRate-${index}`, "期中調整率"),
+          counterpartyAdjustmentRate: r.requiredRate(
             `counterpartyAdjustmentRate-${index}`,
             "取引先調整率",
           ),
-          exceptionalPeriodAdjustmentRate: r.optionalNumber(
+          exceptionalPeriodAdjustmentRate: r.optionalRate(
             `exceptionalPeriodAdjustmentRate-${index}`,
             "例外調整率",
           ),
@@ -175,22 +181,28 @@ export function DirectAppraisalForm({
                 />
                 <NumberField
                   name={`periodAdjustmentRate-${index}`}
-                  label="期中調整率"
-                  defaultValue={1}
-                  step="0.001"
+                  label="期中調整率(%)"
+                  defaultValue={RATE_DISPLAY_DEFAULT}
+                  min={RATE_DISPLAY_MIN}
+                  max={RATE_DISPLAY_MAX}
+                  step="0.1"
                   errors={errors}
                 />
                 <NumberField
                   name={`counterpartyAdjustmentRate-${index}`}
-                  label="取引先調整率"
-                  defaultValue={1}
-                  step="0.001"
+                  label="取引先調整率(%)"
+                  defaultValue={RATE_DISPLAY_DEFAULT}
+                  min={RATE_DISPLAY_MIN}
+                  max={RATE_DISPLAY_MAX}
+                  step="0.1"
                   errors={errors}
                 />
                 <NumberField
                   name={`exceptionalPeriodAdjustmentRate-${index}`}
-                  label="例外調整率"
-                  step="0.001"
+                  label="例外調整率(%)"
+                  min={RATE_DISPLAY_MIN}
+                  max={RATE_DISPLAY_MAX}
+                  step="0.1"
                   required={false}
                   errors={errors}
                 />
@@ -758,6 +770,7 @@ function NumberField({
   label,
   defaultValue,
   min,
+  max,
   step = "1",
   required = true,
   errors,
@@ -766,6 +779,7 @@ function NumberField({
   label: string;
   defaultValue?: number;
   min?: number;
+  max?: number;
   step?: string;
   required?: boolean;
   errors: FieldErrors;
@@ -783,6 +797,7 @@ function NumberField({
         type="number"
         defaultValue={defaultValue}
         min={min}
+        max={max}
         step={step}
         aria-invalid={!!error}
       />
@@ -944,11 +959,13 @@ function FieldError({ message }: { message?: string }) {
 function computeEstimatedTotal(fd: FormData, lotCount: number): number {
   let total = 0;
   for (let index = 0; index < lotCount; index++) {
+    // 調整率は画面の百分率を 1/100 した値で計算する（例外調整率は未入力なら ×1）。
     const base = toNumber(fd.get(`baseUnitPrice-${index}`));
-    const period = toNumber(fd.get(`periodAdjustmentRate-${index}`));
-    const counterparty = toNumber(fd.get(`counterpartyAdjustmentRate-${index}`));
+    const period = toNumber(fd.get(`periodAdjustmentRate-${index}`)) / RATE_DISPLAY_SCALE;
+    const counterparty =
+      toNumber(fd.get(`counterpartyAdjustmentRate-${index}`)) / RATE_DISPLAY_SCALE;
     const exceptionalRaw = String(fd.get(`exceptionalPeriodAdjustmentRate-${index}`) ?? "").trim();
-    const exceptional = exceptionalRaw === "" ? 1 : Number(exceptionalRaw);
+    const exceptional = exceptionalRaw === "" ? 1 : Number(exceptionalRaw) / RATE_DISPLAY_SCALE;
 
     if (![base, period, counterparty, exceptional].every(Number.isFinite)) continue;
     total += base * period * counterparty * exceptional;
@@ -992,7 +1009,7 @@ class FieldReader {
     return value;
   }
 
-  requiredNumber(name: string, label: string, opts: { min?: number } = {}): number {
+  requiredNumber(name: string, label: string, opts: { min?: number; max?: number } = {}): number {
     const value = this.raw(name);
     if (!value) {
       this.fail(name, `${label}を入力してください`);
@@ -1007,7 +1024,31 @@ class FieldReader {
       this.fail(name, `${label}は${opts.min}以上で入力してください`);
       return Number.NaN;
     }
+    if (opts.max !== undefined && n > opts.max) {
+      this.fail(name, `${label}は${opts.max}以下で入力してください`);
+      return Number.NaN;
+    }
     return n;
+  }
+
+  /**
+   * 調整率フィールド。画面では百分率（90〜110）で入力し、API には 1/100 した値（0.9〜1.1）で渡す。
+   */
+  requiredRate(name: string, label: string): number {
+    const display = this.requiredNumber(name, label, {
+      min: RATE_DISPLAY_MIN,
+      max: RATE_DISPLAY_MAX,
+    });
+    return Number.isFinite(display) ? display / RATE_DISPLAY_SCALE : display;
+  }
+
+  optionalRate(name: string, label: string): number | null {
+    if (this.raw(name) === "") return null;
+    const display = this.requiredNumber(name, label, {
+      min: RATE_DISPLAY_MIN,
+      max: RATE_DISPLAY_MAX,
+    });
+    return Number.isFinite(display) ? display / RATE_DISPLAY_SCALE : null;
   }
 
   requiredInt(name: string, label: string, opts: { min?: number } = {}): number {
@@ -1028,17 +1069,6 @@ class FieldReader {
     if (opts.min !== undefined && n < opts.min) {
       this.fail(name, `${label}は${opts.min}以上で入力してください`);
       return Number.NaN;
-    }
-    return n;
-  }
-
-  optionalNumber(name: string, label: string): number | null {
-    const value = this.raw(name);
-    if (!value) return null;
-    const n = Number(value);
-    if (!Number.isFinite(n)) {
-      this.fail(name, `${label}は数値で入力してください`);
-      return null;
     }
     return n;
   }

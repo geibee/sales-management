@@ -81,6 +81,22 @@ let nullToOption (s: string) : string option =
 let nullableToOption (n: System.Nullable<'a>) : 'a option =
     if n.HasValue then Some n.Value else None
 
+// 調整率はフロントでは百分率表示（例: 100）だが、API には 1/100 した値（例: 1.0）で送られる。
+// 入力許容 90〜110（表示）に対応する 0.9〜1.1 の範囲で検証する。
+let private adjustmentRateMin = 0.9m
+let private adjustmentRateMax = 1.1m
+
+let validateAdjustmentRate (label: string) (value: decimal) : Result<decimal, string> =
+    if value >= adjustmentRateMin && value <= adjustmentRateMax then
+        Ok value
+    else
+        Error(sprintf "%s must be between %M and %M" label adjustmentRateMin adjustmentRateMax)
+
+let private validateOptionalAdjustmentRate (label: string) (value: decimal option) : Result<decimal option, string> =
+    match value with
+    | None -> Ok None
+    | Some v -> validateAdjustmentRate label v |> Result.map Some
+
 let formatSalesCaseNumber (n: SalesCaseNumber) : string =
     sprintf "%d-%02d-%03d" n.Year n.Month n.Seq
 
@@ -116,12 +132,23 @@ let private dtoToDetailAppraisal
         match detail with
         | None -> Error(sprintf "detailIndex %d out of range" dto.detailIndex)
         | Some d ->
-            Ok
-                { LotDetail = d
-                  BaseUnitPrice = price
-                  PeriodAdjustmentRate = dto.periodAdjustmentRate
-                  CounterpartyAdjustmentRate = dto.counterpartyAdjustmentRate
-                  ExceptionalPeriodAdjustmentRate = nullableToOption dto.exceptionalPeriodAdjustmentRate }
+            match
+                validateAdjustmentRate "periodAdjustmentRate" dto.periodAdjustmentRate,
+                validateAdjustmentRate "counterpartyAdjustmentRate" dto.counterpartyAdjustmentRate,
+                validateOptionalAdjustmentRate
+                    "exceptionalPeriodAdjustmentRate"
+                    (nullableToOption dto.exceptionalPeriodAdjustmentRate)
+            with
+            | Error e, _, _
+            | _, Error e, _
+            | _, _, Error e -> Error e
+            | Ok period, Ok counterparty, Ok exceptional ->
+                Ok
+                    { LotDetail = d
+                      BaseUnitPrice = price
+                      PeriodAdjustmentRate = period
+                      CounterpartyAdjustmentRate = counterparty
+                      ExceptionalPeriodAdjustmentRate = exceptional }
 
 let private detailListToNel (xs: 'a list) : Result<NonEmptyList<'a>, string> =
     match NonEmptyList.ofList xs with
@@ -223,12 +250,15 @@ let buildPriceAppraisal
             | null, _
             | _, None -> Error "customer contract appraisal requires customerContractNumber and contractAdjustmentRate"
             | customerContractNumber, Some rate ->
-                Ok(
-                    CustomerContract
-                        { Common = common
-                          CustomerContractNumber = customerContractNumber
-                          ContractAdjustmentRate = rate }
-                )
+                match validateAdjustmentRate "contractAdjustmentRate" rate with
+                | Error e -> Error e
+                | Ok rate ->
+                    Ok(
+                        CustomerContract
+                            { Common = common
+                              CustomerContractNumber = customerContractNumber
+                              ContractAdjustmentRate = rate }
+                    )
         | other -> Error(sprintf "Unknown appraisal type: %s" other)
 
 let private buildSalesPriceInfo (dto: CreateContractDto) : Result<SalesPriceInfo, string> =
