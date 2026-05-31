@@ -11,13 +11,13 @@
  * 各ケースは `getBy*` ではなく `findBy*` を使う必要がある (SWR の
  * 初回ロード窓を吸収するため)。
  */
-import { Guard } from "@/components/auth/Guard";
+import { Guard } from "@/components/organisms/auth/Guard";
 import { useAuth } from "@/stores/auth-store";
 import { screen } from "@testing-library/react";
-import { HttpResponse, http } from "msw";
+import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
-import { renderWithApp } from "../../support/render";
-import { server } from "../../support/server";
+import { renderWithApp } from "../../../support/render";
+import { server } from "../../../support/server";
 
 const CHILDREN = "secret";
 const FALLBACK = "denied";

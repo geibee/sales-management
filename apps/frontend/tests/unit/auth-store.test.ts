@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
 import { useAuth } from "@/stores/auth-store";
+import { beforeEach, describe, expect, it } from "vitest";
 
 /**
  * Build an unsigned JWT (header.payload.signature). Signature is irrelevant —

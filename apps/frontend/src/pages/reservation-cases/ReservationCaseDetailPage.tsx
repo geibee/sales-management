@@ -2,7 +2,7 @@ import { Badge } from "@/components/atoms/badge";
 import { Button } from "@/components/atoms/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
 import { Separator } from "@/components/atoms/separator";
-import { Guard } from "@/components/auth/Guard";
+import { Guard } from "@/components/organisms/auth/Guard";
 import {
   cancelReservationConfirmation,
   confirmReservation,

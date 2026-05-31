@@ -1,8 +1,8 @@
 import { Button } from "@/components/atoms/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
 import { Form } from "@/components/atoms/form";
-import { Guard } from "@/components/auth/Guard";
 import { NumberField, SelectField, TextField } from "@/components/molecules";
+import { Guard } from "@/components/organisms/auth/Guard";
 import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createLot } from "@/hooks/use-lot";
 import { describeApiError } from "@/lib/api-client";

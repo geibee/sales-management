@@ -1,3 +1,19 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { Guard } from "@/components/organisms/auth/Guard";
+import {
+  cancelDesignation,
+  designateConsignment,
+  recordConsignmentResult,
+} from "@/hooks/use-consignment-case";
+import {
+  cancelReservationConfirmation,
+  confirmReservation,
+  createReservationPrice,
+  deliverReservation,
+} from "@/hooks/use-reservation-case";
+import { ApiError, isVersionMismatch } from "@/lib/api-client";
+import { useAuth } from "@/stores/auth-store";
 /**
  * Frontend integration smoke — verifies four contract points with the backend:
  *   1. mutation URLs (reservation/consignment) point at `/sales-cases/{id}/...`
@@ -6,24 +22,8 @@
  *   4. README documents the DevTokenMint flow
  */
 import { render, screen, waitFor } from "@testing-library/react";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SWRConfig } from "swr";
-import { Guard } from "@/components/auth/Guard";
-import {
-  cancelDesignation,
-  designateConsignment,
-  recordConsignmentResult,
-} from "@/hooks/use-consignment-case";
-import {
-  cancelReservationConfirmation,
-  createReservationPrice,
-  deliverReservation,
-  confirmReservation,
-} from "@/hooks/use-reservation-case";
-import { ApiError, isVersionMismatch } from "@/lib/api-client";
-import { useAuth } from "@/stores/auth-store";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 function jsonResponse(body: unknown, status = 200): Response {
   // Status codes 204/205/304 disallow bodies per the Fetch spec; jsdom's

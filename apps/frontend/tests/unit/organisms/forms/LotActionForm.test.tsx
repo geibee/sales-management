@@ -14,12 +14,12 @@
  * を検査する。計画どおりの field-level oracle は UI が追従するまで
  * `it.todo` で意図だけ残してある。
  */
-import { LotActionForm } from "@/pages/lots/actions/LotActionForm";
+import { LotActionForm } from "@/components/organisms/forms/LotActionForm";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
-import { deferred } from "../../support/deferred";
-import { renderWithApp } from "../../support/render";
+import { deferred } from "../../../support/deferred";
+import { renderWithApp } from "../../../support/render";
 
 function setup(props: Partial<Parameters<typeof LotActionForm>[0]> = {}) {
   const onSubmit = vi.fn<(date?: string, text?: string) => Promise<void>>(async () => {});

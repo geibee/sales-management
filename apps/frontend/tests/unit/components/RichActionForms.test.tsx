@@ -49,12 +49,7 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
     const onSubmit = vi.fn();
     const data = makeSalesCase({ lots: ["2026-A-1"] });
     renderWithApp(
-      <DirectAppraisalForm
-        data={data}
-        title="査定 登録"
-        buttonLabel="登録"
-        onSubmit={onSubmit}
-      />,
+      <DirectAppraisalForm data={data} title="査定 登録" buttonLabel="登録" onSubmit={onSubmit} />,
     );
     // 必須テキストを空にする
     fireEvent.change(screen.getByLabelText("販売市場"), { target: { value: "" } });
@@ -98,7 +93,10 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
       }>;
     };
     expect(body.lotAppraisals[0].detailAppraisals[0].periodAdjustmentRate).toBeCloseTo(0.9, 5);
-    expect(body.lotAppraisals[0].detailAppraisals[0].counterpartyAdjustmentRate).toBeCloseTo(1.1, 5);
+    expect(body.lotAppraisals[0].detailAppraisals[0].counterpartyAdjustmentRate).toBeCloseTo(
+      1.1,
+      5,
+    );
   });
 
   it("FE-COMP-RICH-DA-004: 単価/調整率を変えると税抜査定合計が `Σ 基準単価 × rate ÷ 100` で即更新", async () => {
@@ -302,9 +300,9 @@ describe("RichActionForms 共通 (FE-COMP-RICH-COMMON-*)", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     // aria-invalid="true" な input も存在しない
     const formEl = screen.getByRole("button", { name: "登録" }).closest("form")!;
-    const invalid = within(formEl).queryAllByLabelText(/./).filter((el) =>
-      el.getAttribute("aria-invalid") === "true",
-    );
+    const invalid = within(formEl)
+      .queryAllByLabelText(/./)
+      .filter((el) => el.getAttribute("aria-invalid") === "true");
     expect(invalid).toHaveLength(0);
   });
 });

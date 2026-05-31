@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
+import { useAuth } from "@/stores/auth-store";
 import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
-import { useAuth } from "@/stores/auth-store";
 import { resetCapturedRequests, server } from "./support/server";
 
 // ---- MSW lifecycle ----

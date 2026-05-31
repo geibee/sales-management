@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
   DateOnlySchema,
   LotResponseSchema,
@@ -7,6 +6,7 @@ import {
   ProblemJsonSchema,
   SalesCaseDetailResponseSchema,
 } from "@/contracts";
+import { describe, expect, it } from "vitest";
 
 describe("contracts", () => {
   it("LotResponseSchema accepts a typical 200 body (lotNumber as string + version)", () => {

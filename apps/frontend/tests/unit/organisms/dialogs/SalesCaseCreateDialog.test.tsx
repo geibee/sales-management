@@ -11,13 +11,13 @@
  * `useNavigate()` (TanStack Router) を使うので `vi.mock` ではなく
  * `renderWithRouter` でルータごと立ち上げる。
  */
-import { SalesCaseCreateDialog } from "@/components/sales-cases/SalesCaseCreateDialog";
+import { SalesCaseCreateDialog } from "@/components/organisms/dialogs/SalesCaseCreateDialog";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { HttpResponse, http } from "msw";
+import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
-import { makeCodeMasters } from "../../support/fixtures";
-import { renderWithRouter } from "../../support/render";
-import { requestsFor, server } from "../../support/server";
+import { makeCodeMasters } from "../../../support/fixtures";
+import { renderWithRouter } from "../../../support/render";
+import { requestsFor, server } from "../../../support/server";
 
 function mockBaseHandlers(): void {
   server.use(http.get("/api/code-masters", () => HttpResponse.json(makeCodeMasters())));
@@ -53,7 +53,11 @@ describe("<SalesCaseCreateDialog> (FE-COMP-SALES-CREATE-DIALOG-*)", () => {
     mockBaseHandlers();
     server.use(
       http.post("/api/sales-cases", () =>
-        HttpResponse.json({ salesCaseNumber: "2026-S-001", status: "before_appraisal", version: 1 }),
+        HttpResponse.json({
+          salesCaseNumber: "2026-S-001",
+          status: "before_appraisal",
+          version: 1,
+        }),
       ),
     );
     renderWithRouter(

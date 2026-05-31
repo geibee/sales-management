@@ -19,7 +19,7 @@
 import { LotCreatePage } from "@/pages/lots/LotCreatePage";
 import { DirectAppraisalForm } from "@/pages/sales-cases/actions/RichActionForms";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { HttpResponse, http } from "msw";
+import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { makeCodeMasters, makeSalesCase } from "../support/fixtures";
 import { renderWithApp, renderWithRouter } from "../support/render";

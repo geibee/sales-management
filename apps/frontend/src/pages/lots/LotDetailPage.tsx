@@ -2,7 +2,8 @@ import { Badge } from "@/components/atoms/badge";
 import { Button } from "@/components/atoms/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
 import { Separator } from "@/components/atoms/separator";
-import { Guard } from "@/components/auth/Guard";
+import { Guard } from "@/components/organisms/auth/Guard";
+import { LotActionForm } from "@/components/organisms/forms/LotActionForm";
 import {
   cancelItemConversionInstruction,
   cancelManufacturingCompletion,
@@ -24,7 +25,6 @@ import {
 import { Link } from "@tanstack/react-router";
 import { useActionState } from "react";
 import { toast } from "sonner";
-import { LotActionForm } from "./actions/LotActionForm";
 
 export function LotDetailPage({ id }: { id: string }) {
   const { data: lot, error, isLoading } = useLot(id);

@@ -1,7 +1,7 @@
+import { ApiError, apiGet, apiSend, describeApiError } from "@/lib/api-client";
+import { useAuth } from "@/stores/auth-store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { apiGet, apiSend, ApiError, describeApiError } from "@/lib/api-client";
-import { useAuth } from "@/stores/auth-store";
 
 const TestSchema = z.object({ id: z.string(), value: z.number() });
 
@@ -17,9 +17,9 @@ describe("api-client", () => {
   it("apiGet parses a valid JSON response", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ id: "x", value: 42 }), { status: 200 }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ id: "x", value: 42 }), { status: 200 })),
     );
     const result = await apiGet("/test", TestSchema);
     expect(result).toEqual({ id: "x", value: 42 });
@@ -40,9 +40,11 @@ describe("api-client", () => {
     useAuth.getState().setToken("expired-token");
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ status: 401, detail: "expired" }), { status: 401 }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ status: 401, detail: "expired" }), { status: 401 }),
+        ),
     );
     await expect(apiGet("/test", TestSchema)).rejects.toBeInstanceOf(ApiError);
     expect(useAuth.getState().token).toBeNull();

@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/atoms/table";
-import { SalesCaseCreateDialog } from "@/components/sales-cases/SalesCaseCreateDialog";
+import { SalesCaseCreateDialog } from "@/components/organisms/dialogs/SalesCaseCreateDialog";
 import { useLotsList } from "@/hooks/use-lots-list";
 import { describeApiError } from "@/lib/api-client";
 import { lotStatusLabel } from "@/lib/format";

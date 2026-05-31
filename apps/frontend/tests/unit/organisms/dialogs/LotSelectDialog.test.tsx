@@ -13,14 +13,14 @@
  * MSW の request capture を使うと、`useAvailableLots` をモックせず
  * URL とクエリ形状を直接検査できる。
  */
-import { LotSelectDialog } from "@/components/lots/LotSelectDialog";
+import { LotSelectDialog } from "@/components/organisms/dialogs/LotSelectDialog";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { HttpResponse, http } from "msw";
+import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
-import { deferred } from "../../support/deferred";
-import { makeAvailableLot, makeAvailableLotsResponse } from "../../support/fixtures";
-import { renderWithApp } from "../../support/render";
-import { requestsFor, server } from "../../support/server";
+import { deferred } from "../../../support/deferred";
+import { makeAvailableLot, makeAvailableLotsResponse } from "../../../support/fixtures";
+import { renderWithApp } from "../../../support/render";
+import { requestsFor, server } from "../../../support/server";
 
 function renderDialog(props: Partial<Parameters<typeof LotSelectDialog>[0]> = {}) {
   const onOpenChange = vi.fn();
@@ -66,7 +66,9 @@ describe("<LotSelectDialog> (FE-COMP-LOT-SELECT-*)", () => {
       http.get("/api/lots/available", () => HttpResponse.json(makeAvailableLotsResponse([]))),
     );
     renderDialog({ excludeCase: "2026-S-001" });
-    await waitFor(() => expect(requestsFor("/api/lots/available").length).toBeGreaterThanOrEqual(1));
+    await waitFor(() =>
+      expect(requestsFor("/api/lots/available").length).toBeGreaterThanOrEqual(1),
+    );
     const call = requestsFor("/api/lots/available")[0];
     expect(call.search).toContain("excludeCase=2026-S-001");
   });
