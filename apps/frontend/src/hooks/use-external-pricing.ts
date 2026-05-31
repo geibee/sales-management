@@ -11,7 +11,7 @@ import useSWR from "swr";
  * stays disabled (`null` key) until the caller passes a non-empty value.
  */
 export function useExternalPriceCheck(lotId: string | null) {
-  const key = lotId ? `/api/external/price-check?lotId=${encodeURIComponent(lotId)}` : null;
+  const key = lotId ? `/external/price-check?lotId=${encodeURIComponent(lotId)}` : null;
   return useSWR<PriceCheckResponse>(key, (k) => apiGet(k, PriceCheckResponseSchema), {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
