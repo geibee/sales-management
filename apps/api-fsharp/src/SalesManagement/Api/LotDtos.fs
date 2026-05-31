@@ -52,6 +52,18 @@ type InstructItemConversionRequest =
 [<CLIMutable>]
 type VersionOnlyRequest = { version: Nullable<int> }
 
+type LotDetailResponse =
+    { itemCategory: string
+      premiumCategory: string option
+      productCategoryCode: string
+      lengthSpecLower: decimal
+      thicknessSpecLower: decimal
+      thicknessSpecUpper: decimal
+      qualityGrade: string
+      count: int
+      quantity: decimal
+      inspectionResultCategory: string option }
+
 type LotResponse =
     { status: string
       lotNumber: string
@@ -59,6 +71,7 @@ type LotResponse =
       shippingDeadlineDate: string option
       shippedDate: string option
       destinationItem: string option
+      details: LotDetailResponse list
       version: int }
 
 type CreateLotResponse =

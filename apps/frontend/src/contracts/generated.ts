@@ -74,6 +74,20 @@ const CreateLotResponse = z
     version: z.number().int(),
   })
   .passthrough();
+const LotDetailResponse = z
+  .object({
+    itemCategory: z.enum(["general", "premium", "custom"]),
+    premiumCategory: z.string().nullish(),
+    productCategoryCode: z.string(),
+    lengthSpecLower: z.number(),
+    thicknessSpecLower: z.number(),
+    thicknessSpecUpper: z.number(),
+    qualityGrade: z.string(),
+    count: z.number().int(),
+    quantity: z.number(),
+    inspectionResultCategory: z.string().nullish(),
+  })
+  .passthrough();
 const LotResponse = z
   .object({
     status: LotStatus,
@@ -83,6 +97,7 @@ const LotResponse = z
     shippingDeadlineDate: z.string().nullish(),
     shippedDate: z.string().nullish(),
     destinationItem: z.string().nullish(),
+    details: z.array(LotDetailResponse),
   })
   .passthrough();
 const completeManufacturing_Body = z
@@ -259,6 +274,7 @@ export const schemas = {
   LotsListResponse,
   createLot_Body,
   CreateLotResponse,
+  LotDetailResponse,
   LotResponse,
   completeManufacturing_Body,
   instructLotShipping_Body,

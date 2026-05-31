@@ -14,6 +14,7 @@ export function lotStatusLabel(status: string | null | undefined): string {
 }
 
 export const SALES_CASE_STATUS_LABEL: Record<string, string> = {
+  before_appraisal: "査定前",
   appraised: "査定済",
   contracted: "契約済",
   shipping_instructed: "出荷指示済",
@@ -28,6 +29,7 @@ export const ESTIMATE_STATUS_LABEL: Record<string, string> = {
 };
 
 export const CONSIGNMENT_STATUS_LABEL: Record<string, string> = {
+  before_consignment: "委託前",
   consignment_designated: "委託指定済",
   consignment_result_entered: "結果登録済",
 };

@@ -74,6 +74,56 @@ export function LotDetailPage({ id }: { id: string }) {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">明細（{lot.details.length} 件）</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="py-2 pr-4 font-medium">#</th>
+                  <th className="py-2 pr-4 font-medium">品目区分</th>
+                  <th className="py-2 pr-4 font-medium">商品分類</th>
+                  <th className="py-2 pr-4 font-medium">品質等級</th>
+                  <th className="py-2 pr-4 text-right font-medium">数量</th>
+                  <th className="py-2 pr-4 text-right font-medium">個数</th>
+                  <th className="py-2 pr-4 font-medium">検査結果</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lot.details.map((detail, index) => (
+                  <tr
+                    key={`${detail.productCategoryCode}-${index}`}
+                    className="border-b last:border-0"
+                  >
+                    <td className="py-2 pr-4 text-muted-foreground">{index + 1}</td>
+                    <td className="py-2 pr-4">
+                      {ITEM_CATEGORY_LABEL[detail.itemCategory] ?? detail.itemCategory}
+                    </td>
+                    <td className="py-2 pr-4 font-mono">{detail.productCategoryCode}</td>
+                    <td className="py-2 pr-4">{detail.qualityGrade}</td>
+                    <td className="py-2 pr-4 text-right font-medium tabular-nums">
+                      {formatQuantity(detail.quantity)}
+                    </td>
+                    <td className="py-2 pr-4 text-right tabular-nums">
+                      {formatNumber(detail.count)}
+                    </td>
+                    <td className="py-2 pr-4">
+                      {detail.inspectionResultCategory
+                        ? (INSPECTION_RESULT_LABEL[detail.inspectionResultCategory] ??
+                          detail.inspectionResultCategory)
+                        : "(未設定)"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
       <Separator />
 
       <Guard
@@ -146,6 +196,28 @@ export function LotDetailPage({ id }: { id: string }) {
       </Guard>
     </div>
   );
+}
+
+const ITEM_CATEGORY_LABEL: Record<string, string> = {
+  general: "通常",
+  premium: "上位品",
+  custom: "特注",
+};
+
+const INSPECTION_RESULT_LABEL: Record<string, string> = {
+  pass: "合格",
+  fail: "不合格",
+};
+
+const QUANTITY_FORMAT = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 3 });
+const INTEGER_FORMAT = new Intl.NumberFormat("ja-JP");
+
+function formatQuantity(value: number): string {
+  return QUANTITY_FORMAT.format(value);
+}
+
+function formatNumber(value: number): string {
+  return INTEGER_FORMAT.format(value);
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

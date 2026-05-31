@@ -82,6 +82,14 @@ type LotLifecycleTests(fixture: AuthOnFixture) =
         let root = parseJson body
         Assert.Equal("manufacturing", root.GetProperty("status").GetString())
         Assert.Equal(lotId, root.GetProperty("lotNumber").GetString())
+
+        let details = root.GetProperty("details")
+        Assert.Equal(JsonValueKind.Array, details.ValueKind)
+        Assert.Equal(1, details.GetArrayLength())
+        let detail = details.[0]
+        Assert.Equal(1.0m, detail.GetProperty("quantity").GetDecimal())
+        Assert.Equal(1, detail.GetProperty("count").GetInt32())
+        Assert.Equal("general", detail.GetProperty("itemCategory").GetString())
     }
 
     [<Fact>]

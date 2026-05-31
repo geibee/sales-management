@@ -57,7 +57,7 @@ components:
 
     LotResponse:
       type: object
-      required: [status, lotNumber, version]
+      required: [status, lotNumber, version, details]
       properties:
         status: { $ref: '#/components/schemas/LotStatus' }
         lotNumber:
@@ -82,6 +82,49 @@ components:
           type: string
           nullable: true
           description: conversion_instructed 状態のときの品目変換先
+        details:
+          type: array
+          description: ロット明細（数量・個数など）
+          items:
+            $ref: '#/components/schemas/LotDetailResponse'
+
+    LotDetailResponse:
+      type: object
+      required:
+        - itemCategory
+        - productCategoryCode
+        - lengthSpecLower
+        - thicknessSpecLower
+        - thicknessSpecUpper
+        - qualityGrade
+        - count
+        - quantity
+      properties:
+        itemCategory:
+          type: string
+          enum: [general, premium, custom]
+        premiumCategory:
+          type: string
+          nullable: true
+        productCategoryCode:
+          type: string
+        lengthSpecLower:
+          type: number
+        thicknessSpecLower:
+          type: number
+        thicknessSpecUpper:
+          type: number
+        qualityGrade:
+          type: string
+        count:
+          type: integer
+          description: 個数
+        quantity:
+          type: number
+          description: 数量
+        inspectionResultCategory:
+          type: string
+          nullable: true
 
     CreateLotResponse:
       type: object

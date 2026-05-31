@@ -18,9 +18,24 @@ describe("contracts", () => {
       shippingDeadlineDate: null,
       shippedDate: null,
       destinationItem: null,
+      details: [
+        {
+          itemCategory: "general",
+          premiumCategory: null,
+          productCategoryCode: "default",
+          lengthSpecLower: 1,
+          thicknessSpecLower: 1,
+          thicknessSpecUpper: 2,
+          qualityGrade: "A",
+          count: 10,
+          quantity: 10,
+          inspectionResultCategory: "pass",
+        },
+      ],
     });
     expect(ok.lotNumber).toBe("2026-A-001");
     expect(ok.version).toBe(1);
+    expect(ok.details[0].quantity).toBe(10);
   });
 
   it("LotResponseSchema passes through unknown fields", () => {
@@ -28,6 +43,7 @@ describe("contracts", () => {
       lotNumber: "2026-A-1",
       status: "manufactured",
       version: 2,
+      details: [],
       auditCreatedBy: "user-1",
     });
     expect((result as { auditCreatedBy?: string }).auditCreatedBy).toBe("user-1");

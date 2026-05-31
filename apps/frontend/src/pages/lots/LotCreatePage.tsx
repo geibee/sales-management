@@ -12,116 +12,207 @@ import {
 } from "@/components/ui/select";
 import { createLot } from "@/hooks/use-lot";
 import { describeApiError } from "@/lib/api-client";
-import { useNavigate } from "@tanstack/react-router";
-import { useActionState, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { ArrowLeft, PackagePlus, Save } from "lucide-react";
+import { type UseFormRegisterReturn, useForm } from "react-hook-form";
 import { toast } from "sonner";
-
-const INSPECTION_RESULT = ["pass", "fail"] as const;
+import {
+  type LotCreateFormValues,
+  lotCreateDefaultValues,
+  lotCreateFormSchema,
+  toCreateLotBody,
+} from "./lot-create-validation";
 
 export function LotCreatePage() {
   const navigate = useNavigate();
-  const [inspectionResult, setInspectionResult] =
-    useState<(typeof INSPECTION_RESULT)[number]>("pass");
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<LotCreateFormValues>({
+    resolver: zodResolver(lotCreateFormSchema),
+    defaultValues: lotCreateDefaultValues,
+    mode: "onTouched",
+  });
 
-  const [, action, isPending] = useActionState(async (_prev: null, fd: FormData) => {
-    const get = (k: string) => String(fd.get(k) ?? "");
-    const num = (k: string) => Number(get(k));
+  const itemCategory = watch("itemCategory");
+  const inspectionResultCategory = watch("inspectionResultCategory");
+
+  const onSubmit = handleSubmit(async (values) => {
     try {
-      const created = await createLot({
-        lotNumber: { year: num("year"), location: get("location"), seq: num("seq") },
-        divisionCode: num("divisionCode"),
-        departmentCode: num("departmentCode"),
-        sectionCode: num("sectionCode"),
-        processCategory: num("processCategory"),
-        inspectionCategory: num("inspectionCategory"),
-        manufacturingCategory: num("manufacturingCategory"),
-        details: [
-          {
-            itemCategory: get("itemCategory"),
-            premiumCategory: get("premiumCategory"),
-            productCategoryCode: get("productCategoryCode"),
-            lengthSpecLower: num("lengthSpecLower"),
-            thicknessSpecLower: num("thicknessSpecLower"),
-            thicknessSpecUpper: num("thicknessSpecUpper"),
-            qualityGrade: get("qualityGrade"),
-            count: num("count"),
-            quantity: num("quantity"),
-            inspectionResultCategory: inspectionResult,
-          },
-        ],
-      });
+      const created = await createLot(toCreateLotBody(values));
       toast.success("ロットを作成しました");
       navigate({ to: "/lots/$id", params: { id: created.lotNumber } });
     } catch (e) {
       toast.error(describeApiError(e));
     }
-    return null;
-  }, null);
+  });
 
   return (
     <Guard
       requiredRole="operator"
       fallback={<p className="text-muted-foreground">作成には operator 以上のロールが必要です。</p>}
     >
-      <Card>
+      <Card className="rounded-lg">
         <CardHeader>
-          <CardTitle>在庫ロット 新規作成</CardTitle>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <PackagePlus className="size-5" />
+                在庫ロット 新規作成
+              </CardTitle>
+              <p className="text-muted-foreground text-sm">
+                バックエンドの境界値に合わせて入力時に検証します。
+              </p>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/lots">
+                <ArrowLeft className="size-4" />
+                一覧
+              </Link>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <form action={action} className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <form onSubmit={onSubmit} noValidate className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Section title="ロット番号">
-              <NumberField name="year" label="年度" defaultValue={2026} />
-              <TextField name="location" label="保管場所" defaultValue="A" />
-              <NumberField name="seq" label="連番" defaultValue={1} />
+              <NumberField
+                label="年度"
+                registration={register("year")}
+                error={errors.year?.message}
+              />
+              <TextField
+                label="保管場所"
+                registration={register("location")}
+                error={errors.location?.message}
+              />
+              <NumberField
+                label="連番"
+                registration={register("seq")}
+                error={errors.seq?.message}
+              />
             </Section>
             <Section title="区分">
-              <NumberField name="divisionCode" label="事業部" defaultValue={1} />
-              <NumberField name="departmentCode" label="部" defaultValue={1} />
-              <NumberField name="sectionCode" label="課" defaultValue={1} />
-              <NumberField name="processCategory" label="工程" defaultValue={1} />
-              <NumberField name="inspectionCategory" label="検査" defaultValue={1} />
-              <NumberField name="manufacturingCategory" label="製造" defaultValue={1} />
+              <NumberField
+                label="事業部"
+                registration={register("divisionCode")}
+                error={errors.divisionCode?.message}
+              />
+              <NumberField
+                label="部"
+                registration={register("departmentCode")}
+                error={errors.departmentCode?.message}
+              />
+              <NumberField
+                label="課"
+                registration={register("sectionCode")}
+                error={errors.sectionCode?.message}
+              />
+              <NumberField
+                label="工程"
+                registration={register("processCategory")}
+                error={errors.processCategory?.message}
+              />
+              <NumberField
+                label="検査"
+                registration={register("inspectionCategory")}
+                error={errors.inspectionCategory?.message}
+              />
+              <NumberField
+                label="製造"
+                registration={register("manufacturingCategory")}
+                error={errors.manufacturingCategory?.message}
+              />
             </Section>
             <Section title="明細 (1 件)">
-              <TextField name="itemCategory" label="品目区分" defaultValue="general" />
-              <TextField name="premiumCategory" label="上位品区分" defaultValue="none" />
-              <TextField name="productCategoryCode" label="商品分類コード" defaultValue="default" />
-              <NumberField name="lengthSpecLower" label="長さ下限" step="0.01" defaultValue={1} />
+              <SelectField
+                label="品目区分"
+                value={itemCategory}
+                error={errors.itemCategory?.message}
+                onValueChange={(value) =>
+                  setValue("itemCategory", value as LotCreateFormValues["itemCategory"], {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+                options={[
+                  ["general", "通常"],
+                  ["premium", "上位品"],
+                  ["custom", "特注"],
+                ]}
+              />
+              <TextField
+                label="上位品区分"
+                registration={register("premiumCategory")}
+                error={errors.premiumCategory?.message}
+              />
+              <TextField
+                label="商品分類コード"
+                registration={register("productCategoryCode")}
+                error={errors.productCategoryCode?.message}
+              />
               <NumberField
-                name="thicknessSpecLower"
+                label="長さ下限"
+                step="0.01"
+                registration={register("lengthSpecLower")}
+                error={errors.lengthSpecLower?.message}
+              />
+              <NumberField
                 label="太さ下限"
                 step="0.01"
-                defaultValue={1}
+                registration={register("thicknessSpecLower")}
+                error={errors.thicknessSpecLower?.message}
               />
               <NumberField
-                name="thicknessSpecUpper"
                 label="太さ上限"
                 step="0.01"
-                defaultValue={2}
+                registration={register("thicknessSpecUpper")}
+                error={errors.thicknessSpecUpper?.message}
               />
-              <TextField name="qualityGrade" label="品質等級" defaultValue="A" />
-              <NumberField name="count" label="個数" defaultValue={10} />
-              <NumberField name="quantity" label="数量" step="0.01" defaultValue={10} />
-              <div className="space-y-1">
-                <Label>検査結果</Label>
-                <Select
-                  value={inspectionResult}
-                  onValueChange={(v) => setInspectionResult(v as typeof inspectionResult)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pass">合格</SelectItem>
-                    <SelectItem value="fail">不合格</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <TextField
+                label="品質等級"
+                registration={register("qualityGrade")}
+                error={errors.qualityGrade?.message}
+              />
+              <NumberField
+                label="個数"
+                registration={register("count")}
+                error={errors.count?.message}
+              />
+              <NumberField
+                label="数量"
+                step="0.001"
+                registration={register("quantity")}
+                error={errors.quantity?.message}
+              />
+              <SelectField
+                label="検査結果"
+                value={inspectionResultCategory}
+                error={errors.inspectionResultCategory?.message}
+                onValueChange={(value) =>
+                  setValue(
+                    "inspectionResultCategory",
+                    value as LotCreateFormValues["inspectionResultCategory"],
+                    {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    },
+                  )
+                }
+                options={[
+                  ["pass", "合格"],
+                  ["fail", "不合格"],
+                ]}
+              />
             </Section>
 
-            <div className="md:col-span-3">
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "作成中…" : "作成"}
+            <div className="flex items-center justify-end md:col-span-3">
+              <Button type="submit" disabled={isSubmitting}>
+                <Save className="size-4" />
+                {isSubmitting ? "作成中…" : "作成"}
               </Button>
             </div>
           </form>
@@ -141,37 +232,87 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function NumberField({
-  name,
   label,
-  defaultValue,
+  registration,
+  error,
   step,
 }: {
-  name: string;
   label: string;
-  defaultValue?: number;
+  registration: UseFormRegisterReturn;
+  error?: string;
   step?: string;
 }) {
   return (
     <div className="space-y-1">
-      <Label htmlFor={name}>{label}</Label>
-      <Input id={name} name={name} type="number" defaultValue={defaultValue} step={step} required />
+      <Label htmlFor={registration.name}>{label}</Label>
+      <Input
+        id={registration.name}
+        type="number"
+        step={step}
+        aria-invalid={!!error}
+        {...registration}
+      />
+      <FieldError message={error} />
     </div>
   );
 }
 
 function TextField({
-  name,
   label,
-  defaultValue,
+  registration,
+  error,
 }: {
-  name: string;
   label: string;
-  defaultValue?: string;
+  registration: UseFormRegisterReturn;
+  error?: string;
 }) {
   return (
     <div className="space-y-1">
-      <Label htmlFor={name}>{label}</Label>
-      <Input id={name} name={name} type="text" defaultValue={defaultValue} required />
+      <Label htmlFor={registration.name}>{label}</Label>
+      <Input id={registration.name} type="text" aria-invalid={!!error} {...registration} />
+      <FieldError message={error} />
     </div>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  options,
+  onValueChange,
+  error,
+}: {
+  label: string;
+  value: string;
+  options: Array<[string, string]>;
+  onValueChange: (value: string) => void;
+  error?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label>{label}</Label>
+      <Select value={value} onValueChange={onValueChange}>
+        <SelectTrigger className="w-full" aria-invalid={!!error}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map(([optionValue, optionLabel]) => (
+            <SelectItem key={optionValue} value={optionValue}>
+              {optionLabel}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <FieldError message={error} />
+    </div>
+  );
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p role="alert" className="text-destructive text-xs">
+      {message}
+    </p>
   );
 }

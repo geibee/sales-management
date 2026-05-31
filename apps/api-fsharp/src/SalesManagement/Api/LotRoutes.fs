@@ -35,12 +35,28 @@ let private toResponseBody (lot: InventoryLot) (version: int) : LotResponse =
             Some(formatDate l.ShippedDate),
             None
 
+    let details =
+        common.Details
+        |> NonEmptyList.toList
+        |> List.map (fun (d: LotDetail) ->
+            { itemCategory = ItemCategory.toString d.ItemCategory
+              premiumCategory = d.PremiumCategory
+              productCategoryCode = d.ProductCategoryCode
+              lengthSpecLower = d.LengthSpecLower
+              thicknessSpecLower = d.ThicknessSpecLower
+              thicknessSpecUpper = d.ThicknessSpecUpper
+              qualityGrade = d.QualityGrade
+              count = Count.value d.Count
+              quantity = Quantity.value d.Quantity
+              inspectionResultCategory = d.InspectionResultCategory })
+
     { status = InventoryLot.statusString lot
       lotNumber = LotNumber.toString common.LotNumber
       manufacturingCompletedDate = mfg
       shippingDeadlineDate = deadline
       shippedDate = shipped
       destinationItem = destination
+      details = details
       version = version }
 
 let private parseLotId (id: string) : Result<LotNumber, DomainError> =

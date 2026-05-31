@@ -11,7 +11,10 @@ import {
 } from "@/hooks/use-consignment-case";
 import { describeApiError } from "@/lib/api-client";
 import { caseStatusLabel } from "@/lib/format";
-import { JsonActionForm } from "@/pages/sales-cases/actions/JsonActionForm";
+import {
+  ConsignmentDesignationForm,
+  ConsignmentResultForm,
+} from "@/pages/sales-cases/actions/RichActionForms";
 import { Link } from "@tanstack/react-router";
 import { useActionState } from "react";
 import { toast } from "sonner";
@@ -73,10 +76,10 @@ export function ConsignmentCaseDetailPage({ id }: { id: string }) {
         }
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <JsonActionForm
-            title="委託指定"
-            buttonLabel="登録"
-            placeholder='{"consignorName":"...","consignorCode":"..."}'
+          <ConsignmentDesignationForm
+            data={data}
+            disabled={data.status !== "before_consignment"}
+            disabledReason="委託前の案件で実行できます。"
             onSubmit={(body) => designateConsignment(id, body)}
           />
           <Card>
@@ -91,9 +94,10 @@ export function ConsignmentCaseDetailPage({ id }: { id: string }) {
               </form>
             </CardContent>
           </Card>
-          <JsonActionForm
-            title="委託結果 登録"
-            buttonLabel="登録"
+          <ConsignmentResultForm
+            data={data}
+            disabled={data.status !== "consignment_designated"}
+            disabledReason="委託指定済の案件で実行できます。"
             onSubmit={(body) => recordConsignmentResult(id, body)}
           />
         </div>
