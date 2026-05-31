@@ -1,49 +1,53 @@
 /**
- * 数値入力 field。旧 `LotCreatePage.NumberField` /
- * `RichActionForms.NumberField` の union シグネチャ:
- *   - `step` / `min` / `max` 任意
- *   - `required=false` で「(任意)」表示
+ * 数値入力 molecule。`TextField` と同じく shadcn FormField + FormControl
+ * の上に乗っているので、`aria-invalid` と `aria-describedby` が自動で付く。
  */
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/atoms/form";
 import { Input } from "@/components/atoms/input";
-import { Label } from "@/components/atoms/label";
-import type { UseFormRegisterReturn } from "react-hook-form";
-import { FieldError } from "./FieldError";
+import type { Control, FieldPath, FieldValues } from "react-hook-form";
 
-export interface NumberFieldProps {
+export interface NumberFieldProps<T extends FieldValues> {
+  control: Control<T>;
+  name: FieldPath<T>;
   label: string;
-  registration: UseFormRegisterReturn;
-  error?: string;
   step?: string;
   min?: number;
   max?: number;
   required?: boolean;
 }
 
-export function NumberField({
+export function NumberField<T extends FieldValues>({
+  control,
+  name,
   label,
-  registration,
-  error,
   step,
   min,
   max,
   required = true,
-}: NumberFieldProps) {
+}: NumberFieldProps<T>) {
   return (
-    <div className="space-y-1">
-      <Label htmlFor={registration.name}>
-        {label}
-        {!required && <span className="ml-1 text-muted-foreground text-xs">(任意)</span>}
-      </Label>
-      <Input
-        id={registration.name}
-        type="number"
-        step={step}
-        min={min}
-        max={max}
-        aria-invalid={!!error}
-        {...registration}
-      />
-      <FieldError message={error} />
-    </div>
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem className="space-y-1">
+          <FormLabel>
+            {label}
+            {!required && <span className="ml-1 text-muted-foreground text-xs">(任意)</span>}
+          </FormLabel>
+          <FormControl>
+            <Input
+              type="number"
+              step={step}
+              min={min}
+              max={max}
+              {...field}
+              value={field.value ?? ""}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   );
 }

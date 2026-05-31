@@ -1,16 +1,10 @@
 import { Button } from "@/components/atoms/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
+import { Form } from "@/components/atoms/form";
 import { Label } from "@/components/atoms/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/atoms/select";
 import { Guard } from "@/components/auth/Guard";
 import { LotSelectDialog } from "@/components/lots/LotSelectDialog";
-import { FieldError, TextField } from "@/components/molecules";
+import { FieldError, SelectField, TextField } from "@/components/molecules";
 import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createSalesCase } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";
@@ -31,21 +25,19 @@ import {
 
 export function SalesCaseCreatePage() {
   const navigate = useNavigate();
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<SalesCaseCreateFormValues>({
+  const form = useForm<SalesCaseCreateFormValues>({
     resolver: zodResolver(salesCaseCreateFormSchema),
     defaultValues: salesCaseCreateDefaultValues,
     mode: "onTouched",
   });
+  const {
+    handleSubmit,
+    setValue,
+    control,
+    formState: { errors, isSubmitting },
+  } = form;
 
-  const caseType = watch("caseType");
-  const lots = watch("lots");
-  const divisionCode = watch("divisionCode");
+  const lots = form.watch("lots");
   const { data: masters } = useCodeMasters();
   const [lotDialogOpen, setLotDialogOpen] = useState(false);
 
@@ -85,107 +77,75 @@ export function SalesCaseCreatePage() {
           </div>
         </CardHeader>
         <CardContent>
-          <form
-            onSubmit={onSubmit}
-            noValidate
-            className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_0.8fr]"
-          >
-            <div className="space-y-1">
-              <Label>案件種別</Label>
-              <Select
-                value={caseType}
-                onValueChange={(value) =>
-                  setValue("caseType", value as SalesCaseCreateFormValues["caseType"], {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  })
-                }
-              >
-                <SelectTrigger className="w-full" aria-invalid={!!errors.caseType}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CASE_TYPE_OPTIONS.map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError message={errors.caseType?.message} />
-            </div>
-            <div className="space-y-2 lg:row-span-3">
-              <div className="flex items-center justify-between gap-2">
-                <Label>対象ロット</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setLotDialogOpen(true)}
-                >
-                  <PackageSearch className="size-4" />
-                  ロットを選択
+          <Form {...form}>
+            <form
+              onSubmit={onSubmit}
+              noValidate
+              className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_0.8fr]"
+            >
+              <SelectField
+                control={control}
+                name="caseType"
+                label="案件種別"
+                options={CASE_TYPE_OPTIONS}
+              />
+              <div className="space-y-2 lg:row-span-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>対象ロット</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLotDialogOpen(true)}
+                  >
+                    <PackageSearch className="size-4" />
+                    ロットを選択
+                  </Button>
+                </div>
+                {lots.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">ロットが選択されていません</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {lots.map((lotNumber) => (
+                      <span
+                        key={lotNumber}
+                        className="rounded-md border bg-muted/40 px-2 py-1 font-mono text-xs"
+                      >
+                        {lotNumber}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <FieldError message={errors.lots?.message} />
+                <LotSelectDialog
+                  open={lotDialogOpen}
+                  onOpenChange={setLotDialogOpen}
+                  value={lots}
+                  onConfirm={(picked) =>
+                    setValue("lots", picked, { shouldDirty: true, shouldValidate: true })
+                  }
+                  title="対象ロットを選択"
+                />
+              </div>
+              <SelectField
+                control={control}
+                name="divisionCode"
+                label="事業部"
+                options={(masters?.divisions ?? []).map(
+                  (d) => [String(d.code), d.name] as [string, string],
+                )}
+                parse={Number}
+                placeholder="事業部を選択"
+              />
+              <TextField control={control} name="salesDate" label="販売日" type="date" />
+              <div className="flex items-center justify-end lg:col-span-2">
+                <Button type="submit" disabled={isSubmitting}>
+                  <Save className="size-4" />
+                  {isSubmitting ? "作成中…" : "作成"}
                 </Button>
               </div>
-              {lots.length === 0 ? (
-                <p className="text-muted-foreground text-sm">ロットが選択されていません</p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {lots.map((lotNumber) => (
-                    <span
-                      key={lotNumber}
-                      className="rounded-md border bg-muted/40 px-2 py-1 font-mono text-xs"
-                    >
-                      {lotNumber}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <FieldError message={errors.lots?.message} />
-              <LotSelectDialog
-                open={lotDialogOpen}
-                onOpenChange={setLotDialogOpen}
-                value={lots}
-                onConfirm={(picked) =>
-                  setValue("lots", picked, { shouldDirty: true, shouldValidate: true })
-                }
-                title="対象ロットを選択"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>事業部</Label>
-              <Select
-                value={divisionCode != null ? String(divisionCode) : ""}
-                onValueChange={(v) =>
-                  setValue("divisionCode", Number(v), { shouldDirty: true, shouldValidate: true })
-                }
-              >
-                <SelectTrigger className="w-full" aria-invalid={!!errors.divisionCode}>
-                  <SelectValue placeholder="事業部を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(masters?.divisions ?? []).map((d) => (
-                    <SelectItem key={d.code} value={String(d.code)}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError message={errors.divisionCode?.message} />
-            </div>
-            <TextField
-              label="販売日"
-              type="date"
-              registration={register("salesDate")}
-              error={errors.salesDate?.message}
-            />
-            <div className="flex items-center justify-end lg:col-span-2">
-              <Button type="submit" disabled={isSubmitting}>
-                <Save className="size-4" />
-                {isSubmitting ? "作成中…" : "作成"}
-              </Button>
-            </div>
-          </form>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </Guard>

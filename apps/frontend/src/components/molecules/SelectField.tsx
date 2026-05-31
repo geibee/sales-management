@@ -1,9 +1,9 @@
 /**
- * radix-ui Select の controlled 版 field。rhf `setValue` / `watch` 経由
- * で値を制御する page (LotCreatePage / SalesCaseCreatePage / Dialog
- * 系) で使う想定。旧 `LotCreatePage.SelectField` を抽出したもの。
+ * radix-ui Select を rhf Controller でラップした molecule。
+ * 表示値は string で固定。事業部コードなどフォーム内部値が integer の
+ * 場合は `parse: Number` を渡す。
  */
-import { Label } from "@/components/atoms/label";
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/atoms/form";
 import {
   Select,
   SelectContent,
@@ -11,41 +11,69 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/atoms/select";
-import { FieldError } from "./FieldError";
+import type { Control, FieldPath, FieldValues } from "react-hook-form";
 
-export interface SelectFieldProps {
+export interface SelectFieldProps<T extends FieldValues> {
+  control: Control<T>;
+  name: FieldPath<T>;
   label: string;
-  value: string;
   options: ReadonlyArray<readonly [value: string, label: string]>;
-  onValueChange: (value: string) => void;
-  error?: string;
   placeholder?: string;
+  /** 表示値 (string) を form 内部値に変換する。既定は素通し。 */
+  parse?: (value: string) => unknown;
+  /** form 内部値を <Select> 用の string 値に変換する。既定は `String(...)` */
+  format?: (value: unknown) => string;
+  /** field.onChange の後に呼ばれる任意のコールバック。連動 field のリセット等に。 */
+  onAfterChange?: (value: string) => void;
 }
 
-export function SelectField({
+export function SelectField<T extends FieldValues>({
+  control,
+  name,
   label,
-  value,
   options,
-  onValueChange,
-  error,
   placeholder,
-}: SelectFieldProps) {
+  parse,
+  format,
+  onAfterChange,
+}: SelectFieldProps<T>) {
   return (
-    <div className="space-y-1">
-      <Label>{label}</Label>
-      <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className="w-full" aria-invalid={!!error}>
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map(([optionValue, optionLabel]) => (
-            <SelectItem key={optionValue} value={optionValue}>
-              {optionLabel}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <FieldError message={error} />
-    </div>
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => {
+        const stringValue = format
+          ? format(field.value)
+          : field.value != null
+            ? String(field.value)
+            : "";
+        return (
+          <FormItem className="space-y-1">
+            <FormLabel>{label}</FormLabel>
+            <Select
+              value={stringValue}
+              onValueChange={(v) => {
+                field.onChange(parse ? parse(v) : v);
+                onAfterChange?.(v);
+              }}
+            >
+              <FormControl>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={placeholder} />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {options.map(([optionValue, optionLabel]) => (
+                  <SelectItem key={optionValue} value={optionValue}>
+                    {optionLabel}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        );
+      }}
+    />
   );
 }

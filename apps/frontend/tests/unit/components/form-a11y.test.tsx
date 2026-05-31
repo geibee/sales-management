@@ -21,7 +21,7 @@
 import { SalesCaseCreatePage } from "@/pages/sales-cases/SalesCaseCreatePage";
 import { DateVersionActionForm } from "@/pages/sales-cases/actions/RichActionForms";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { HttpResponse, http } from "msw";
+import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { makeCodeMasters } from "../../support/fixtures";
 import { renderWithApp, renderWithRouter } from "../../support/render";
@@ -59,9 +59,26 @@ describe("Form a11y (FE-A11Y-FORM-*)", () => {
     await waitFor(() => expect(salesDate).toHaveAttribute("aria-invalid", "true"));
   });
 
-  it.todo(
-    "FE-A11Y-FORM-003: invalid input とエラーが aria-describedby で紐付く — 現状 UI は describedby 未対応",
-  );
+  it("FE-A11Y-FORM-003: invalid input とエラーが aria-describedby で紐付く (shadcn FormControl 経由)", async () => {
+    server.use(
+      http.get("/api/auth/config", () => HttpResponse.json({ enabled: false })),
+      http.get("/api/code-masters", () => HttpResponse.json(makeCodeMasters())),
+    );
+    renderWithRouter(<SalesCaseCreatePage />);
+    const button = await screen.findByRole("button", { name: "作成" });
+    fireEvent.submit(button.closest("form")!);
+    const salesDate = await screen.findByLabelText("販売日");
+    await waitFor(() => expect(salesDate).toHaveAttribute("aria-invalid", "true"));
+    // shadcn `FormControl` が input に aria-describedby を付与し、`FormMessage`
+    // の id (role="alert" な <p>) を含むことを確認する。
+    const describedBy = salesDate.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    const ids = describedBy!.split(/\s+/);
+    const linked = ids
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el != null && el.getAttribute("role") === "alert");
+    expect(linked.length).toBeGreaterThanOrEqual(1);
+  });
 
   it("FE-A11Y-FORM-004: input 上で Enter 押下が submit と同じ body を送る (DateVersionActionForm)", async () => {
     const onSubmit = vi.fn<(body: Record<string, unknown>) => Promise<void>>(async () => {});

@@ -7,16 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/atoms/dialog";
-import { Input } from "@/components/atoms/input";
-import { Label } from "@/components/atoms/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/atoms/select";
-import { FieldError } from "@/components/molecules";
+import { Form } from "@/components/atoms/form";
+import { SelectField, TextField } from "@/components/molecules";
 import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createSalesCase } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";
@@ -47,20 +39,16 @@ export function SalesCaseCreateDialog({
   lotNumbers: string[];
 }) {
   const navigate = useNavigate();
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<SalesCaseCreateModalValues>({
+  const form = useForm<SalesCaseCreateModalValues>({
     resolver: zodResolver(salesCaseCreateModalSchema),
     defaultValues: salesCaseCreateModalDefaultValues,
     mode: "onTouched",
   });
-
-  const caseType = watch("caseType");
-  const divisionCode = watch("divisionCode");
+  const {
+    handleSubmit,
+    control,
+    formState: { isSubmitting },
+  } = form;
   const { data: masters } = useCodeMasters();
 
   const onSubmit = handleSubmit(async (values) => {
@@ -87,72 +75,36 @@ export function SalesCaseCreateDialog({
             選択した {lotNumbers.length} 件のロットで販売案件を起票します。
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={onSubmit} noValidate className="space-y-3">
-          <div className="space-y-1">
-            <Label>案件種別</Label>
-            <Select
-              value={caseType}
-              onValueChange={(v) =>
-                setValue("caseType", v as SalesCaseCreateModalValues["caseType"], {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            >
-              <SelectTrigger className="w-full" aria-invalid={!!errors.caseType}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CASE_TYPE_OPTIONS.map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError message={errors.caseType?.message} />
-          </div>
-          <div className="space-y-1">
-            <Label>事業部</Label>
-            <Select
-              value={divisionCode != null ? String(divisionCode) : ""}
-              onValueChange={(v) =>
-                setValue("divisionCode", Number(v), { shouldDirty: true, shouldValidate: true })
-              }
-            >
-              <SelectTrigger className="w-full" aria-invalid={!!errors.divisionCode}>
-                <SelectValue placeholder="事業部を選択" />
-              </SelectTrigger>
-              <SelectContent>
-                {(masters?.divisions ?? []).map((d) => (
-                  <SelectItem key={d.code} value={String(d.code)}>
-                    {d.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError message={errors.divisionCode?.message} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="dialog-salesDate">販売日</Label>
-            <Input
-              id="dialog-salesDate"
-              type="date"
-              aria-invalid={!!errors.salesDate}
-              {...register("salesDate")}
+        <Form {...form}>
+          <form onSubmit={onSubmit} noValidate className="space-y-3">
+            <SelectField
+              control={control}
+              name="caseType"
+              label="案件種別"
+              options={CASE_TYPE_OPTIONS}
             />
-            <FieldError message={errors.salesDate?.message} />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              キャンセル
-            </Button>
-            <Button type="submit" disabled={isSubmitting || lotNumbers.length === 0}>
-              <Save className="size-4" />
-              {isSubmitting ? "作成中…" : "作成"}
-            </Button>
-          </DialogFooter>
-        </form>
+            <SelectField
+              control={control}
+              name="divisionCode"
+              label="事業部"
+              options={(masters?.divisions ?? []).map(
+                (d) => [String(d.code), d.name] as [string, string],
+              )}
+              parse={Number}
+              placeholder="事業部を選択"
+            />
+            <TextField control={control} name="salesDate" label="販売日" type="date" />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                キャンセル
+              </Button>
+              <Button type="submit" disabled={isSubmitting || lotNumbers.length === 0}>
+                <Save className="size-4" />
+                {isSubmitting ? "作成中…" : "作成"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

@@ -1,5 +1,6 @@
 import { Button } from "@/components/atoms/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
+import { Form } from "@/components/atoms/form";
 import { Guard } from "@/components/auth/Guard";
 import { NumberField, SelectField, TextField } from "@/components/molecules";
 import { useCodeMasters } from "@/hooks/use-code-masters";
@@ -19,24 +20,21 @@ import {
 
 export function LotCreatePage() {
   const navigate = useNavigate();
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<LotCreateFormValues>({
+  const form = useForm<LotCreateFormValues>({
     resolver: zodResolver(lotCreateFormSchema),
     defaultValues: lotCreateDefaultValues,
     mode: "onTouched",
   });
-
-  const itemCategory = watch("itemCategory");
-  const inspectionResultCategory = watch("inspectionResultCategory");
+  const {
+    handleSubmit,
+    setValue,
+    control,
+    formState: { isSubmitting },
+  } = form;
 
   const { data: masters } = useCodeMasters();
-  const divisionCode = watch("divisionCode");
-  const departmentCode = watch("departmentCode");
+  const divisionCode = form.watch("divisionCode");
+  const departmentCode = form.watch("departmentCode");
 
   const divisions = masters?.divisions ?? [];
   const departments = (masters?.departments ?? []).filter((d) => d.divisionCode === divisionCode);
@@ -45,9 +43,8 @@ export function LotCreatePage() {
     xs.map((x) => [String(x.code), x.name]);
 
   // 事業部を変えたら配下の部・課を先頭候補にリセットする（階層の整合性を保つ）。
-  const onDivisionChange = (v: string) => {
+  const onDivisionAfter = (v: string) => {
     const code = Number(v);
-    setValue("divisionCode", code, { shouldValidate: true, shouldDirty: true });
     const firstDept = (masters?.departments ?? []).find((d) => d.divisionCode === code);
     if (firstDept) {
       setValue("departmentCode", firstDept.code, { shouldValidate: true });
@@ -55,18 +52,11 @@ export function LotCreatePage() {
       if (firstSec) setValue("sectionCode", firstSec.code, { shouldValidate: true });
     }
   };
-
-  const onDepartmentChange = (v: string) => {
+  const onDepartmentAfter = (v: string) => {
     const code = Number(v);
-    setValue("departmentCode", code, { shouldValidate: true, shouldDirty: true });
     const firstSec = (masters?.sections ?? []).find((s) => s.departmentCode === code);
     if (firstSec) setValue("sectionCode", firstSec.code, { shouldValidate: true });
   };
-
-  const setCode =
-    (field: "sectionCode" | "processCategory" | "inspectionCategory" | "manufacturingCategory") =>
-    (v: string) =>
-      setValue(field, Number(v), { shouldValidate: true, shouldDirty: true });
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -104,157 +94,112 @@ export function LotCreatePage() {
           </div>
         </CardHeader>
         <CardContent>
-          <form onSubmit={onSubmit} noValidate className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Section title="ロット番号">
-              <NumberField
-                label="年度"
-                registration={register("year")}
-                error={errors.year?.message}
-              />
-              <TextField
-                label="保管場所"
-                registration={register("location")}
-                error={errors.location?.message}
-              />
-              <NumberField
-                label="連番"
-                registration={register("seq")}
-                error={errors.seq?.message}
-              />
-            </Section>
-            <Section title="区分">
-              <SelectField
-                label="事業部"
-                value={String(divisionCode)}
-                options={asOptions(divisions)}
-                onValueChange={onDivisionChange}
-                error={errors.divisionCode?.message}
-              />
-              <SelectField
-                label="部"
-                value={String(departmentCode)}
-                options={asOptions(departments)}
-                onValueChange={onDepartmentChange}
-                error={errors.departmentCode?.message}
-              />
-              <SelectField
-                label="課"
-                value={String(watch("sectionCode"))}
-                options={asOptions(sections)}
-                onValueChange={setCode("sectionCode")}
-                error={errors.sectionCode?.message}
-              />
-              <SelectField
-                label="工程"
-                value={String(watch("processCategory"))}
-                options={asOptions(masters?.processCategories ?? [])}
-                onValueChange={setCode("processCategory")}
-                error={errors.processCategory?.message}
-              />
-              <SelectField
-                label="検査"
-                value={String(watch("inspectionCategory"))}
-                options={asOptions(masters?.inspectionCategories ?? [])}
-                onValueChange={setCode("inspectionCategory")}
-                error={errors.inspectionCategory?.message}
-              />
-              <SelectField
-                label="製造"
-                value={String(watch("manufacturingCategory"))}
-                options={asOptions(masters?.manufacturingCategories ?? [])}
-                onValueChange={setCode("manufacturingCategory")}
-                error={errors.manufacturingCategory?.message}
-              />
-            </Section>
-            <Section title="明細 (1 件)">
-              <SelectField
-                label="品目区分"
-                value={itemCategory}
-                error={errors.itemCategory?.message}
-                onValueChange={(value) =>
-                  setValue("itemCategory", value as LotCreateFormValues["itemCategory"], {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  })
-                }
-                options={[
-                  ["general", "通常"],
-                  ["premium", "上位品"],
-                  ["custom", "特注"],
-                ]}
-              />
-              <TextField
-                label="上位品区分"
-                registration={register("premiumCategory")}
-                error={errors.premiumCategory?.message}
-              />
-              <TextField
-                label="商品分類コード"
-                registration={register("productCategoryCode")}
-                error={errors.productCategoryCode?.message}
-              />
-              <NumberField
-                label="長さ下限"
-                step="0.01"
-                registration={register("lengthSpecLower")}
-                error={errors.lengthSpecLower?.message}
-              />
-              <NumberField
-                label="太さ下限"
-                step="0.01"
-                registration={register("thicknessSpecLower")}
-                error={errors.thicknessSpecLower?.message}
-              />
-              <NumberField
-                label="太さ上限"
-                step="0.01"
-                registration={register("thicknessSpecUpper")}
-                error={errors.thicknessSpecUpper?.message}
-              />
-              <TextField
-                label="品質等級"
-                registration={register("qualityGrade")}
-                error={errors.qualityGrade?.message}
-              />
-              <NumberField
-                label="個数"
-                registration={register("count")}
-                error={errors.count?.message}
-              />
-              <NumberField
-                label="数量"
-                step="0.001"
-                registration={register("quantity")}
-                error={errors.quantity?.message}
-              />
-              <SelectField
-                label="検査結果"
-                value={inspectionResultCategory}
-                error={errors.inspectionResultCategory?.message}
-                onValueChange={(value) =>
-                  setValue(
-                    "inspectionResultCategory",
-                    value as LotCreateFormValues["inspectionResultCategory"],
-                    {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    },
-                  )
-                }
-                options={[
-                  ["pass", "合格"],
-                  ["fail", "不合格"],
-                ]}
-              />
-            </Section>
+          <Form {...form}>
+            <form onSubmit={onSubmit} noValidate className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <Section title="ロット番号">
+                <NumberField control={control} name="year" label="年度" />
+                <TextField control={control} name="location" label="保管場所" />
+                <NumberField control={control} name="seq" label="連番" />
+              </Section>
+              <Section title="区分">
+                <SelectField
+                  control={control}
+                  name="divisionCode"
+                  label="事業部"
+                  options={asOptions(divisions)}
+                  parse={Number}
+                  onAfterChange={onDivisionAfter}
+                />
+                <SelectField
+                  control={control}
+                  name="departmentCode"
+                  label="部"
+                  options={asOptions(departments)}
+                  parse={Number}
+                  onAfterChange={onDepartmentAfter}
+                />
+                <SelectField
+                  control={control}
+                  name="sectionCode"
+                  label="課"
+                  options={asOptions(sections)}
+                  parse={Number}
+                />
+                <SelectField
+                  control={control}
+                  name="processCategory"
+                  label="工程"
+                  options={asOptions(masters?.processCategories ?? [])}
+                  parse={Number}
+                />
+                <SelectField
+                  control={control}
+                  name="inspectionCategory"
+                  label="検査"
+                  options={asOptions(masters?.inspectionCategories ?? [])}
+                  parse={Number}
+                />
+                <SelectField
+                  control={control}
+                  name="manufacturingCategory"
+                  label="製造"
+                  options={asOptions(masters?.manufacturingCategories ?? [])}
+                  parse={Number}
+                />
+              </Section>
+              <Section title="明細 (1 件)">
+                <SelectField
+                  control={control}
+                  name="itemCategory"
+                  label="品目区分"
+                  options={[
+                    ["general", "通常"],
+                    ["premium", "上位品"],
+                    ["custom", "特注"],
+                  ]}
+                />
+                <TextField control={control} name="premiumCategory" label="上位品区分" />
+                <TextField control={control} name="productCategoryCode" label="商品分類コード" />
+                <NumberField
+                  control={control}
+                  name="lengthSpecLower"
+                  label="長さ下限"
+                  step="0.01"
+                />
+                <NumberField
+                  control={control}
+                  name="thicknessSpecLower"
+                  label="太さ下限"
+                  step="0.01"
+                />
+                <NumberField
+                  control={control}
+                  name="thicknessSpecUpper"
+                  label="太さ上限"
+                  step="0.01"
+                />
+                <TextField control={control} name="qualityGrade" label="品質等級" />
+                <NumberField control={control} name="count" label="個数" />
+                <NumberField control={control} name="quantity" label="数量" step="0.001" />
+                <SelectField
+                  control={control}
+                  name="inspectionResultCategory"
+                  label="検査結果"
+                  options={[
+                    ["pass", "合格"],
+                    ["fail", "不合格"],
+                  ]}
+                />
+              </Section>
 
-            <div className="flex items-center justify-end md:col-span-3">
-              <Button type="submit" disabled={isSubmitting}>
-                <Save className="size-4" />
-                {isSubmitting ? "作成中…" : "作成"}
-              </Button>
-            </div>
-          </form>
+              <div className="flex items-center justify-end md:col-span-3">
+                <Button type="submit" disabled={isSubmitting}>
+                  <Save className="size-4" />
+                  {isSubmitting ? "作成中…" : "作成"}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </Guard>

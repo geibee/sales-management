@@ -130,6 +130,10 @@ function FormMessage({ className, ...props }: React.ComponentProps<"p">) {
 
   return (
     <p
+      // role="alert" は shadcn デフォルトには無いが、フォーム検証エラーの
+      // ライブ通知として ARIA 上正しいため付与する。既存テスト
+      // (`role="alert"` で error 要素を取りに行く oracle) とも互換になる。
+      role="alert"
       data-slot="form-message"
       id={formMessageId}
       className={cn("text-sm text-destructive", className)}

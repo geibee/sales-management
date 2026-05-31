@@ -1,41 +1,50 @@
 /**
- * react-hook-form `register("name")` を受けて、ラベル + 入力 +
- * `FieldError` の 3 点セットを描画する共通 field。
+ * shadcn `atoms/form.tsx` の `FormField` + `FormControl` + `FormMessage`
+ * を内部で使う rhf テキスト入力 molecule。
  *
- * 旧 `LotCreatePage.TextField` / `SalesCaseCreatePage.TextField` の
- * union シグネチャ:
- *   - `type` は text / date / email 等を選べる (default "text")
- *   - `required=false` のとき label 末尾に「(任意)」を付ける
- *     (旧 RichActionForms.TextField 由来)
+ * 親 page は `<Form {...formMethods}>` (FormProvider) で囲んだうえで
+ * `<TextField control={control} name="year" label="年度" />` のように
+ * 呼ぶ。FormControl が `aria-invalid` と `aria-describedby` を自動付与
+ * してくれるので、エラー時に input とメッセージが ARIA で紐付く
+ * (Phase 2d FE-A11Y-FORM-003 を満たす)。
  */
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/atoms/form";
 import { Input } from "@/components/atoms/input";
-import { Label } from "@/components/atoms/label";
-import type { UseFormRegisterReturn } from "react-hook-form";
-import { FieldError } from "./FieldError";
+import type { Control, FieldPath, FieldValues } from "react-hook-form";
 
-export interface TextFieldProps {
+export interface TextFieldProps<T extends FieldValues> {
+  control: Control<T>;
+  name: FieldPath<T>;
   label: string;
-  registration: UseFormRegisterReturn;
-  error?: string;
   type?: string;
   required?: boolean;
+  placeholder?: string;
 }
 
-export function TextField({
+export function TextField<T extends FieldValues>({
+  control,
+  name,
   label,
-  registration,
-  error,
   type = "text",
   required = true,
-}: TextFieldProps) {
+  placeholder,
+}: TextFieldProps<T>) {
   return (
-    <div className="space-y-1">
-      <Label htmlFor={registration.name}>
-        {label}
-        {!required && <span className="ml-1 text-muted-foreground text-xs">(任意)</span>}
-      </Label>
-      <Input id={registration.name} type={type} aria-invalid={!!error} {...registration} />
-      <FieldError message={error} />
-    </div>
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem className="space-y-1">
+          <FormLabel>
+            {label}
+            {!required && <span className="ml-1 text-muted-foreground text-xs">(任意)</span>}
+          </FormLabel>
+          <FormControl>
+            <Input type={type} placeholder={placeholder} {...field} value={field.value ?? ""} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   );
 }
