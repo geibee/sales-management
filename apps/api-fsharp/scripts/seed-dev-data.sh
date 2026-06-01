@@ -96,12 +96,24 @@ echo "[bonus] Creating a sales case using a fresh manufactured lot 2025-T-101...
 create_lot 2025 T 101
 advance_lot 2025-T-101 manufactured
 
-curl -sS -o /tmp/seed.body -w '%{http_code}\n' \
-  -X POST "$API/sales-cases" \
-  -H 'content-type: application/json' \
-  -d '{"lots":["2025-T-101"],"divisionCode":1,"salesDate":"2025-04-15","caseType":"direct"}'
-
-cat /tmp/seed.body; echo
+# 1 ロットは 1 案件にしか割り当てられない（作成時に二重割当を 400 で拒否）。
+# 再実行時の冪等性のため、200=作成 / 400・409=割当済みでスキップ、それ以外を失敗とする。
+case_code=$(post /sales-cases \
+  '{"lots":["2025-T-101"],"divisionCode":1,"salesDate":"2025-04-15","caseType":"direct"}')
+case "$case_code" in
+  200)
+    echo "  sales-case -> created: $(cat /tmp/seed.body)"
+    ;;
+  400 | 409)
+    echo "  sales-case -> skipped ($case_code: 2025-T-101 は既にいずれかの案件へ割当済み)"
+    ;;
+  *)
+    echo "  sales-case FAILED ($case_code):" >&2
+    cat /tmp/seed.body >&2
+    echo >&2
+    exit 1
+    ;;
+esac
 echo
 echo "Done. Try:"
 echo "  http://localhost:5173/lots/2025-T-1   (manufacturing)"

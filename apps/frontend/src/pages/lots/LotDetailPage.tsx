@@ -1,8 +1,9 @@
-import { Guard } from "@/components/auth/Guard";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/atoms/badge";
+import { Button } from "@/components/atoms/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
+import { Separator } from "@/components/atoms/separator";
+import { Guard } from "@/components/organisms/auth/Guard";
+import { LotActionForm } from "@/components/organisms/forms/LotActionForm";
 import {
   cancelItemConversionInstruction,
   cancelManufacturingCompletion,
@@ -14,11 +15,16 @@ import {
   useLot,
 } from "@/hooks/use-lot";
 import { describeApiError } from "@/lib/api-client";
-import { lotActionEnabled, lotStatusLabel } from "@/lib/format";
+import {
+  codeName,
+  formatAmount,
+  formatQuantity,
+  lotActionEnabled,
+  lotStatusLabel,
+} from "@/lib/format";
 import { Link } from "@tanstack/react-router";
 import { useActionState } from "react";
 import { toast } from "sonner";
-import { LotActionForm } from "./actions/LotActionForm";
 
 export function LotDetailPage({ id }: { id: string }) {
   const { data: lot, error, isLoading } = useLot(id);
@@ -67,10 +73,66 @@ export function LotDetailPage({ id }: { id: string }) {
         </CardHeader>
         <CardContent className="space-y-1 text-sm">
           <Field label="ロット番号">{lot.lotNumber}</Field>
+          <Field label="事業部">{codeName(lot.division)}</Field>
+          <Field label="部">{codeName(lot.department)}</Field>
+          <Field label="課">{codeName(lot.section)}</Field>
+          <Field label="工程区分">{codeName(lot.processCategory)}</Field>
+          <Field label="検査区分">{codeName(lot.inspectionCategory)}</Field>
+          <Field label="製造区分">{codeName(lot.manufacturingCategory)}</Field>
           <Field label="製造完了日">{lot.manufacturingCompletedDate ?? "(未設定)"}</Field>
           <Field label="出荷期限日">{lot.shippingDeadlineDate ?? "(未設定)"}</Field>
           <Field label="出荷完了日">{lot.shippedDate ?? "(未設定)"}</Field>
           <Field label="変換先品目">{lot.destinationItem ?? "(未設定)"}</Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">明細（{lot.details.length} 件）</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="py-2 pr-4 font-medium">#</th>
+                  <th className="py-2 pr-4 font-medium">品目区分</th>
+                  <th className="py-2 pr-4 font-medium">商品分類</th>
+                  <th className="py-2 pr-4 font-medium">品質等級</th>
+                  <th className="py-2 pr-4 text-right font-medium">数量</th>
+                  <th className="py-2 pr-4 text-right font-medium">個数</th>
+                  <th className="py-2 pr-4 font-medium">検査結果</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lot.details.map((detail, index) => (
+                  <tr
+                    key={`${detail.productCategoryCode}-${index}`}
+                    className="border-b last:border-0"
+                  >
+                    <td className="py-2 pr-4 text-muted-foreground">{index + 1}</td>
+                    <td className="py-2 pr-4">
+                      {ITEM_CATEGORY_LABEL[detail.itemCategory] ?? detail.itemCategory}
+                    </td>
+                    <td className="py-2 pr-4 font-mono">{detail.productCategoryCode}</td>
+                    <td className="py-2 pr-4">{detail.qualityGrade}</td>
+                    <td className="py-2 pr-4 text-right font-medium tabular-nums">
+                      {formatQuantity(detail.quantity)}
+                    </td>
+                    <td className="py-2 pr-4 text-right tabular-nums">
+                      {formatAmount(detail.count)}
+                    </td>
+                    <td className="py-2 pr-4">
+                      {detail.inspectionResultCategory
+                        ? (INSPECTION_RESULT_LABEL[detail.inspectionResultCategory] ??
+                          detail.inspectionResultCategory)
+                        : "(未設定)"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
 
@@ -147,6 +209,17 @@ export function LotDetailPage({ id }: { id: string }) {
     </div>
   );
 }
+
+const ITEM_CATEGORY_LABEL: Record<string, string> = {
+  general: "通常",
+  premium: "上位品",
+  custom: "特注",
+};
+
+const INSPECTION_RESULT_LABEL: Record<string, string> = {
+  pass: "合格",
+  fail: "不合格",
+};
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

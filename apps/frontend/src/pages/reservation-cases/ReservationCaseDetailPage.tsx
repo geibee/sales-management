@@ -1,8 +1,13 @@
-import { Guard } from "@/components/auth/Guard";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/atoms/badge";
+import { Button } from "@/components/atoms/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
+import { Separator } from "@/components/atoms/separator";
+import { Guard } from "@/components/organisms/auth/Guard";
+import {
+  DateVersionActionForm,
+  ReservationConfirmationForm,
+  ReservationPriceForm,
+} from "@/components/organisms/forms/rich-actions/RichActionForms";
 import {
   cancelReservationConfirmation,
   confirmReservation,
@@ -12,8 +17,8 @@ import {
 } from "@/hooks/use-reservation-case";
 import { describeApiError } from "@/lib/api-client";
 import { caseStatusLabel } from "@/lib/format";
-import { JsonActionForm } from "@/pages/sales-cases/actions/JsonActionForm";
 import { Link } from "@tanstack/react-router";
+import { Truck } from "lucide-react";
 import { useActionState } from "react";
 import { toast } from "sonner";
 
@@ -74,14 +79,16 @@ export function ReservationCaseDetailPage({ id }: { id: string }) {
         }
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <JsonActionForm
-            title="予約価格 登録"
-            buttonLabel="登録"
+          <ReservationPriceForm
+            data={data}
+            disabled={data.status !== "before_reservation"}
+            disabledReason="予約前の案件で実行できます。"
             onSubmit={(body) => createReservationPrice(id, body)}
           />
-          <JsonActionForm
-            title="予約 確定"
-            buttonLabel="確定"
+          <ReservationConfirmationForm
+            data={data}
+            disabled={data.status !== "reserved"}
+            disabledReason="予約済の案件で実行できます。"
             onSubmit={(body) => confirmReservation(id, body)}
           />
           <Card>
@@ -96,13 +103,26 @@ export function ReservationCaseDetailPage({ id }: { id: string }) {
               </form>
             </CardContent>
           </Card>
-          <JsonActionForm
+          <DateVersionActionForm
             title="予約 納品"
             buttonLabel="引き渡し"
+            dateLabel="引渡日"
+            dateField="deliveryDate"
+            defaultDate={recordString(data.delivery, "deliveredDate", data.salesDate)}
+            version={data.version}
+            icon={<Truck className="size-4" />}
+            disabled={data.status !== "reservation_confirmed"}
+            disabledReason="予約確定済の案件で実行できます。"
             onSubmit={(body) => deliverReservation(id, body)}
           />
         </div>
       </Guard>
     </div>
   );
+}
+
+function recordString(source: unknown, key: string, fallback: string): string {
+  if (typeof source !== "object" || source === null || Array.isArray(source)) return fallback;
+  const value = (source as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() ? value : fallback;
 }

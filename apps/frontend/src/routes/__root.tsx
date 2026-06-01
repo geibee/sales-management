@@ -1,4 +1,4 @@
-import { Shell } from "@/components/layout/Shell";
+import { Shell } from "@/components/templates/Shell";
 import { Outlet, createRootRoute } from "@tanstack/react-router";
 
 export const Route = createRootRoute({

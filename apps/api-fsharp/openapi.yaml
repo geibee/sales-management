@@ -55,9 +55,19 @@ components:
       type: string
       enum: [manufacturing, manufactured, shipping_instructed, shipped, conversion_instructed]
 
+    CodeName:
+      type: object
+      required: [code]
+      properties:
+        code: { type: integer }
+        name:
+          type: string
+          nullable: true
+          description: マスタ未登録のコードは null
+
     LotResponse:
       type: object
-      required: [status, lotNumber, version]
+      required: [status, lotNumber, version, division, department, section, processCategory, inspectionCategory, manufacturingCategory, details]
       properties:
         status: { $ref: '#/components/schemas/LotStatus' }
         lotNumber:
@@ -82,6 +92,55 @@ components:
           type: string
           nullable: true
           description: conversion_instructed 状態のときの品目変換先
+        division: { $ref: '#/components/schemas/CodeName' }
+        department: { $ref: '#/components/schemas/CodeName' }
+        section: { $ref: '#/components/schemas/CodeName' }
+        processCategory: { $ref: '#/components/schemas/CodeName' }
+        inspectionCategory: { $ref: '#/components/schemas/CodeName' }
+        manufacturingCategory: { $ref: '#/components/schemas/CodeName' }
+        details:
+          type: array
+          description: ロット明細（数量・個数など）
+          items:
+            $ref: '#/components/schemas/LotDetailResponse'
+
+    LotDetailResponse:
+      type: object
+      required:
+        - itemCategory
+        - productCategoryCode
+        - lengthSpecLower
+        - thicknessSpecLower
+        - thicknessSpecUpper
+        - qualityGrade
+        - count
+        - quantity
+      properties:
+        itemCategory:
+          type: string
+          enum: [general, premium, custom]
+        premiumCategory:
+          type: string
+          nullable: true
+        productCategoryCode:
+          type: string
+        lengthSpecLower:
+          type: number
+        thicknessSpecLower:
+          type: number
+        thicknessSpecUpper:
+          type: number
+        qualityGrade:
+          type: string
+        count:
+          type: integer
+          description: 個数
+        quantity:
+          type: number
+          description: 数量
+        inspectionResultCategory:
+          type: string
+          nullable: true
 
     CreateLotResponse:
       type: object
@@ -116,6 +175,73 @@ components:
         total: { type: integer }
         limit: { type: integer }
         offset: { type: integer }
+
+    AvailableLotsResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/LotSummary' }
+        total: { type: integer }
+
+    CodeMasterItem:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: integer }
+        name: { type: string }
+
+    DepartmentItem:
+      type: object
+      required: [code, name, divisionCode]
+      properties:
+        code: { type: integer }
+        name: { type: string }
+        divisionCode: { type: integer, description: 所属事業部コード }
+
+    SectionItem:
+      type: object
+      required: [code, name, departmentCode]
+      properties:
+        code: { type: integer }
+        name: { type: string }
+        departmentCode: { type: integer, description: 所属部コード }
+
+    CodeMastersResponse:
+      type: object
+      required: [divisions, departments, sections, processCategories, inspectionCategories, manufacturingCategories]
+      properties:
+        divisions:
+          type: array
+          items: { $ref: '#/components/schemas/CodeMasterItem' }
+        departments:
+          type: array
+          items: { $ref: '#/components/schemas/DepartmentItem' }
+        sections:
+          type: array
+          items: { $ref: '#/components/schemas/SectionItem' }
+        processCategories:
+          type: array
+          items: { $ref: '#/components/schemas/CodeMasterItem' }
+        inspectionCategories:
+          type: array
+          items: { $ref: '#/components/schemas/CodeMasterItem' }
+        manufacturingCategories:
+          type: array
+          items: { $ref: '#/components/schemas/CodeMasterItem' }
+
+    EditCaseLotsRequest:
+      type: object
+      required: [lots, version]
+      properties:
+        lots:
+          type: array
+          items: { type: string }
+          description: 新しいロット番号の集合（1件以上）
+        version:
+          type: integer
+          description: 楽観的ロック用バージョン番号
 
     SalesCaseType:
       type: string
@@ -465,6 +591,39 @@ paths:
                   ここでは type/subtype のみ宣言。
         '400': { $ref: '#/components/responses/BadRequest' }
 
+  /lots/available:
+    get:
+      operationId: listAvailableLots
+      summary: 販売案件に割当可能なロット一覧
+      description: |
+        製造完了かつどの販売案件にも割り当てられていないロットを返す。
+        `excludeCase` を指定すると、その案件に現在割り当て済みのロットも「割当可能」として含める（案件のロット修正用）。
+      parameters:
+        - { name: excludeCase, in: query, required: false, schema: { type: string }, description: 除外する販売案件番号（年-月-連番） }
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailableLotsResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /code-masters:
+    get:
+      operationId: getCodeMasters
+      summary: コード値マスタ取得
+      description: |
+        事業部/部/課（階層）・工程区分/検査区分/製造区分（フラット）のコード値と名称の一覧。
+        ロット作成フォームのドロップダウンに用いる。`viewer` ロール以上で利用可能。
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodeMastersResponse'
+
   /lots/{id}:
     get:
       operationId: getLot
@@ -692,6 +851,33 @@ paths:
                 $ref: '#/components/schemas/CreatedSalesCaseResponse'
         '400': { $ref: '#/components/responses/BadRequest' }
 
+  /sales-cases/{id}/lots:
+    put:
+      operationId: editCaseLots
+      summary: 販売案件のロット組み合わせ修正
+      description: |
+        案件に紐づくロットの集合を total replace する。価格・査定登録前の direct（before_appraisal）
+        および consignment（before_consignment）のみ許可（reservation は不可）。各ロットは製造完了かつ
+        他案件に未割当である必要がある（自案件に現在割当済みのロットは可）。`version` は楽観的ロック用。
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditCaseLotsRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedSalesCaseResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /sales-cases/{id}:
     get:
       operationId: getSalesCase
@@ -755,7 +941,7 @@ paths:
                 counterpartyAdjustmentRateDate: { type: string, format: date }
                 taxExcludedEstimatedTotal: { type: integer }
                 customerContractNumber: { type: string, description: "type=customer_contract のとき必須" }
-                contractAdjustmentRate: { type: number, nullable: true, description: "type=customer_contract のとき必須" }
+                contractAdjustmentRate: { type: number, nullable: true, minimum: 0.9, maximum: 1.1, description: "type=customer_contract のとき必須。調整率(API値) 0.9〜1.1" }
                 lotAppraisals:
                   type: array
                   minItems: 1
@@ -777,9 +963,9 @@ paths:
                           properties:
                             detailIndex: { type: integer }
                             baseUnitPrice: { type: integer }
-                            periodAdjustmentRate: { type: number }
-                            counterpartyAdjustmentRate: { type: number }
-                            exceptionalPeriodAdjustmentRate: { type: number, nullable: true }
+                            periodAdjustmentRate: { type: number, minimum: 0.9, maximum: 1.1, description: "調整率(API値)。表示は百分率で API には1/100した値。0.9〜1.1" }
+                            counterpartyAdjustmentRate: { type: number, minimum: 0.9, maximum: 1.1, description: "調整率(API値) 0.9〜1.1" }
+                            exceptionalPeriodAdjustmentRate: { type: number, nullable: true, minimum: 0.9, maximum: 1.1, description: "調整率(API値) 0.9〜1.1" }
                 version: { type: integer, minimum: 1, description: 楽観的ロック用バージョン }
       responses:
         '200':
@@ -825,7 +1011,7 @@ paths:
                 counterpartyAdjustmentRateDate: { type: string, format: date }
                 taxExcludedEstimatedTotal: { type: integer }
                 customerContractNumber: { type: string, description: "type=customer_contract のとき必須" }
-                contractAdjustmentRate: { type: number, nullable: true, description: "type=customer_contract のとき必須" }
+                contractAdjustmentRate: { type: number, nullable: true, minimum: 0.9, maximum: 1.1, description: "type=customer_contract のとき必須。調整率(API値) 0.9〜1.1" }
                 lotAppraisals:
                   type: array
                   minItems: 1
@@ -847,9 +1033,9 @@ paths:
                           properties:
                             detailIndex: { type: integer }
                             baseUnitPrice: { type: integer }
-                            periodAdjustmentRate: { type: number }
-                            counterpartyAdjustmentRate: { type: number }
-                            exceptionalPeriodAdjustmentRate: { type: number, nullable: true }
+                            periodAdjustmentRate: { type: number, minimum: 0.9, maximum: 1.1, description: "調整率(API値)。表示は百分率で API には1/100した値。0.9〜1.1" }
+                            counterpartyAdjustmentRate: { type: number, minimum: 0.9, maximum: 1.1, description: "調整率(API値) 0.9〜1.1" }
+                            exceptionalPeriodAdjustmentRate: { type: number, nullable: true, minimum: 0.9, maximum: 1.1, description: "調整率(API値) 0.9〜1.1" }
                 version: { type: integer, minimum: 1, description: 楽観的ロック用バージョン }
       responses:
         '200':

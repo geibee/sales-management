@@ -1,130 +1,199 @@
-import { Guard } from "@/components/auth/Guard";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Button } from "@/components/atoms/button";
+import { Card, CardContent, CardHeader } from "@/components/atoms/card";
+import { Form } from "@/components/atoms/form";
+import { NumberField, SelectField, TextField } from "@/components/molecules";
+import { Guard } from "@/components/organisms/auth/Guard";
+import { PageHeader } from "@/components/templates/PageHeader";
+import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createLot } from "@/hooks/use-lot";
 import { describeApiError } from "@/lib/api-client";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
-import { useActionState, useState } from "react";
+import { PackagePlus, Save } from "lucide-react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-
-const INSPECTION_RESULT = ["pass", "fail"] as const;
+import {
+  type LotCreateFormValues,
+  lotCreateDefaultValues,
+  lotCreateFormSchema,
+  toCreateLotBody,
+} from "./lot-create-validation";
 
 export function LotCreatePage() {
   const navigate = useNavigate();
-  const [inspectionResult, setInspectionResult] =
-    useState<(typeof INSPECTION_RESULT)[number]>("pass");
+  const form = useForm<LotCreateFormValues>({
+    resolver: zodResolver(lotCreateFormSchema),
+    defaultValues: lotCreateDefaultValues,
+    mode: "onTouched",
+  });
+  const {
+    handleSubmit,
+    setValue,
+    control,
+    formState: { isSubmitting },
+  } = form;
 
-  const [, action, isPending] = useActionState(async (_prev: null, fd: FormData) => {
-    const get = (k: string) => String(fd.get(k) ?? "");
-    const num = (k: string) => Number(get(k));
+  const { data: masters } = useCodeMasters();
+  const divisionCode = form.watch("divisionCode");
+  const departmentCode = form.watch("departmentCode");
+
+  const divisions = masters?.divisions ?? [];
+  const departments = (masters?.departments ?? []).filter((d) => d.divisionCode === divisionCode);
+  const sections = (masters?.sections ?? []).filter((s) => s.departmentCode === departmentCode);
+  const asOptions = (xs: Array<{ code: number; name: string }>): Array<[string, string]> =>
+    xs.map((x) => [String(x.code), x.name]);
+
+  // 事業部を変えたら配下の部・課を先頭候補にリセットする（階層の整合性を保つ）。
+  const onDivisionAfter = (v: string) => {
+    const code = Number(v);
+    const firstDept = (masters?.departments ?? []).find((d) => d.divisionCode === code);
+    if (firstDept) {
+      setValue("departmentCode", firstDept.code, { shouldValidate: true });
+      const firstSec = (masters?.sections ?? []).find((s) => s.departmentCode === firstDept.code);
+      if (firstSec) setValue("sectionCode", firstSec.code, { shouldValidate: true });
+    }
+  };
+  const onDepartmentAfter = (v: string) => {
+    const code = Number(v);
+    const firstSec = (masters?.sections ?? []).find((s) => s.departmentCode === code);
+    if (firstSec) setValue("sectionCode", firstSec.code, { shouldValidate: true });
+  };
+
+  const onSubmit = handleSubmit(async (values) => {
     try {
-      const created = await createLot({
-        lotNumber: { year: num("year"), location: get("location"), seq: num("seq") },
-        divisionCode: num("divisionCode"),
-        departmentCode: num("departmentCode"),
-        sectionCode: num("sectionCode"),
-        processCategory: num("processCategory"),
-        inspectionCategory: num("inspectionCategory"),
-        manufacturingCategory: num("manufacturingCategory"),
-        details: [
-          {
-            itemCategory: get("itemCategory"),
-            premiumCategory: get("premiumCategory"),
-            productCategoryCode: get("productCategoryCode"),
-            lengthSpecLower: num("lengthSpecLower"),
-            thicknessSpecLower: num("thicknessSpecLower"),
-            thicknessSpecUpper: num("thicknessSpecUpper"),
-            qualityGrade: get("qualityGrade"),
-            count: num("count"),
-            quantity: num("quantity"),
-            inspectionResultCategory: inspectionResult,
-          },
-        ],
-      });
+      const created = await createLot(toCreateLotBody(values));
       toast.success("ロットを作成しました");
       navigate({ to: "/lots/$id", params: { id: created.lotNumber } });
     } catch (e) {
       toast.error(describeApiError(e));
     }
-    return null;
-  }, null);
+  });
 
   return (
     <Guard
       requiredRole="operator"
       fallback={<p className="text-muted-foreground">作成には operator 以上のロールが必要です。</p>}
     >
-      <Card>
+      <Card className="rounded-lg">
         <CardHeader>
-          <CardTitle>在庫ロット 新規作成</CardTitle>
+          <PageHeader
+            title={
+              <>
+                <PackagePlus className="size-5" />
+                在庫ロット 新規作成
+              </>
+            }
+            description="バックエンドの境界値に合わせて入力時に検証します。"
+            backTo="/lots"
+          />
         </CardHeader>
         <CardContent>
-          <form action={action} className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Section title="ロット番号">
-              <NumberField name="year" label="年度" defaultValue={2026} />
-              <TextField name="location" label="保管場所" defaultValue="A" />
-              <NumberField name="seq" label="連番" defaultValue={1} />
-            </Section>
-            <Section title="区分">
-              <NumberField name="divisionCode" label="事業部" defaultValue={1} />
-              <NumberField name="departmentCode" label="部" defaultValue={1} />
-              <NumberField name="sectionCode" label="課" defaultValue={1} />
-              <NumberField name="processCategory" label="工程" defaultValue={1} />
-              <NumberField name="inspectionCategory" label="検査" defaultValue={1} />
-              <NumberField name="manufacturingCategory" label="製造" defaultValue={1} />
-            </Section>
-            <Section title="明細 (1 件)">
-              <TextField name="itemCategory" label="品目区分" defaultValue="general" />
-              <TextField name="premiumCategory" label="上位品区分" defaultValue="none" />
-              <TextField name="productCategoryCode" label="商品分類コード" defaultValue="default" />
-              <NumberField name="lengthSpecLower" label="長さ下限" step="0.01" defaultValue={1} />
-              <NumberField
-                name="thicknessSpecLower"
-                label="太さ下限"
-                step="0.01"
-                defaultValue={1}
-              />
-              <NumberField
-                name="thicknessSpecUpper"
-                label="太さ上限"
-                step="0.01"
-                defaultValue={2}
-              />
-              <TextField name="qualityGrade" label="品質等級" defaultValue="A" />
-              <NumberField name="count" label="個数" defaultValue={10} />
-              <NumberField name="quantity" label="数量" step="0.01" defaultValue={10} />
-              <div className="space-y-1">
-                <Label>検査結果</Label>
-                <Select
-                  value={inspectionResult}
-                  onValueChange={(v) => setInspectionResult(v as typeof inspectionResult)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pass">合格</SelectItem>
-                    <SelectItem value="fail">不合格</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </Section>
+          <Form {...form}>
+            <form onSubmit={onSubmit} noValidate className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <Section title="ロット番号">
+                <NumberField control={control} name="year" label="年度" />
+                <TextField control={control} name="location" label="保管場所" />
+                <NumberField control={control} name="seq" label="連番" />
+              </Section>
+              <Section title="区分">
+                <SelectField
+                  control={control}
+                  name="divisionCode"
+                  label="事業部"
+                  options={asOptions(divisions)}
+                  parse={Number}
+                  onAfterChange={onDivisionAfter}
+                />
+                <SelectField
+                  control={control}
+                  name="departmentCode"
+                  label="部"
+                  options={asOptions(departments)}
+                  parse={Number}
+                  onAfterChange={onDepartmentAfter}
+                />
+                <SelectField
+                  control={control}
+                  name="sectionCode"
+                  label="課"
+                  options={asOptions(sections)}
+                  parse={Number}
+                />
+                <SelectField
+                  control={control}
+                  name="processCategory"
+                  label="工程"
+                  options={asOptions(masters?.processCategories ?? [])}
+                  parse={Number}
+                />
+                <SelectField
+                  control={control}
+                  name="inspectionCategory"
+                  label="検査"
+                  options={asOptions(masters?.inspectionCategories ?? [])}
+                  parse={Number}
+                />
+                <SelectField
+                  control={control}
+                  name="manufacturingCategory"
+                  label="製造"
+                  options={asOptions(masters?.manufacturingCategories ?? [])}
+                  parse={Number}
+                />
+              </Section>
+              <Section title="明細 (1 件)">
+                <SelectField
+                  control={control}
+                  name="itemCategory"
+                  label="品目区分"
+                  options={[
+                    ["general", "通常"],
+                    ["premium", "上位品"],
+                    ["custom", "特注"],
+                  ]}
+                />
+                <TextField control={control} name="premiumCategory" label="上位品区分" />
+                <TextField control={control} name="productCategoryCode" label="商品分類コード" />
+                <NumberField
+                  control={control}
+                  name="lengthSpecLower"
+                  label="長さ下限"
+                  step="0.01"
+                />
+                <NumberField
+                  control={control}
+                  name="thicknessSpecLower"
+                  label="太さ下限"
+                  step="0.01"
+                />
+                <NumberField
+                  control={control}
+                  name="thicknessSpecUpper"
+                  label="太さ上限"
+                  step="0.01"
+                />
+                <TextField control={control} name="qualityGrade" label="品質等級" />
+                <NumberField control={control} name="count" label="個数" />
+                <NumberField control={control} name="quantity" label="数量" step="0.001" />
+                <SelectField
+                  control={control}
+                  name="inspectionResultCategory"
+                  label="検査結果"
+                  options={[
+                    ["pass", "合格"],
+                    ["fail", "不合格"],
+                  ]}
+                />
+              </Section>
 
-            <div className="md:col-span-3">
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "作成中…" : "作成"}
-              </Button>
-            </div>
-          </form>
+              <div className="flex items-center justify-end md:col-span-3">
+                <Button type="submit" disabled={isSubmitting}>
+                  <Save className="size-4" />
+                  {isSubmitting ? "作成中…" : "作成"}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </Guard>
@@ -136,42 +205,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div className="space-y-2 rounded-lg border p-4">
       <p className="font-medium text-sm">{title}</p>
       <div className="space-y-2">{children}</div>
-    </div>
-  );
-}
-
-function NumberField({
-  name,
-  label,
-  defaultValue,
-  step,
-}: {
-  name: string;
-  label: string;
-  defaultValue?: number;
-  step?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label htmlFor={name}>{label}</Label>
-      <Input id={name} name={name} type="number" defaultValue={defaultValue} step={step} required />
-    </div>
-  );
-}
-
-function TextField({
-  name,
-  label,
-  defaultValue,
-}: {
-  name: string;
-  label: string;
-  defaultValue?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label htmlFor={name}>{label}</Label>
-      <Input id={name} name={name} type="text" defaultValue={defaultValue} required />
     </div>
   );
 }

@@ -17,9 +17,17 @@ open SalesManagement.Infrastructure
 open SalesManagement.Api.ProblemDetails
 open SalesManagement.Api.LotDtos
 
-let private toResponseBody (lot: InventoryLot) (version: int) : LotResponse =
+let private toResponseBody (maps: CodeMasterRepository.NameMaps) (lot: InventoryLot) (version: int) : LotResponse =
     let common = InventoryLot.common lot
     let formatDate (d: DateOnly) = d.ToString("yyyy-MM-dd")
+
+    let (DivisionCode divisionCode) = common.DivisionCode
+    let (DepartmentCode departmentCode) = common.DepartmentCode
+    let (SectionCode sectionCode) = common.SectionCode
+
+    let cn (m: Map<int, string>) (code: int) : CodeNameResponse =
+        { code = code
+          name = CodeMasterRepository.resolve m code }
 
     let mfg, deadline, shipped, destination =
         match lot with
@@ -35,13 +43,40 @@ let private toResponseBody (lot: InventoryLot) (version: int) : LotResponse =
             Some(formatDate l.ShippedDate),
             None
 
+    let details =
+        common.Details
+        |> NonEmptyList.toList
+        |> List.map (fun (d: LotDetail) ->
+            { itemCategory = ItemCategory.toString d.ItemCategory
+              premiumCategory = d.PremiumCategory
+              productCategoryCode = d.ProductCategoryCode
+              lengthSpecLower = d.LengthSpecLower
+              thicknessSpecLower = d.ThicknessSpecLower
+              thicknessSpecUpper = d.ThicknessSpecUpper
+              qualityGrade = d.QualityGrade
+              count = Count.value d.Count
+              quantity = Quantity.value d.Quantity
+              inspectionResultCategory = d.InspectionResultCategory })
+
     { status = InventoryLot.statusString lot
       lotNumber = LotNumber.toString common.LotNumber
       manufacturingCompletedDate = mfg
       shippingDeadlineDate = deadline
       shippedDate = shipped
       destinationItem = destination
+      division = cn maps.Division divisionCode
+      department = cn maps.Department departmentCode
+      section = cn maps.Section sectionCode
+      processCategory = cn maps.Process common.ProcessCategory
+      inspectionCategory = cn maps.Inspection common.InspectionCategory
+      manufacturingCategory = cn maps.Manufacturing common.ManufacturingCategory
+      details = details
       version = version }
+
+let private loadNameMaps (connectionString: string) : CodeMasterRepository.NameMaps =
+    use conn = new NpgsqlConnection(connectionString)
+    conn.Open()
+    CodeMasterRepository.loadNameMaps conn
 
 let private parseLotId (id: string) : Result<LotNumber, DomainError> =
     match LotNumber.tryParse id with
@@ -319,7 +354,7 @@ let private runTransition
         | Error err -> return! respondError err next ctx
         | Ok(updated, newVersion) ->
             invalidateLotCache ctx id
-            return! json (toResponseBody updated newVersion) next ctx
+            return! json (toResponseBody (loadNameMaps connectionString) updated newVersion) next ctx
     }
 
 let private bodyParseError (ex: exn) : DomainError =
@@ -332,13 +367,17 @@ let private manufacturingCompletedEvent (date: DateOnly) (lot: InventoryLot) : D
         Some(LotManufacturingCompleted(LotNumber.toString common.LotNumber, date))
     | _ -> None
 
-let private respondTransition (id: string) (result: Result<InventoryLot * int, DomainError>) : HttpHandler =
+let private respondTransition
+    (connectionString: string)
+    (id: string)
+    (result: Result<InventoryLot * int, DomainError>)
+    : HttpHandler =
     fun next ctx -> task {
         match result with
         | Error err -> return! respondError err next ctx
         | Ok(updated, newVersion) ->
             invalidateLotCache ctx id
-            return! json (toResponseBody updated newVersion) next ctx
+            return! json (toResponseBody (loadNameMaps connectionString) updated newVersion) next ctx
     }
 
 let completeManufacturingHandler (connectionString: string) (id: string) : HttpHandler =
@@ -361,7 +400,7 @@ let completeManufacturingHandler (connectionString: string) (id: string) : HttpH
                         (completeManufacturingTransition date)
                         (manufacturingCompletedEvent date)
 
-                return! respondTransition id result next ctx
+                return! respondTransition connectionString id result next ctx
         with ex ->
             return! respondError (bodyParseError ex) next ctx
     }
@@ -400,7 +439,27 @@ let cancelManufacturingCompletionHandler (connectionString: string) (id: string)
 
             match requireVersion dto.version with
             | Error e -> return! respondError e next ctx
-            | Ok v -> return! runTransition connectionString id v cancelManufacturingTransition next ctx
+            | Ok v ->
+                match parseLotId id with
+                | Error e -> return! respondError e next ctx
+                | Ok lotNumber ->
+                    // Invariant: a lot referenced by a sales case must not be
+                    // rolled back from Manufactured to Manufacturing.
+                    use conn = new NpgsqlConnection(connectionString)
+                    conn.Open()
+
+                    match SalesCaseRepository.findCaseNumbersByLot conn lotNumber with
+                    | [] -> return! runTransition connectionString id v cancelManufacturingTransition next ctx
+                    | cases ->
+                        let formatted =
+                            cases
+                            |> List.map (fun n -> sprintf "%d-%02d-%03d" n.Year n.Month n.Seq)
+                            |> String.concat ", "
+
+                        let err =
+                            InvalidStateTransition(sprintf "LotReferencedBySalesCase: %s" formatted)
+
+                        return! respondError err next ctx
         with ex ->
             return! respondError (bodyParseError ex) next ctx
     }
@@ -454,7 +513,7 @@ let getLotHandler (connectionString: string) (id: string) : HttpHandler =
                 | Error e -> return! respondError (InternalError e) next ctx
                 | Ok None -> return! respondError (NotFound("Lot", id)) next ctx
                 | Ok(Some(lot, version)) ->
-                    let body = toResponseBody lot version
+                    let body = toResponseBody (CodeMasterRepository.loadNameMaps conn) lot version
 
                     let entryOpts =
                         MemoryCacheEntryOptions(AbsoluteExpirationRelativeToNow = Nullable(TimeSpan.FromMinutes 5.0))
@@ -479,4 +538,5 @@ let routes (connectionString: string) : HttpHandler =
           DELETE
           >=> routef "/lots/%s/instruct-item-conversion" (cancelItemConversionInstructionHandler connectionString)
           GET >=> route "/lots/export" >=> LotCsvExport.exportLotsHandler connectionString
+          GET >=> route "/lots/available" >=> LotListRoutes.availableLotsHandler connectionString
           GET >=> routef "/lots/%s" (getLotHandler connectionString) ]

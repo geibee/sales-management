@@ -55,8 +55,10 @@ let private fetchManufacturedLots (conn: NpgsqlConnection) (lotIds: string[]) : 
                 match LotRepository.load conn lotNumber with
                 | Error e -> Error e
                 | Ok None -> Error(sprintf "Lot %s not found" (LotNumber.toString lotNumber))
-                | Ok(Some(Manufactured lot)) -> Ok lot
-                | Ok(Some _) -> Error(sprintf "Lot %s is not in manufactured state" (LotNumber.toString lotNumber)))
+                | Ok(Some lot) ->
+                    match requireManufacturedLot lot with
+                    | Ok m -> Ok m
+                    | Error(LotNotManufactured id) -> Error(sprintf "Lot %s is not in manufactured state" id))
 
     let folded =
         lookups
@@ -69,6 +71,11 @@ let private fetchManufacturedLots (conn: NpgsqlConnection) (lotIds: string[]) : 
             (Ok [])
 
     folded |> Result.map List.rev
+
+// ロットが（いずれかの）販売案件に既に割り当てられているか。
+let private isAssignedToAnyCase (conn: NpgsqlConnection) (lot: ManufacturedLot) : bool =
+    let lotNumber = (InventoryLot.common (Manufactured lot)).LotNumber
+    SalesCaseRepository.findCaseNumbersByLot conn lotNumber |> List.isEmpty |> not
 
 let private resolveCaseType (raw: string) : Result<string * string, string> =
     let normalized = if String.IsNullOrEmpty raw then "direct" else raw
@@ -94,6 +101,8 @@ let private createSalesCaseHandler (connectionString: string) : HttpHandler =
 
                 match fetchManufacturedLots conn dto.lots with
                 | Error e -> return! badRequest e next ctx
+                | Ok lots when lots |> List.exists (isAssignedToAnyCase conn) ->
+                    return! badRequest "One or more lots are already assigned to a sales case" next ctx
                 | Ok lots ->
                     let nextSeq =
                         SalesCaseRepository.nextSalesCaseSeq conn salesDate.Year salesDate.Month
@@ -477,9 +486,59 @@ let listSalesCasesHandler (connectionString: string) : HttpHandler =
                 return! json response next ctx
     }
 
+// ロット組み合わせの修正。価格/査定登録前の direct・consignment のみ許可（予約は対象外）。
+let private editCaseLotsHandler (connectionString: string) (id: string) : HttpHandler =
+    fun next ctx -> task {
+        match trySalesCaseNumber id with
+        | None -> return! badRequest "Invalid sales case id" next ctx
+        | Some n ->
+            let! r = requireVersionFromBody<EditCaseLotsDto> ctx (fun d -> d.version)
+
+            match r with
+            | Error h -> return! h next ctx
+            | Ok(v, dto) ->
+                use conn = new NpgsqlConnection(connectionString)
+                conn.Open()
+
+                match SalesCaseRepository.tryFindHeader conn n with
+                | None -> return! notFound (sprintf "Sales case not found: %s" id) next ctx
+                | Some header ->
+                    let editable =
+                        match header.CaseType, header.Status with
+                        | "direct", "before_appraisal" -> true
+                        | "consignment", "before_consignment" -> true
+                        | _ -> false
+
+                    if not editable then
+                        return!
+                            badRequest
+                                "Lots can only be edited for a direct case before appraisal or a consignment case before designation"
+                                next
+                                ctx
+                    else
+                        match fetchManufacturedLots conn dto.lots with
+                        | Error e -> return! badRequest e next ctx
+                        | Ok lots when List.isEmpty lots -> return! badRequest "At least one lot is required" next ctx
+                        | Ok lots ->
+                            let assignedElsewhere =
+                                lots
+                                |> List.exists (fun lot ->
+                                    let lotNumber = (InventoryLot.common (Manufactured lot)).LotNumber
+
+                                    SalesCaseRepository.findCaseNumbersByLot conn lotNumber
+                                    |> List.exists (fun c -> c <> n))
+
+                            if assignedElsewhere then
+                                return! badRequest "One or more lots are already assigned to another sales case" next ctx
+                            else
+                                let result = SalesCaseRepository.replaceCaseLots conn n lots header.Status v
+                                return! respondCaseChange n header.Status result next ctx
+    }
+
 let routes (connectionString: string) : HttpHandler =
     choose
         [ POST >=> route "/sales-cases" >=> createSalesCaseHandler connectionString
+          PUT >=> routef "/sales-cases/%s/lots" (editCaseLotsHandler connectionString)
           GET >=> route "/sales-cases" >=> listSalesCasesHandler connectionString
           GET
           >=> routef "/sales-cases/%s" (SalesCaseDetailRoutes.getSalesCaseHandler connectionString)

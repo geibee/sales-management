@@ -74,6 +74,53 @@ const CreateLotResponse = z
     version: z.number().int(),
   })
   .passthrough();
+const AvailableLotsResponse = z
+  .object({ items: z.array(LotSummary), total: z.number().int() })
+  .passthrough();
+const CodeMasterItem = z
+  .object({ code: z.number().int(), name: z.string() })
+  .passthrough();
+const DepartmentItem = z
+  .object({
+    code: z.number().int(),
+    name: z.string(),
+    divisionCode: z.number().int(),
+  })
+  .passthrough();
+const SectionItem = z
+  .object({
+    code: z.number().int(),
+    name: z.string(),
+    departmentCode: z.number().int(),
+  })
+  .passthrough();
+const CodeMastersResponse = z
+  .object({
+    divisions: z.array(CodeMasterItem),
+    departments: z.array(DepartmentItem),
+    sections: z.array(SectionItem),
+    processCategories: z.array(CodeMasterItem),
+    inspectionCategories: z.array(CodeMasterItem),
+    manufacturingCategories: z.array(CodeMasterItem),
+  })
+  .passthrough();
+const CodeName = z
+  .object({ code: z.number().int(), name: z.string().nullish() })
+  .passthrough();
+const LotDetailResponse = z
+  .object({
+    itemCategory: z.enum(["general", "premium", "custom"]),
+    premiumCategory: z.string().nullish(),
+    productCategoryCode: z.string(),
+    lengthSpecLower: z.number(),
+    thicknessSpecLower: z.number(),
+    thicknessSpecUpper: z.number(),
+    qualityGrade: z.string(),
+    count: z.number().int(),
+    quantity: z.number(),
+    inspectionResultCategory: z.string().nullish(),
+  })
+  .passthrough();
 const LotResponse = z
   .object({
     status: LotStatus,
@@ -83,6 +130,13 @@ const LotResponse = z
     shippingDeadlineDate: z.string().nullish(),
     shippedDate: z.string().nullish(),
     destinationItem: z.string().nullish(),
+    division: CodeName,
+    department: CodeName,
+    section: CodeName,
+    processCategory: CodeName,
+    inspectionCategory: CodeName,
+    manufacturingCategory: CodeName,
+    details: z.array(LotDetailResponse),
   })
   .passthrough();
 const completeManufacturing_Body = z
@@ -127,6 +181,9 @@ const CreatedSalesCaseResponse = z
     version: z.number().int(),
   })
   .passthrough();
+const EditCaseLotsRequest = z
+  .object({ lots: z.array(z.string()), version: z.number().int() })
+  .passthrough();
 const SalesCaseDetailResponse = z
   .object({
     salesCaseNumber: z.string(),
@@ -158,7 +215,7 @@ const createSalesAppraisal_Body = z
     counterpartyAdjustmentRateDate: z.string(),
     taxExcludedEstimatedTotal: z.number().int(),
     customerContractNumber: z.string().optional(),
-    contractAdjustmentRate: z.number().nullish(),
+    contractAdjustmentRate: z.number().gte(0.9).lte(1.1).nullish(),
     lotAppraisals: z
       .array(
         z
@@ -170,9 +227,13 @@ const createSalesAppraisal_Body = z
                   .object({
                     detailIndex: z.number().int(),
                     baseUnitPrice: z.number().int(),
-                    periodAdjustmentRate: z.number(),
-                    counterpartyAdjustmentRate: z.number(),
-                    exceptionalPeriodAdjustmentRate: z.number().nullish(),
+                    periodAdjustmentRate: z.number().gte(0.9).lte(1.1),
+                    counterpartyAdjustmentRate: z.number().gte(0.9).lte(1.1),
+                    exceptionalPeriodAdjustmentRate: z
+                      .number()
+                      .gte(0.9)
+                      .lte(1.1)
+                      .nullish(),
                   })
                   .passthrough()
               )
@@ -259,6 +320,13 @@ export const schemas = {
   LotsListResponse,
   createLot_Body,
   CreateLotResponse,
+  AvailableLotsResponse,
+  CodeMasterItem,
+  DepartmentItem,
+  SectionItem,
+  CodeMastersResponse,
+  CodeName,
+  LotDetailResponse,
   LotResponse,
   completeManufacturing_Body,
   instructLotShipping_Body,
@@ -268,6 +336,7 @@ export const schemas = {
   SalesCasesListResponse,
   createSalesCase_Body,
   CreatedSalesCaseResponse,
+  EditCaseLotsRequest,
   SalesCaseDetailResponse,
   createSalesAppraisal_Body,
   createSalesContract_Body,
@@ -327,6 +396,16 @@ const endpoints = makeApi([
 `,
     requestFormat: "json",
     response: AuthConfigResponse,
+  },
+  {
+    method: "get",
+    path: "/code-masters",
+    alias: "getCodeMasters",
+    description: `事業部/部/課（階層）・工程区分/検査区分/製造区分（フラット）のコード値と名称の一覧。
+ロット作成フォームのドロップダウンに用いる。&#x60;viewer&#x60; ロール以上で利用可能。
+`,
+    requestFormat: "json",
+    response: CodeMastersResponse,
   },
   {
     method: "get",
@@ -645,6 +724,30 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+    ],
+  },
+  {
+    method: "get",
+    path: "/lots/available",
+    alias: "listAvailableLots",
+    description: `製造完了かつどの販売案件にも割り当てられていないロットを返す。
+&#x60;excludeCase&#x60; を指定すると、その案件に現在割り当て済みのロットも「割当可能」として含める（案件のロット修正用）。
+`,
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "excludeCase",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
+    response: AvailableLotsResponse,
+    errors: [
+      {
+        status: 400,
+        description: `不正リクエスト。RFC 9457 Problem Details 形式`,
         schema: z.void(),
       },
     ],
@@ -1090,6 +1193,46 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       },
     ],
     response: z.void(),
+    errors: [
+      {
+        status: 400,
+        description: `不正リクエスト。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 404,
+        description: `リソースなし。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 409,
+        description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+    ],
+  },
+  {
+    method: "put",
+    path: "/sales-cases/:id/lots",
+    alias: "editCaseLots",
+    description: `案件に紐づくロットの集合を total replace する。価格・査定登録前の direct（before_appraisal）
+および consignment（before_consignment）のみ許可（reservation は不可）。各ロットは製造完了かつ
+他案件に未割当である必要がある（自案件に現在割当済みのロットは可）。&#x60;version&#x60; は楽観的ロック用。
+`,
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: EditCaseLotsRequest,
+      },
+      {
+        name: "id",
+        type: "Path",
+        schema: z.string(),
+      },
+    ],
+    response: CreatedSalesCaseResponse,
     errors: [
       {
         status: 400,

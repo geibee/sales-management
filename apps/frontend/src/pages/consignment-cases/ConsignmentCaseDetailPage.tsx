@@ -1,19 +1,25 @@
-import { Guard } from "@/components/auth/Guard";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/atoms/badge";
+import { Button } from "@/components/atoms/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
+import { Separator } from "@/components/atoms/separator";
+import { Guard } from "@/components/organisms/auth/Guard";
+import { LotSelectDialog } from "@/components/organisms/dialogs/LotSelectDialog";
+import {
+  ConsignmentDesignationForm,
+  ConsignmentResultForm,
+} from "@/components/organisms/forms/rich-actions/RichActionForms";
 import {
   cancelDesignation,
   designateConsignment,
   recordConsignmentResult,
   useConsignmentCase,
 } from "@/hooks/use-consignment-case";
+import { updateSalesCaseLots } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";
 import { caseStatusLabel } from "@/lib/format";
-import { JsonActionForm } from "@/pages/sales-cases/actions/JsonActionForm";
 import { Link } from "@tanstack/react-router";
-import { useActionState } from "react";
+import { PackageSearch } from "lucide-react";
+import { useActionState, useState } from "react";
 import { toast } from "sonner";
 
 export function ConsignmentCaseDetailPage({ id }: { id: string }) {
@@ -35,9 +41,27 @@ export function ConsignmentCaseDetailPage({ id }: { id: string }) {
     return null;
   }, null);
 
+  const [editLotsOpen, setEditLotsOpen] = useState(false);
+
   if (isLoading) return <p>読み込み中…</p>;
   if (error) return <p className="text-destructive">エラー: {describeApiError(error)}</p>;
   if (!data) return null;
+
+  // 委託は委託指定前のみロット修正可。
+  const editLotsAllowed = data.status === "before_consignment";
+
+  const onEditLots = async (lots: string[]) => {
+    if (data.version == null) {
+      toast.error("最新の状態を読み込めませんでした");
+      return;
+    }
+    try {
+      await updateSalesCaseLots(id, { lots, version: data.version });
+      toast.success("対象ロットを更新しました");
+    } catch (e) {
+      toast.error(describeApiError(e));
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -52,6 +76,51 @@ export function ConsignmentCaseDetailPage({ id }: { id: string }) {
           </Link>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base">対象ロット</CardTitle>
+            {editLotsAllowed && (
+              <Guard requiredRole="operator">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditLotsOpen(true)}
+                >
+                  <PackageSearch className="size-4" />
+                  ロットを修正
+                </Button>
+              </Guard>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {data.lots.map((lotNumber) => (
+            <Link
+              key={lotNumber}
+              to="/lots/$id"
+              params={{ id: lotNumber }}
+              className="flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors hover:bg-accent"
+            >
+              <span className="font-mono">{lotNumber}</span>
+              <span className="text-muted-foreground text-xs">詳細</span>
+            </Link>
+          ))}
+          {editLotsAllowed && (
+            <LotSelectDialog
+              open={editLotsOpen}
+              onOpenChange={setEditLotsOpen}
+              value={data.lots}
+              excludeCase={id}
+              onConfirm={onEditLots}
+              title="対象ロットを修正"
+              confirmLabel="更新"
+            />
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -73,10 +142,10 @@ export function ConsignmentCaseDetailPage({ id }: { id: string }) {
         }
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <JsonActionForm
-            title="委託指定"
-            buttonLabel="登録"
-            placeholder='{"consignorName":"...","consignorCode":"..."}'
+          <ConsignmentDesignationForm
+            data={data}
+            disabled={data.status !== "before_consignment"}
+            disabledReason="委託前の案件で実行できます。"
             onSubmit={(body) => designateConsignment(id, body)}
           />
           <Card>
@@ -91,9 +160,10 @@ export function ConsignmentCaseDetailPage({ id }: { id: string }) {
               </form>
             </CardContent>
           </Card>
-          <JsonActionForm
-            title="委託結果 登録"
-            buttonLabel="登録"
+          <ConsignmentResultForm
+            data={data}
+            disabled={data.status !== "consignment_designated"}
+            disabledReason="委託指定済の案件で実行できます。"
             onSubmit={(body) => recordConsignmentResult(id, body)}
           />
         </div>

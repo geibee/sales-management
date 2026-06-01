@@ -354,6 +354,14 @@ module Tests =
             && a.ContractAdjustmentRate = rate
         | Normal _ -> false
 
+    // 調整率(API値)は 0.9〜1.1 のときのみ受理される（画面の 90〜110% に対応）。
+    [<Property>]
+    [<Trait("Category", "PBT")>]
+    let ``調整率は0.9〜1.1のときのみ受理される（境界）`` (value: decimal) =
+        match SalesManagement.Api.SalesCaseDtos.validateAdjustmentRate "rate" value with
+        | Ok accepted -> accepted = value && value >= 0.9m && value <= 1.1m
+        | Error _ -> value < 0.9m || value > 1.1m
+
     [<Property>]
     [<Trait("Category", "PBT")>]
     let ``予約確定取消後は査定済み状態に戻る（往復性）``

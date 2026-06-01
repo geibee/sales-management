@@ -14,6 +14,7 @@ export function lotStatusLabel(status: string | null | undefined): string {
 }
 
 export const SALES_CASE_STATUS_LABEL: Record<string, string> = {
+  before_appraisal: "査定前",
   appraised: "査定済",
   contracted: "契約済",
   shipping_instructed: "出荷指示済",
@@ -28,6 +29,7 @@ export const ESTIMATE_STATUS_LABEL: Record<string, string> = {
 };
 
 export const CONSIGNMENT_STATUS_LABEL: Record<string, string> = {
+  before_consignment: "委託前",
   consignment_designated: "委託指定済",
   consignment_result_entered: "結果登録済",
 };
@@ -44,6 +46,33 @@ export function caseStatusLabel(
         ? CONSIGNMENT_STATUS_LABEL
         : SALES_CASE_STATUS_LABEL;
   return map[status] ?? status;
+}
+
+/**
+ * 金額・件数など整数値を `ja-JP` ロケールで桁区切り表示する。
+ * (旧 `RichActionForms.AMOUNT_FORMAT` / `LotDetailPage.INTEGER_FORMAT` /
+ *  `LotDetailPage.formatNumber` の統合)
+ */
+const AMOUNT_FORMAT = new Intl.NumberFormat("ja-JP");
+export function formatAmount(value: number): string {
+  return AMOUNT_FORMAT.format(value);
+}
+
+/**
+ * 数量を小数最大 3 桁で桁区切り表示する。
+ * (旧 `LotDetailPage.QUANTITY_FORMAT` / `formatQuantity` の統合)
+ */
+const QUANTITY_FORMAT = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 3 });
+export function formatQuantity(value: number): string {
+  return QUANTITY_FORMAT.format(value);
+}
+
+/**
+ * `{code, name}` を「名称 (コード)」で表示する。`name` が null/未登録なら
+ * コードのみ。`LotDetailPage` だけにあったのを共通化した。
+ */
+export function codeName(cn: { code: number; name?: string | null }): string {
+  return cn.name ? `${cn.name} (${cn.code})` : String(cn.code);
 }
 
 export type LotAction =

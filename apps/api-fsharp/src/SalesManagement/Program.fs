@@ -225,6 +225,7 @@ window.onload = () => {
             choose
                 [ LotRoutes.routes connectionString
                   LotListRoutes.routes connectionString
+                  CodeMasterRoutes.routes connectionString
                   SalesCaseRoutes.routes connectionString
                   ReservationCaseRoutes.routes connectionString
                   ConsignmentCaseRoutes.routes connectionString ]

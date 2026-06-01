@@ -5,6 +5,14 @@ open SalesManagement.Domain.Types
 open SalesManagement.Domain.SalesCaseTypes
 
 type SalesCaseCreationError = NoManufacturedLots
+
+/// A lot can back a sales case only when it is in the Manufactured state.
+type LotForSaleError = LotNotManufactured of lotId: string
+
+let requireManufacturedLot (lot: InventoryLot) : Result<ManufacturedLot, LotForSaleError> =
+    match lot with
+    | Manufactured m -> Ok m
+    | other -> Error(LotNotManufactured(LotNumber.toString (InventoryLot.common other).LotNumber))
 type AppraisalCreationError = CaseNotBeforeAppraisal
 type AppraisalUpdateError = CaseNotAppraised
 type AppraisalDeletionError = CaseNotAppraised
