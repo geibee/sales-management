@@ -8,14 +8,20 @@ component/page test は `Vitest + Testing Library + MSW` を主戦場にし、E2
 
 関連 BD が未整備の場合は、本書の `関連ID` を BD-01 作成時の traceability entry に転記する。
 
-## 現状ステータス (2026-05-31 時点)
+## 現状ステータス (2026-06-02 時点)
 
 | 集計 | 値 |
 |---|---|
-| テストファイル数 | 25 |
-| passing tests | 156 |
+| テストファイル数 | 29 |
+| passing tests | 243 |
 | todo | 3 |
 | 既知 Red (未実装 ID) | 後述「Phase ロードマップ」参照 |
+
+> **rev2.1 追記 (2026-06-02)**: デザイン刷新 (commit `0ed6d6a` 基盤 + `6c4bc83` 全ページ差し替え) で
+> 新規追加・書き換えたコードのテスト欠落を補填した (整合性レビュー `claude-design-api-sorted-boole.md` の
+> P1/P2)。新設 phase は **10a (design primitives)** / **10b (layout shell)** / **3e (SalesCaseListPage)** で、
+> ロジック層 `lotActionEnabled` 等は `FE-FMT-*` として example test を先行追加した
+> (PBT `FE-PBT-STATUS-001` は引き続き Phase 9 で導入)。
 
 | Phase | 状態 | 主な未消化 ID |
 |---|---|---|
@@ -37,7 +43,10 @@ component/page test は `Vitest + Testing Library + MSW` を主戦場にし、E2
 | 4c Reservation / Consignment Detail | ⚠️ | `FE-REQ-RESERVATION-001` / `FE-REQ-CONSIGNMENT-001` (POST rich body の rate ÷100) |
 | 4d ロット修正 | ✅ | — |
 | 4e 査定合計 / 上長承認 | ⚠️ | page 層では未。RichActionForms (organism) で `FE-COMP-RICH-DA-004..006` のみカバー。`FE-TOTAL-001..005` / `FE-APPROVER-001..003` の page wire-up 未 |
+| 3e SalesCaseListPage | ✅ | — |
 | 5 PriceCheckPage | ✅ | — |
+| 10a design primitives | ✅ | — |
+| 10b layout shell (Shell/Sidebar/Topbar) | ✅ | — |
 | 6 Router integration | ❌ | `FE-NAV-LOT-001` / `FE-NAV-SALES-001..003` (本物 `routeTree.gen` で navigate 解決) / `FE-NAV-AUTH-001` (実 route 上の Guard fallback) |
 | 7 describeApiError unit | ⚠️ | `tests/unit/api-client.test.ts` に 4 件あるのみ。`FE-ERR-001..010` の全 variant 未網羅 |
 | 8 Evidence / CI | ❌ | JUnit reporter / coverage artifact / MSW request log |
@@ -50,6 +59,9 @@ component/page test は `Vitest + Testing Library + MSW` を主戦場にし、E2
 | Prefix | 用途 |
 |---|---|
 | `FE-COMP-*` | 再利用 component の単体振る舞い (organism / molecule 層) |
+| `FE-DESIGN-*` | `components/design/primitives.tsx` の描画と意味色クラス付与 (design layer) |
+| `FE-LAYOUT-*` | `templates/{Shell,Sidebar,Topbar}` のナビ・パンくず・ロール表示 (layout shell) |
+| `FE-FMT-*` | `lib/format.ts` 純粋関数の example test (状態機械・ラベル・フォーマッタ。PBT は `FE-PBT-*`) |
 | `FE-PAGE-*` | page component の表示・操作・API response handling |
 | `FE-REQ-*` | MSW request assertion (URL / method / body / query) |
 | `FE-VERSION-*` | optimistic-lock 対象 action の version 必須検査 |
@@ -78,6 +90,7 @@ component/page test は `Vitest + Testing Library + MSW` を主戦場にし、E2
 | `BR-ADJUSTMENT-RATE-RANGE` | BD-04 / BD-06 | 調整率は画面 90〜110%、API `0.9〜1.1` (÷100) の範囲 |
 | `BR-APPRAISAL-TOTAL-FORMULA` | BD-04 | 税抜査定合計 = Σ (基準単価 × 各調整率 ÷ 100) |
 | `UI-LOT-LIST` | BD-05 | `/lots` 在庫ロット一覧 |
+| `UI-SALES-LIST` | BD-05 | `/sales-cases` 販売案件一覧 (種別/状態フィルタ・多態詳細遷移) |
 | `UI-LOT-CREATE` | BD-05 | `/lots/new` 在庫ロット作成 |
 | `UI-LOT-DETAIL` | BD-05 | `/lots/:id` 在庫ロット詳細・状態遷移 |
 | `UI-SALES-CREATE` | BD-05 | `/sales-cases/new` 販売案件作成 |
@@ -98,6 +111,7 @@ component/page test は `Vitest + Testing Library + MSW` を主戦場にし、E2
 | 画面ID | route | 対象 role | 主要状態 | 主要テスト ID | 状態 |
 |---|---|---|---|---|---|
 | `UI-LOT-LIST` | `/lots` | viewer, operator | loading, success, error, 行選択, 案件新規登録導線 | `FE-PAGE-LOT-LIST-*`, `FE-COMP-SALES-CREATE-DIALOG-*` | ✅ |
+| `UI-SALES-LIST` | `/sales-cases` | viewer, operator | loading, empty, error, 種別/状態フィルタ, 多態ルーティング, ページング | `FE-PAGE-SALES-LIST-*`, `FE-REQ-SALES-LIST-*` | ✅ |
 | `UI-LOT-CREATE` | `/lots/new` | operator | fallback, ready, pending, success, API error, code-master cascade | `FE-PAGE-LOT-CREATE-*`, `FE-REQ-LOT-CREATE-*`, `FE-NAV-LOT-001` | ⚠️ NAV 未 |
 | `UI-LOT-DETAIL` | `/lots/:id` | viewer, operator | loading, success, error, action matrix, conflict, csv, 明細, 名称 | `FE-PAGE-LOT-DETAIL-*`, `FE-REQ-LOT-ACTION-*`, `FE-MATRIX-LOT-*`, `FE-VERSION-LOT-*` | ⚠️ MATRIX/VERSION 未 |
 | `UI-SALES-CREATE` | `/sales-cases/new` | operator | fallback, validation, pending, success, API error, ロット選択モーダル | `FE-PAGE-SALES-CREATE-*`, `FE-REQ-SALES-CREATE-*`, `FE-NAV-SALES-*` | ⚠️ NAV-002/003 (real router) 未 |
@@ -123,10 +137,12 @@ component/page test は `Vitest + Testing Library + MSW` を主戦場にし、E2
 | layer | src 配置 | tests 配置 | 主な責務 / 検査対象 |
 |---|---|---|---|
 | atoms | `src/components/atoms/` | `tests/unit/atoms/` | shadcn 由来 primitive (Button / Input / Form / Dialog / Select / Card 等)。テストは原則不要 (smoke のみ) |
+| design | `src/components/design/` | `tests/unit/design/` | デザイン刷新の semantic-class primitive (`primitives.tsx`: Pill / DCard / KPI / Sparkline / StatusFlow / EmptyState / DLRow / DesignPageHeader)。`FE-DESIGN-*` で props 描画と意味色クラス付与を検査 |
 | molecules | `src/components/molecules/` | `tests/unit/molecules/` | `FieldError` / `TextField` / `NumberField` / `SelectField` 等の form field wrapper。`FE-VAL-POLICY-*` と `FE-A11Y-FORM-*` の契約をここで満たす |
 | organisms | `src/components/organisms/` | `tests/unit/organisms/` | `auth/Guard` / `forms/LotActionForm` / `forms/rich-actions/*` / `dialogs/{LotSelectDialog,SalesCaseCreateDialog}`。`FE-COMP-*` の振る舞いはここで検査 |
-| templates | `src/components/templates/` | `tests/unit/templates/` | `PageHeader` 等の薄い page shell。タイトル / 説明 / back link / action slot の DOM 落ちを検査 |
-| pages | `src/pages/` | `tests/unit/pages/` | route component。`FE-PAGE-*` / `FE-REQ-*` の wire-up と固有ロジックだけを検査し、molecule / organism 単体の契約は再検査しない |
+| templates | `src/components/templates/` | `tests/unit/templates/` | page shell。`PageHeader` (タイトル / 説明 / back link / action slot) と刷新で書き換えた `Shell` / `Sidebar` / `Topbar` (ナビ・パンくず・ロール表示) を `FE-LAYOUT-*` で検査 |
+| pages | `src/pages/` | `tests/unit/pages/` | route component。`FE-PAGE-*` / `FE-REQ-*` の wire-up と固有ロジックだけを検査し、molecule / organism / design 単体の契約は再検査しない |
+| lib | `src/lib/` の純粋関数 | `tests/unit/` (直下) | `format.ts` 等の純粋関数の example test (`FE-FMT-*`)。PBT は `tests/unit/pbt/` に分ける |
 | pbt | `src/lib/` 等の純粋関数 | `tests/unit/pbt/` | fast-check の property を 1 ファイル = 1 関数で配置 |
 
 `renderWithApp(...)` の SWR 設定は以下で固定する。
@@ -393,6 +409,74 @@ API 呼び出しの正しさは、原則 endpoint helper mock ではなく MSW r
 | `FE-PAGE-PRICE-007` | PriceCheckPage | `503 problem` | `サーキットが OPEN しています...` | DOM text | ✅ |
 | `FE-PAGE-PRICE-008` | PriceCheckPage | network error / unknown | `取得に失敗しました。` | DOM text | ✅ |
 
+## デザイン刷新カバレッジ (rev2.1)
+
+デザイン刷新 (commit `0ed6d6a` / `6c4bc83`) で新規追加・書き換えたコードの oracle。
+整合性レビュー `claude-design-api-sorted-boole.md` の P1 (ロジック) / P2 (カバレッジ) に対応する。
+
+### Format ロジック (`lib/format.ts`)
+
+`BR-LOT-STATE-ACTION` のフロント写しである `lotActionEnabled` を真理値表で固定し、状態機械が
+openapi / DSL とずれたら赤くなるようにする。配置は `tests/unit/format.test.ts`。
+
+| ID | 対象 | oracle | assertion | 状態 |
+|---|---|---|---|---|
+| `FE-FMT-ACTION-001` | `lotActionEnabled` | (6 action × 5 status) 真理値表。各 action は単一の活性状態 (complete-mfg→manufacturing、cancel-mfg / instruct-ship / instruct-conv→manufactured、complete-ship→shipping_instructed、cancel-conv→conversion_instructed) | `it.each` 相当で全組合せの boolean | ✅ |
+| `FE-FMT-ACTION-002` | `lotActionEnabled` | null / undefined / 未知 status・未知 action は常に false | false | ✅ |
+| `FE-FMT-LABEL-001` | `lotStatusLabel` / `lotStatusTone` | 既知 5 状態のラベルと意味色トーン、null→`(unknown)`/`neutral`、未知は素通し | 文字列/トーン一致 | ✅ |
+| `FE-FMT-LABEL-002` | `caseStatusLabel` | caseType 分岐 (direct/reservation/consignment)。未知 caseType は direct へ fallback、status null→`(unknown)` | ラベル一致 | ✅ |
+| `FE-FMT-TONE-001` | `caseStatusTone` / `caseTypeLabel` | 全 caseType の状態を 1 マップで解決、null/未知は neutral / `(unknown)`/素通し | トーン/ラベル一致 | ✅ |
+| `FE-FMT-NUM-001` | `formatAmount` / `formatQuantity` / `codeName` | ja-JP 桁区切り (整数 / 小数 3 桁)、`codeName` は name 有「名称 (コード)」・無「コード」 | 文字列一致 | ✅ |
+
+> PBT 版 (`FE-PBT-STATUS-001` / `FE-PBT-FORMAT-001` / `FE-PBT-NAMEMAP-001`) は Phase 9 で fast-check 導入後に
+> 併設する。example test (`FE-FMT-*`) と両建てにする方針 (§Assumptions)。
+
+### SalesCaseListPage (`UI-SALES-LIST`)
+
+List 系で唯一テスト欠落だったページ。配置は `tests/unit/pages/SalesCaseListPage.test.tsx`。
+
+| ID | 操作 / MSW | 期待結果 | assertion | 状態 |
+|---|---|---|---|---|
+| `FE-PAGE-SALES-LIST-LOAD-001` | `GET /sales-cases` pending | `読み込み中…` | deferred 中 visible | ✅ |
+| `FE-PAGE-SALES-LIST-LOAD-002` | `200 { items:[] }` | EmptyState `該当する案件がありません` | visible | ✅ |
+| `FE-PAGE-SALES-LIST-LOAD-003` | `500 problem` | `エラー: ...` | error text | ✅ |
+| `FE-PAGE-SALES-LIST-001` | `200 list` | 案件番号・種別 pill・状態ラベル・販売日を行内に表示 | `within(row)` で検査 | ✅ |
+| `FE-PAGE-SALES-LIST-002` | 行クリック (多態ルーティング) | caseType により詳細リンク href が `/sales-cases/$id`・`/reservation-cases/$id`・`/consignment-cases/$id` に分岐。行末アイコンリンクも同一先 | href 一致 | ✅ |
+| `FE-REQ-SALES-LIST-001` | 種別チップ押下 | `caseType` クエリ付与、`offset` リセット (all は caseType 無送信) | 直近 GET の query | ✅ |
+| `FE-REQ-SALES-LIST-002` | 状態 select 変更 | `status` クエリ付与 | query | ✅ |
+| `FE-REQ-SALES-LIST-003` | ページング「次へ」 | `offset` が PAGE_SIZE 進む。先頭で「前へ」disabled | query offset / button disabled | ✅ |
+
+### Design primitives (`components/design/primitives.tsx`)
+
+325 行・新規で 0 テストだった design layer。意味色クラス (`pill-ok`/`pill-warn` 等) = 意味の写像が
+崩れないことを oracle にする。配置は `tests/unit/design/primitives.test.tsx`。
+
+| ID | 対象 | oracle | assertion | 状態 |
+|---|---|---|---|---|
+| `FE-DESIGN-PILL-001` | `Pill` | tone→`pill-{tone}` クラス、dot/mono/className 反映、tone 既定 neutral・dot 既定なし | クラス / 子要素 | ✅ |
+| `FE-DESIGN-PILL-002` | `LotStatusPill` / `CaseStatusPill` / `CaseTypePill` | format.ts と連動したラベルとトーン (CaseStatusPill は caseType で同 code でもラベル変化、CaseTypePill は outline) | テキスト / クラス | ✅ |
+| `FE-DESIGN-CARD-001` | `DCard` / `DCardHeader` / `DCardBody` | `card-d` と HTML 属性透過、title/icon/actions スロット、tight/flush フラグ | クラス / スロット | ✅ |
+| `FE-DESIGN-MISC-001` | `DLRow` / `EmptyState` / `KPI` / `DesignPageHeader` | dt/dd 出力、t1 必須・t2/icon 任意、delta/unit 出し分けと `kpi-delta` トーン、title は h1 | DOM 構造 | ✅ |
+| `FE-DESIGN-SPARK-001` | `Sparkline` | データ有で svg + path (filled=area+line の 2 本、false で 1 本)、空データは描画なし | path 本数 | ✅ |
+| `FE-DESIGN-FLOW-001` | `StatusFlow` | currentIndex で completed/current/pending 割当、完了はチェック・未完は連番、fractional index (1.5) の off-main 分岐、branch ノード (active→current / 非 active→pending・番号 steps.length+1) | `data-state` / dot 内容 | ✅ |
+
+### Layout shell (`templates/{Shell,Sidebar,Topbar}`)
+
+刷新で書き換えた layout。配置は `tests/unit/templates/Layout.test.tsx`。
+
+| ID | 対象 | oracle | assertion | 状態 |
+|---|---|---|---|---|
+| `FE-LAYOUT-SIDEBAR-001` | `Sidebar` | グループ見出し (メイン/在庫管理/販売管理/外部連携) と主要リンク href | link href | ✅ |
+| `FE-LAYOUT-SIDEBAR-002` | `Sidebar` | `/lots`・`/sales-cases` の total を件数バッジに表示 | badge text | ✅ |
+| `FE-LAYOUT-SIDEBAR-003` | `Sidebar` | ロール別フッター: admin→`AD`+admin バッジ、operator→`OP`、未認証→`VW`+未認証バッジ (`AUTH-ROLE-HIERARCHY`) | initial / badge (footer scope) | ✅ |
+| `FE-LAYOUT-TOPBAR-001` | `Topbar` (`crumbsFor`) | パンくず生成: ルート / `/lots` / `/lots/:id` (mono) / reservation・consignment を販売管理グループ扱い / `/external/price-check` | nav text / link href | ✅ |
+| `FE-LAYOUT-TOPBAR-002` | `Topbar` (`HealthIndicator`) | `GET /health` 200→`OK`、503→`DOWN` | text | ✅ |
+| `FE-LAYOUT-SHELL-001` | `Shell` | Sidebar + Topbar + children の合成描画 | children / マーカー | ✅ |
+
+> 既知制約: TanStack Router の active state (`rail-link active`) は catch-all root route 起動では実 route が
+> 解決されないため厳密検査しない (href と項目描画で代替)。実 route 上の active 表示は Phase 6
+> (`renderWithRealRouter`) で `FE-NAV-*` と併せて再評価する。
+
 ## Router Integration Tests
 
 通常 page behavior test では `useNavigate` mock を許容する。代表 create success は本物 TanStack Router (`routeTree.gen`) で route 解決まで確認する。Phase 6 で `tests/support/render.tsx` に `renderWithRealRouter(initialPath)` を追加し、以下を検査する。
@@ -509,6 +593,7 @@ PBT は **Phase 9** の単発ではなく、Phase 3〜5 と並走させる:
 | 3b | LotDetailPage | `FE-PAGE-LOT-DETAIL-001..004`、`FE-REQ-LOT-ACTION-001..003` | `FE-MATRIX-LOT-001..006`、`FE-VERSION-LOT-002..006` |
 | 3c | CSV / Blob | `FE-CSV-001..004` | — |
 | 3d | LotListPage | `FE-PAGE-LOT-LIST-001..004` + LOAD-001..003 + `FE-REQ-LOT-LIST-001` | `FE-REFETCH-006` の完全形 (constraint-001) |
+| 3e | SalesCaseListPage | `FE-PAGE-SALES-LIST-LOAD-001..003` + `FE-PAGE-SALES-LIST-001..002` + `FE-REQ-SALES-LIST-001..003` | — |
 | 4a | SalesCaseCreatePage | `FE-PAGE-SALES-CREATE-001..003`、`FE-REQ-SALES-CREATE-001..004` | — |
 | 4b | SalesCaseDetailPage (rich/version) | `FE-PAGE-SALES-DETAIL-001..003`、`FE-REQ-SALES-ACTION-002`、`FE-VERSION-SALES-001` | `FE-REQ-SALES-ACTION-001 / 003`、`FE-VERSION-SALES-002 / 003`、`FE-REQ-SALES-LOTS-004` (toast 部分のみ) |
 | 4c | Reservation / Consignment Detail | `FE-PAGE-RESERVATION-001`、`FE-PAGE-CONSIGNMENT-001`、`FE-REQ-RESERVATION-002`、`FE-REQ-CONSIGNMENT-002`、`FE-VERSION-RES-001`、`FE-VERSION-CON-001` | `FE-REQ-RESERVATION-001`、`FE-REQ-CONSIGNMENT-001` |
@@ -519,6 +604,9 @@ PBT は **Phase 9** の単発ではなく、Phase 3〜5 と並走させる:
 | 7 | describeApiError unit | `FE-ERR-001..010` 全 variant、ページ重複削除 | `FE-ERR-001/003/004/006..010` |
 | 8 | Evidence / CI | JUnit reporter、coverage artifact、MSW request log 失敗時出力 | 全件 |
 | 9a-9f | PBT | 上節「PBT 導入の Phase」参照 | 全件 |
+| 10a | Design primitives | `FE-DESIGN-*` (Pill/Card/Misc/Spark/Flow) green | — |
+| 10b | Layout shell | `FE-LAYOUT-*` (Sidebar/Topbar/Shell) green | active state は Phase 6 で再評価 |
+| (lib) | Format example test | `FE-FMT-ACTION-001..002`、`FE-FMT-LABEL-001..002`、`FE-FMT-TONE-001`、`FE-FMT-NUM-001` green | PBT 版は Phase 9 |
 
 ### 次の優先順 (推奨)
 
