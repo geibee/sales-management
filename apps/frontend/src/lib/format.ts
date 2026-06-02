@@ -49,6 +49,59 @@ export function caseStatusLabel(
 }
 
 /**
+ * 状態に対応する意味色トーン。pill / flow / breakdown の配色に使う。
+ * (design redesign: data.jsx の LOT_STATUS_TONE / CASE_STATUS_TONE を移植)
+ */
+export type StatusTone = "neutral" | "ok" | "warn" | "danger" | "info" | "accent" | "outline";
+
+export const LOT_STATUS_TONE: Record<string, StatusTone> = {
+  manufacturing: "info",
+  manufactured: "ok",
+  shipping_instructed: "accent",
+  shipped: "neutral",
+  conversion_instructed: "warn",
+};
+
+export function lotStatusTone(status: string | null | undefined): StatusTone {
+  if (!status) return "neutral";
+  return LOT_STATUS_TONE[status] ?? "neutral";
+}
+
+export const CASE_STATUS_TONE: Record<string, StatusTone> = {
+  // direct
+  before_appraisal: "neutral",
+  appraised: "info",
+  contracted: "accent",
+  shipping_instructed: "warn",
+  shipping_completed: "ok",
+  // reservation
+  before_reservation: "neutral",
+  reserved: "info",
+  reservation_confirmed: "accent",
+  reservation_delivered: "ok",
+  // consignment
+  before_consignment: "neutral",
+  consignment_designated: "info",
+  consignment_result_entered: "ok",
+};
+
+export function caseStatusTone(status: string | null | undefined): StatusTone {
+  if (!status) return "neutral";
+  return CASE_STATUS_TONE[status] ?? "neutral";
+}
+
+export const CASE_TYPE_LABEL: Record<string, string> = {
+  direct: "直接販売",
+  reservation: "予約",
+  consignment: "委託",
+};
+
+export function caseTypeLabel(caseType: string | null | undefined): string {
+  if (!caseType) return "(unknown)";
+  return CASE_TYPE_LABEL[caseType] ?? caseType;
+}
+
+/**
  * 金額・件数など整数値を `ja-JP` ロケールで桁区切り表示する。
  * (旧 `RichActionForms.AMOUNT_FORMAT` / `LotDetailPage.INTEGER_FORMAT` /
  *  `LotDetailPage.formatNumber` の統合)
