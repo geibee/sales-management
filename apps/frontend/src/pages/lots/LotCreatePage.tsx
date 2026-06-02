@@ -1,15 +1,15 @@
 import { Button } from "@/components/atoms/button";
-import { Card, CardContent, CardHeader } from "@/components/atoms/card";
 import { Form } from "@/components/atoms/form";
+import { DCard, DCardBody, DCardHeader, DesignPageHeader } from "@/components/design/primitives";
 import { NumberField, SelectField, TextField } from "@/components/molecules";
 import { Guard } from "@/components/organisms/auth/Guard";
-import { PageHeader } from "@/components/templates/PageHeader";
 import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createLot } from "@/hooks/use-lot";
 import { describeApiError } from "@/lib/api-client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate } from "@tanstack/react-router";
-import { PackagePlus, Save } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Calendar, Layers, Save, Tag } from "lucide-react";
+import type { ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
@@ -72,139 +72,141 @@ export function LotCreatePage() {
   return (
     <Guard
       requiredRole="operator"
-      fallback={<p className="text-muted-foreground">作成には operator 以上のロールが必要です。</p>}
+      fallback={<p className="page muted">作成には operator 以上のロールが必要です。</p>}
     >
-      <Card className="rounded-lg">
-        <CardHeader>
-          <PageHeader
-            title={
-              <>
-                <PackagePlus className="size-5" />
-                在庫ロット 新規作成
-              </>
-            }
-            description="バックエンドの境界値に合わせて入力時に検証します。"
-            backTo="/lots"
-          />
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={onSubmit} noValidate className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Section title="ロット番号">
-                <NumberField control={control} name="year" label="年度" />
-                <TextField control={control} name="location" label="保管場所" />
-                <NumberField control={control} name="seq" label="連番" />
-              </Section>
-              <Section title="区分">
-                <SelectField
-                  control={control}
-                  name="divisionCode"
-                  label="事業部"
-                  options={asOptions(divisions)}
-                  parse={Number}
-                  onAfterChange={onDivisionAfter}
-                />
-                <SelectField
-                  control={control}
-                  name="departmentCode"
-                  label="部"
-                  options={asOptions(departments)}
-                  parse={Number}
-                  onAfterChange={onDepartmentAfter}
-                />
-                <SelectField
-                  control={control}
-                  name="sectionCode"
-                  label="課"
-                  options={asOptions(sections)}
-                  parse={Number}
-                />
-                <SelectField
-                  control={control}
-                  name="processCategory"
-                  label="工程"
-                  options={asOptions(masters?.processCategories ?? [])}
-                  parse={Number}
-                />
-                <SelectField
-                  control={control}
-                  name="inspectionCategory"
-                  label="検査"
-                  options={asOptions(masters?.inspectionCategories ?? [])}
-                  parse={Number}
-                />
-                <SelectField
-                  control={control}
-                  name="manufacturingCategory"
-                  label="製造"
-                  options={asOptions(masters?.manufacturingCategories ?? [])}
-                  parse={Number}
-                />
-              </Section>
-              <Section title="明細 (1 件)">
-                <SelectField
-                  control={control}
-                  name="itemCategory"
-                  label="品目区分"
-                  options={[
-                    ["general", "通常"],
-                    ["premium", "上位品"],
-                    ["custom", "特注"],
-                  ]}
-                />
-                <TextField control={control} name="premiumCategory" label="上位品区分" />
-                <TextField control={control} name="productCategoryCode" label="商品分類コード" />
-                <NumberField
-                  control={control}
-                  name="lengthSpecLower"
-                  label="長さ下限"
-                  step="0.01"
-                />
-                <NumberField
-                  control={control}
-                  name="thicknessSpecLower"
-                  label="太さ下限"
-                  step="0.01"
-                />
-                <NumberField
-                  control={control}
-                  name="thicknessSpecUpper"
-                  label="太さ上限"
-                  step="0.01"
-                />
-                <TextField control={control} name="qualityGrade" label="品質等級" />
-                <NumberField control={control} name="count" label="個数" />
-                <NumberField control={control} name="quantity" label="数量" step="0.001" />
-                <SelectField
-                  control={control}
-                  name="inspectionResultCategory"
-                  label="検査結果"
-                  options={[
-                    ["pass", "合格"],
-                    ["fail", "不合格"],
-                  ]}
-                />
-              </Section>
+      <div className="page">
+        <DesignPageHeader
+          eyebrow="新規作成"
+          title="在庫ロットを作成"
+          subtitle="バックエンドの境界値に合わせて入力時に検証します。"
+          actions={
+            <Link to="/lots" className="btn btn-sm btn-ghost">
+              キャンセル
+            </Link>
+          }
+        />
 
-              <div className="flex items-center justify-end md:col-span-3">
-                <Button type="submit" disabled={isSubmitting}>
-                  <Save className="size-4" />
-                  {isSubmitting ? "作成中…" : "作成"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+        <Form {...form}>
+          <form onSubmit={onSubmit} noValidate className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <Section title="ロット番号" icon={<Tag className="ico" size={15} />}>
+              <NumberField control={control} name="year" label="年度" />
+              <TextField control={control} name="location" label="保管場所" />
+              <NumberField control={control} name="seq" label="連番" />
+            </Section>
+            <Section title="区分" icon={<Calendar className="ico" size={15} />}>
+              <SelectField
+                control={control}
+                name="divisionCode"
+                label="事業部"
+                options={asOptions(divisions)}
+                parse={Number}
+                onAfterChange={onDivisionAfter}
+              />
+              <SelectField
+                control={control}
+                name="departmentCode"
+                label="部"
+                options={asOptions(departments)}
+                parse={Number}
+                onAfterChange={onDepartmentAfter}
+              />
+              <SelectField
+                control={control}
+                name="sectionCode"
+                label="課"
+                options={asOptions(sections)}
+                parse={Number}
+              />
+              <SelectField
+                control={control}
+                name="processCategory"
+                label="工程"
+                options={asOptions(masters?.processCategories ?? [])}
+                parse={Number}
+              />
+              <SelectField
+                control={control}
+                name="inspectionCategory"
+                label="検査"
+                options={asOptions(masters?.inspectionCategories ?? [])}
+                parse={Number}
+              />
+              <SelectField
+                control={control}
+                name="manufacturingCategory"
+                label="製造"
+                options={asOptions(masters?.manufacturingCategories ?? [])}
+                parse={Number}
+              />
+            </Section>
+            <Section title="明細 (1 件)" icon={<Layers className="ico" size={15} />}>
+              <SelectField
+                control={control}
+                name="itemCategory"
+                label="品目区分"
+                options={[
+                  ["general", "通常"],
+                  ["premium", "上位品"],
+                  ["custom", "特注"],
+                ]}
+              />
+              <TextField control={control} name="premiumCategory" label="上位品区分" />
+              <TextField control={control} name="productCategoryCode" label="商品分類コード" />
+              <NumberField control={control} name="lengthSpecLower" label="長さ下限" step="0.01" />
+              <NumberField
+                control={control}
+                name="thicknessSpecLower"
+                label="太さ下限"
+                step="0.01"
+              />
+              <NumberField
+                control={control}
+                name="thicknessSpecUpper"
+                label="太さ上限"
+                step="0.01"
+              />
+              <TextField control={control} name="qualityGrade" label="品質等級" />
+              <NumberField control={control} name="count" label="個数" />
+              <NumberField control={control} name="quantity" label="数量" step="0.001" />
+              <SelectField
+                control={control}
+                name="inspectionResultCategory"
+                label="検査結果"
+                options={[
+                  ["pass", "合格"],
+                  ["fail", "不合格"],
+                ]}
+              />
+            </Section>
+
+            <div className="flex items-center justify-end md:col-span-3">
+              <Button type="submit" disabled={isSubmitting}>
+                <Save className="size-4" />
+                {isSubmitting ? "作成中…" : "作成"}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </div>
     </Guard>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
   return (
-    <div className="space-y-2 rounded-lg border p-4">
-      <p className="font-medium text-sm">{title}</p>
-      <div className="space-y-2">{children}</div>
-    </div>
+    <DCard>
+      <DCardHeader title={title} icon={icon} />
+      <DCardBody>
+        <div className="space-y-2">{children}</div>
+      </DCardBody>
+    </DCard>
   );
 }

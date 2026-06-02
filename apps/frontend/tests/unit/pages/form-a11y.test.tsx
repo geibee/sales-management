@@ -40,8 +40,9 @@ describe("Form a11y (FE-A11Y-FORM-*)", () => {
     fireEvent.submit(button.closest("form")!);
     // 「ロットを1つ以上選択してください」が field wrapper 内に出る
     const lotsError = await screen.findByText("ロットを1つ以上選択してください");
-    // 該当 wrapper の直近祖先 (Label と兄弟) に <Label>対象ロット</Label> が存在することで近傍性を確認
-    const wrapper = lotsError.closest("div.space-y-2") ?? lotsError.parentElement;
+    // 該当 field の囲み (対象ロット card) 内にエラーと「対象ロット」見出しが同居することで近傍性を確認
+    const wrapper =
+      lotsError.closest("div.space-y-2") ?? lotsError.closest(".card-d") ?? lotsError.parentElement;
     expect(wrapper).not.toBeNull();
     expect(wrapper!.textContent).toContain("対象ロット");
   });

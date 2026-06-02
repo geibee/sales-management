@@ -1,28 +1,31 @@
 import { Button } from "@/components/atoms/button";
-import { Card, CardContent, CardHeader } from "@/components/atoms/card";
 import { Form } from "@/components/atoms/form";
-import { Label } from "@/components/atoms/label";
+import { DCard, DCardBody, DCardHeader, DesignPageHeader } from "@/components/design/primitives";
 import { FieldError, SelectField, TextField } from "@/components/molecules";
 import { Guard } from "@/components/organisms/auth/Guard";
 import { LotSelectDialog } from "@/components/organisms/dialogs/LotSelectDialog";
-import { PageHeader } from "@/components/templates/PageHeader";
 import { useCodeMasters } from "@/hooks/use-code-masters";
 import { createSalesCase } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate } from "@tanstack/react-router";
-import { BriefcaseBusiness, PackageSearch, Save } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Box, Calendar, Check, PackageSearch, Save, Tag, X } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
-  CASE_TYPE_OPTIONS,
   type SalesCaseCreateFormValues,
   caseDetailRoute,
   salesCaseCreateDefaultValues,
   salesCaseCreateFormSchema,
   toCreateSalesCaseBody,
 } from "./sales-case-create-validation";
+
+const CASE_TYPE_CARDS = [
+  { v: "direct", l: "直接販売", d: "査定→契約→出荷の通常フロー" },
+  { v: "reservation", l: "予約", d: "予約→確定→引渡のフロー" },
+  { v: "consignment", l: "委託", d: "委託指定→結果入力のフロー" },
+] as const;
 
 export function SalesCaseCreatePage() {
   const navigate = useNavigate();
@@ -39,6 +42,7 @@ export function SalesCaseCreatePage() {
   } = form;
 
   const lots = form.watch("lots");
+  const caseType = form.watch("caseType");
   const { data: masters } = useCodeMasters();
   const [lotDialogOpen, setLotDialogOpen] = useState(false);
 
@@ -55,93 +59,159 @@ export function SalesCaseCreatePage() {
   return (
     <Guard
       requiredRole="operator"
-      fallback={<p className="text-muted-foreground">作成には operator 以上のロールが必要です。</p>}
+      fallback={<p className="page muted">作成には operator 以上のロールが必要です。</p>}
     >
-      <Card className="rounded-lg">
-        <CardHeader>
-          <PageHeader
-            title={
-              <>
-                <BriefcaseBusiness className="size-5" />
-                販売案件 新規作成
-              </>
-            }
-            description="製造完了済みロットを指定して販売案件を起票します。"
-            backTo="/sales-cases"
-          />
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form
-              onSubmit={onSubmit}
-              noValidate
-              className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_0.8fr]"
-            >
-              <SelectField
-                control={control}
-                name="caseType"
-                label="案件種別"
-                options={CASE_TYPE_OPTIONS}
-              />
-              <div className="space-y-2 lg:row-span-3">
-                <div className="flex items-center justify-between gap-2">
-                  <Label>対象ロット</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setLotDialogOpen(true)}
-                  >
-                    <PackageSearch className="size-4" />
-                    ロットを選択
-                  </Button>
-                </div>
-                {lots.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">ロットが選択されていません</p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {lots.map((lotNumber) => (
-                      <span
-                        key={lotNumber}
-                        className="rounded-md border bg-muted/40 px-2 py-1 font-mono text-xs"
+      <div className="page">
+        <DesignPageHeader
+          eyebrow="新規作成"
+          title="販売案件を作成"
+          subtitle="製造完了済みロットを指定して販売案件を起票します。"
+          actions={
+            <Link to="/sales-cases" className="btn btn-sm btn-ghost">
+              キャンセル
+            </Link>
+          }
+        />
+
+        <Form {...form}>
+          <form onSubmit={onSubmit} noValidate>
+            <DCard className="mb-4">
+              <DCardHeader title="案件種別" icon={<Tag className="ico" size={15} />} />
+              <DCardBody>
+                {/* caseType は RHF defaultValues に存在し、下のカードから setValue で更新する */}
+                <div className="grid-3">
+                  {CASE_TYPE_CARDS.map((t) => {
+                    const on = caseType === t.v;
+                    return (
+                      <button
+                        type="button"
+                        key={t.v}
+                        onClick={() =>
+                          setValue("caseType", t.v, { shouldDirty: true, shouldValidate: true })
+                        }
+                        style={{
+                          textAlign: "left",
+                          padding: 14,
+                          border: `1.5px solid ${on ? "var(--accent-design)" : "var(--border-design)"}`,
+                          background: on ? "var(--accent-soft)" : "var(--bg-elev)",
+                          borderRadius: "var(--r-md)",
+                          cursor: "pointer",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 4,
+                        }}
                       >
-                        {lotNumber}
-                      </span>
-                    ))}
+                        <span className="row" style={{ justifyContent: "space-between" }}>
+                          <span style={{ fontWeight: 600, fontSize: 13.5 }}>{t.l}</span>
+                          {on && <Check size={14} style={{ color: "var(--accent-design)" }} />}
+                        </span>
+                        <span className="text-xs muted">{t.d}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </DCardBody>
+            </DCard>
+
+            <div className="split-2">
+              <DCard>
+                <DCardHeader title="基本情報" icon={<Calendar className="ico" size={15} />} />
+                <DCardBody>
+                  <SelectField
+                    control={control}
+                    name="divisionCode"
+                    label="事業部"
+                    options={(masters?.divisions ?? []).map(
+                      (d) => [String(d.code), d.name] as [string, string],
+                    )}
+                    parse={Number}
+                    placeholder="事業部を選択"
+                  />
+                  <div className="mt-3">
+                    <TextField control={control} name="salesDate" label="販売日" type="date" />
                   </div>
-                )}
-                <FieldError message={errors.lots?.message} />
-                <LotSelectDialog
-                  open={lotDialogOpen}
-                  onOpenChange={setLotDialogOpen}
-                  value={lots}
-                  onConfirm={(picked) =>
-                    setValue("lots", picked, { shouldDirty: true, shouldValidate: true })
+                </DCardBody>
+              </DCard>
+
+              <DCard>
+                <DCardHeader
+                  title={`対象ロット (${lots.length})`}
+                  icon={<Box className="ico" size={15} />}
+                  actions={
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      onClick={() => setLotDialogOpen(true)}
+                    >
+                      <PackageSearch className="ico" />
+                      ロットを選択
+                    </button>
                   }
-                  title="対象ロットを選択"
                 />
-              </div>
-              <SelectField
-                control={control}
-                name="divisionCode"
-                label="事業部"
-                options={(masters?.divisions ?? []).map(
-                  (d) => [String(d.code), d.name] as [string, string],
-                )}
-                parse={Number}
-                placeholder="事業部を選択"
-              />
-              <TextField control={control} name="salesDate" label="販売日" type="date" />
-              <div className="flex items-center justify-end lg:col-span-2">
-                <Button type="submit" disabled={isSubmitting}>
-                  <Save className="size-4" />
-                  {isSubmitting ? "作成中…" : "作成"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+                <DCardBody>
+                  <p className="text-sm muted mb-3">
+                    「製造完了」状態のロットのみ販売案件に紐付けできます。
+                  </p>
+                  {lots.length === 0 ? (
+                    <p className="text-sm muted">ロットが選択されていません</p>
+                  ) : (
+                    <div className="col gap-2">
+                      {lots.map((lotNumber) => (
+                        <div
+                          key={lotNumber}
+                          className="row"
+                          style={{
+                            justifyContent: "space-between",
+                            padding: "8px 10px",
+                            border: "1px solid var(--border-design)",
+                            borderRadius: "var(--r-sm)",
+                          }}
+                        >
+                          <span className="row gap-2">
+                            <Box size={14} style={{ color: "var(--fg-subtle)" }} />
+                            <span className="mono text-sm">{lotNumber}</span>
+                          </span>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label={`ロット ${lotNumber} を除外`}
+                            onClick={() =>
+                              setValue(
+                                "lots",
+                                lots.filter((x) => x !== lotNumber),
+                                { shouldDirty: true, shouldValidate: true },
+                              )
+                            }
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <FieldError message={errors.lots?.message} />
+                  <LotSelectDialog
+                    open={lotDialogOpen}
+                    onOpenChange={setLotDialogOpen}
+                    value={lots}
+                    onConfirm={(picked) =>
+                      setValue("lots", picked, { shouldDirty: true, shouldValidate: true })
+                    }
+                    title="対象ロットを選択"
+                  />
+                </DCardBody>
+              </DCard>
+            </div>
+
+            <div className="row mt-4" style={{ justifyContent: "flex-end" }}>
+              <Button type="submit" disabled={isSubmitting}>
+                <Save className="size-4" />
+                {isSubmitting ? "作成中…" : "作成"}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </div>
     </Guard>
   );
 }

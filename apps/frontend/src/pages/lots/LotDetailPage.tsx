@@ -1,7 +1,13 @@
-import { Badge } from "@/components/atoms/badge";
-import { Button } from "@/components/atoms/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
-import { Separator } from "@/components/atoms/separator";
+import {
+  DCard,
+  DCardBody,
+  DCardHeader,
+  DLRow,
+  type FlowStep,
+  LotStatusPill,
+  Pill,
+  StatusFlow,
+} from "@/components/design/primitives";
 import { Guard } from "@/components/organisms/auth/Guard";
 import { LotActionForm } from "@/components/organisms/forms/LotActionForm";
 import {
@@ -15,16 +21,29 @@ import {
   useLot,
 } from "@/hooks/use-lot";
 import { describeApiError } from "@/lib/api-client";
-import {
-  codeName,
-  formatAmount,
-  formatQuantity,
-  lotActionEnabled,
-  lotStatusLabel,
-} from "@/lib/format";
-import { Link } from "@tanstack/react-router";
+import { codeName, formatAmount, formatQuantity, lotActionEnabled } from "@/lib/format";
+import { Calendar, Download, Layers, RefreshCw, Tag } from "lucide-react";
 import { useActionState } from "react";
 import { toast } from "sonner";
+
+const LOT_FLOW: FlowStep[] = [
+  { value: "manufacturing", label: "製造中", sub: "Manufacturing" },
+  { value: "manufactured", label: "製造完了", sub: "Completed" },
+  { value: "shipping_instructed", label: "出荷指示済", sub: "Shipping ordered" },
+  { value: "shipped", label: "出荷完了", sub: "Shipped" },
+];
+
+function flowIndexFor(status: string): number {
+  if (status === "conversion_instructed") return 1.5;
+  const idx = LOT_FLOW.findIndex((s) => s.value === status);
+  return idx < 0 ? 0 : idx;
+}
+
+const ITEM_CATEGORY_LABEL: Record<string, string> = {
+  general: "通常",
+  premium: "上位品",
+  custom: "特注",
+};
 
 export function LotDetailPage({ id }: { id: string }) {
   const { data: lot, error, isLoading } = useLot(id);
@@ -39,114 +58,166 @@ export function LotDetailPage({ id }: { id: string }) {
     return null;
   }, null);
 
-  if (isLoading) return <p>読み込み中…</p>;
-  if (error) return <p className="text-destructive">エラー: {describeApiError(error)}</p>;
+  if (isLoading) return <p className="page">読み込み中…</p>;
+  if (error)
+    return (
+      <p className="page" style={{ color: "var(--danger)" }}>
+        エラー: {describeApiError(error)}
+      </p>
+    );
   if (!lot) return null;
 
   const status = lot.status;
   const version = lot.version;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="font-semibold text-2xl">在庫ロット {lot.lotNumber}</h1>
-        <div className="flex items-center gap-2">
-          <Guard requiredRole="viewer">
-            <form action={exportAction}>
-              <Button type="submit" variant="outline" disabled={isExporting}>
-                {isExporting ? "エクスポート中…" : "CSV エクスポート"}
-              </Button>
-            </form>
-          </Guard>
-          <Link to="/" className="text-muted-foreground text-sm underline underline-offset-4">
-            ホームへ
-          </Link>
+    <div className="page">
+      <div className="detail-header">
+        <div className="detail-header-meta">
+          <Pill tone="outline">在庫ロット</Pill>
+          <LotStatusPill status={status} />
+          <Pill tone="outline" mono>
+            v{version}
+          </Pill>
+        </div>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <h1>
+              在庫ロット <span className="id">{lot.lotNumber}</span>
+            </h1>
+            <div className="muted text-sm mt-2">
+              製造完了 {lot.manufacturingCompletedDate ?? "—"} · 出荷期限{" "}
+              {lot.shippingDeadlineDate ?? "—"} · 明細 {lot.details.length} 件
+            </div>
+          </div>
+          <div className="detail-actions">
+            <Guard requiredRole="viewer">
+              <form action={exportAction}>
+                <button type="submit" className="btn btn-sm btn-ghost" disabled={isExporting}>
+                  <Download className="ico" />
+                  {isExporting ? "エクスポート中…" : "CSV エクスポート"}
+                </button>
+              </form>
+            </Guard>
+          </div>
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            状態: <Badge variant="secondary">{lotStatusLabel(status)}</Badge>
-            <span className="text-muted-foreground text-xs">v{version}</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1 text-sm">
-          <Field label="ロット番号">{lot.lotNumber}</Field>
-          <Field label="事業部">{codeName(lot.division)}</Field>
-          <Field label="部">{codeName(lot.department)}</Field>
-          <Field label="課">{codeName(lot.section)}</Field>
-          <Field label="工程区分">{codeName(lot.processCategory)}</Field>
-          <Field label="検査区分">{codeName(lot.inspectionCategory)}</Field>
-          <Field label="製造区分">{codeName(lot.manufacturingCategory)}</Field>
-          <Field label="製造完了日">{lot.manufacturingCompletedDate ?? "(未設定)"}</Field>
-          <Field label="出荷期限日">{lot.shippingDeadlineDate ?? "(未設定)"}</Field>
-          <Field label="出荷完了日">{lot.shippedDate ?? "(未設定)"}</Field>
-          <Field label="変換先品目">{lot.destinationItem ?? "(未設定)"}</Field>
-        </CardContent>
-      </Card>
+      <StatusFlow
+        steps={LOT_FLOW}
+        currentIndex={flowIndexFor(status)}
+        branch={{
+          label: "品目変換",
+          sub: "Item conversion (任意分岐)",
+          active: status === "conversion_instructed",
+          icon: <RefreshCw size={11} />,
+        }}
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">明細（{lot.details.length} 件）</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+      <div className="split-2 mt-6">
+        <DCard>
+          <DCardHeader title="基本情報" icon={<Tag className="ico" size={15} />} />
+          <DCardBody>
+            <dl className="dl">
+              <DLRow label="ロット番号">
+                <span className="mono">{lot.lotNumber}</span>
+              </DLRow>
+              <DLRow label="事業部">{codeName(lot.division)}</DLRow>
+              <DLRow label="部">{codeName(lot.department)}</DLRow>
+              <DLRow label="課">{codeName(lot.section)}</DLRow>
+              <DLRow label="工程区分">{codeName(lot.processCategory)}</DLRow>
+              <DLRow label="検査区分">{codeName(lot.inspectionCategory)}</DLRow>
+              <DLRow label="製造区分">{codeName(lot.manufacturingCategory)}</DLRow>
+            </dl>
+          </DCardBody>
+        </DCard>
+        <DCard>
+          <DCardHeader title="日付・状態" icon={<Calendar className="ico" size={15} />} />
+          <DCardBody>
+            <dl className="dl">
+              <DLRow label="製造完了日">
+                {lot.manufacturingCompletedDate ?? <span className="subtle">(未設定)</span>}
+              </DLRow>
+              <DLRow label="出荷期限日">
+                {lot.shippingDeadlineDate ?? <span className="subtle">(未設定)</span>}
+              </DLRow>
+              <DLRow label="出荷完了日">
+                {lot.shippedDate ?? <span className="subtle">(未設定)</span>}
+              </DLRow>
+              <DLRow label="変換先品目">
+                {lot.destinationItem ?? <span className="subtle">(未設定)</span>}
+              </DLRow>
+              <DLRow label="現在の状態">
+                <LotStatusPill status={status} />
+              </DLRow>
+              <DLRow label="バージョン">
+                <span className="mono">v{version}</span>
+              </DLRow>
+            </dl>
+          </DCardBody>
+        </DCard>
+      </div>
+
+      <DCard className="mt-6">
+        <DCardHeader
+          title={`明細 (${lot.details.length} 件)`}
+          icon={<Layers className="ico" size={15} />}
+        />
+        <DCardBody flush>
+          <div className="t-scroll">
+            <table className="t">
               <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="py-2 pr-4 font-medium">#</th>
-                  <th className="py-2 pr-4 font-medium">品目区分</th>
-                  <th className="py-2 pr-4 font-medium">商品分類</th>
-                  <th className="py-2 pr-4 font-medium">品質等級</th>
-                  <th className="py-2 pr-4 text-right font-medium">数量</th>
-                  <th className="py-2 pr-4 text-right font-medium">個数</th>
-                  <th className="py-2 pr-4 font-medium">検査結果</th>
+                <tr>
+                  <th style={{ width: 40 }}>#</th>
+                  <th>品目区分</th>
+                  <th>商品分類</th>
+                  <th>品質等級</th>
+                  <th className="num">数量</th>
+                  <th className="num">個数</th>
+                  <th>検査結果</th>
                 </tr>
               </thead>
               <tbody>
                 {lot.details.map((detail, index) => (
-                  <tr
-                    key={`${detail.productCategoryCode}-${index}`}
-                    className="border-b last:border-0"
-                  >
-                    <td className="py-2 pr-4 text-muted-foreground">{index + 1}</td>
-                    <td className="py-2 pr-4">
-                      {ITEM_CATEGORY_LABEL[detail.itemCategory] ?? detail.itemCategory}
+                  <tr key={`${detail.productCategoryCode}-${index}`}>
+                    <td className="muted mono">{index + 1}</td>
+                    <td>{ITEM_CATEGORY_LABEL[detail.itemCategory] ?? detail.itemCategory}</td>
+                    <td>
+                      <span className="mono">{detail.productCategoryCode}</span>
                     </td>
-                    <td className="py-2 pr-4 font-mono">{detail.productCategoryCode}</td>
-                    <td className="py-2 pr-4">{detail.qualityGrade}</td>
-                    <td className="py-2 pr-4 text-right font-medium tabular-nums">
-                      {formatQuantity(detail.quantity)}
+                    <td>
+                      <Pill tone="outline">{detail.qualityGrade}</Pill>
                     </td>
-                    <td className="py-2 pr-4 text-right tabular-nums">
-                      {formatAmount(detail.count)}
-                    </td>
-                    <td className="py-2 pr-4">
-                      {detail.inspectionResultCategory
-                        ? (INSPECTION_RESULT_LABEL[detail.inspectionResultCategory] ??
-                          detail.inspectionResultCategory)
-                        : "(未設定)"}
+                    <td className="num">{formatQuantity(detail.quantity)}</td>
+                    <td className="num">{formatAmount(detail.count)}</td>
+                    <td>
+                      {detail.inspectionResultCategory === "pass" ? (
+                        <Pill tone="ok" dot>
+                          合格
+                        </Pill>
+                      ) : detail.inspectionResultCategory === "fail" ? (
+                        <Pill tone="danger" dot>
+                          不合格
+                        </Pill>
+                      ) : (
+                        <span className="subtle text-sm">(未設定)</span>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </CardContent>
-      </Card>
+        </DCardBody>
+      </DCard>
 
-      <Separator />
+      <hr className="sep" />
 
       <Guard
         requiredRole="operator"
-        fallback={
-          <p className="text-muted-foreground text-sm">
-            状態遷移には operator 以上のロールが必要です。
-          </p>
-        }
+        fallback={<p className="muted text-sm">状態遷移には operator 以上のロールが必要です。</p>}
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid-2">
           <LotActionForm
             title="製造完了"
             withDate
@@ -206,26 +277,6 @@ export function LotDetailPage({ id }: { id: string }) {
           />
         </div>
       </Guard>
-    </div>
-  );
-}
-
-const ITEM_CATEGORY_LABEL: Record<string, string> = {
-  general: "通常",
-  premium: "上位品",
-  custom: "特注",
-};
-
-const INSPECTION_RESULT_LABEL: Record<string, string> = {
-  pass: "合格",
-  fail: "不合格",
-};
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[10rem_1fr] gap-2">
-      <span className="text-muted-foreground">{label}</span>
-      <span>{children}</span>
     </div>
   );
 }

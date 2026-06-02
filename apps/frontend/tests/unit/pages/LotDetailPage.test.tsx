@@ -56,8 +56,9 @@ describe("<LotDetailPage> (FE-PAGE-LOT-DETAIL-* / FE-REQ-LOT-ACTION-*)", () => {
     expect(
       await screen.findByRole("heading", { name: new RegExp(`在庫ロット ${ID}`) }),
     ).toBeInTheDocument();
-    expect(screen.getByText("製造中")).toBeInTheDocument();
-    expect(screen.getByText("v7")).toBeInTheDocument();
+    // 状態 pill / version は meta 行と詳細 dl の双方に出るため複数許容
+    expect(screen.getAllByText("製造中").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("v7").length).toBeGreaterThanOrEqual(1);
     // 名称 (コード) 表示
     expect(screen.getByText("営業1部 (10)")).toBeInTheDocument();
   });

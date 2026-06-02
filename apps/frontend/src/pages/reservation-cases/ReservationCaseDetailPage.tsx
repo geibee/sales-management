@@ -1,7 +1,16 @@
-import { Badge } from "@/components/atoms/badge";
 import { Button } from "@/components/atoms/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
-import { Separator } from "@/components/atoms/separator";
+import {
+  CaseStatusPill,
+  CaseTypePill,
+  DCard,
+  DCardBody,
+  DCardHeader,
+  DLRow,
+  type FlowStep,
+  Pill,
+  StatusFlow,
+} from "@/components/design/primitives";
 import { Guard } from "@/components/organisms/auth/Guard";
 import {
   DateVersionActionForm,
@@ -16,11 +25,16 @@ import {
   useReservationCase,
 } from "@/hooks/use-reservation-case";
 import { describeApiError } from "@/lib/api-client";
-import { caseStatusLabel } from "@/lib/format";
-import { Link } from "@tanstack/react-router";
-import { Truck } from "lucide-react";
+import { CalendarClock, Truck } from "lucide-react";
 import { useActionState } from "react";
 import { toast } from "sonner";
+
+const RESERVATION_FLOW: FlowStep[] = [
+  { value: "before_reservation", label: "予約前", sub: "Pre-reservation" },
+  { value: "reserved", label: "予約", sub: "Reserved" },
+  { value: "reservation_confirmed", label: "予約確定", sub: "Confirmed" },
+  { value: "reservation_delivered", label: "引渡", sub: "Delivered" },
+];
 
 export function ReservationCaseDetailPage({ id }: { id: string }) {
   const { data, error, isLoading } = useReservationCase(id);
@@ -41,44 +55,60 @@ export function ReservationCaseDetailPage({ id }: { id: string }) {
     return null;
   }, null);
 
-  if (isLoading) return <p>読み込み中…</p>;
-  if (error) return <p className="text-destructive">エラー: {describeApiError(error)}</p>;
+  if (isLoading) return <p className="page">読み込み中…</p>;
+  if (error)
+    return (
+      <p className="page" style={{ color: "var(--danger)" }}>
+        エラー: {describeApiError(error)}
+      </p>
+    );
   if (!data) return null;
 
+  const flowIdx = RESERVATION_FLOW.findIndex((s) => s.value === data.status);
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="font-semibold text-2xl">予約販売案件 {id}</h1>
-        <div className="flex items-center gap-2">
-          {data.status && (
-            <Badge variant="secondary">{caseStatusLabel("reservation", data.status)}</Badge>
-          )}
-          <Link to="/" className="text-muted-foreground text-sm underline underline-offset-4">
-            ホームへ
-          </Link>
+    <div className="page">
+      <div className="detail-header">
+        <div className="detail-header-meta">
+          <CaseTypePill caseType="reservation" />
+          {data.status && <CaseStatusPill caseType="reservation" status={data.status} />}
+          <Pill tone="outline" mono>
+            v{data.version}
+          </Pill>
         </div>
+        <h1>
+          予約販売案件 <span className="id">{id}</span>
+        </h1>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>予約情報</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="overflow-x-auto text-xs">{JSON.stringify(data, null, 2)}</pre>
-        </CardContent>
-      </Card>
+      <StatusFlow steps={RESERVATION_FLOW} currentIndex={flowIdx < 0 ? 0 : flowIdx} />
 
-      <Separator />
+      <DCard className="mt-6">
+        <DCardHeader title="予約情報" icon={<CalendarClock className="ico" size={15} />} />
+        <DCardBody>
+          <dl className="dl">
+            <DLRow label="案件番号">
+              <span className="mono">{id}</span>
+            </DLRow>
+            <DLRow label="販売日">{data.salesDate ?? <span className="subtle">—</span>}</DLRow>
+            <DLRow label="事業部">
+              <span className="mono">{data.divisionCode ?? "—"}</span>
+            </DLRow>
+            <DLRow label="対象ロット数">{data.lots.length} 件</DLRow>
+            <DLRow label="バージョン">
+              <span className="mono">v{data.version}</span>
+            </DLRow>
+          </dl>
+        </DCardBody>
+      </DCard>
+
+      <hr className="sep" />
 
       <Guard
         requiredRole="operator"
-        fallback={
-          <p className="text-muted-foreground text-sm">
-            状態遷移には operator 以上のロールが必要です。
-          </p>
-        }
+        fallback={<p className="muted text-sm">状態遷移には operator 以上のロールが必要です。</p>}
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid-2">
           <ReservationPriceForm
             data={data}
             disabled={data.status !== "before_reservation"}
@@ -108,7 +138,7 @@ export function ReservationCaseDetailPage({ id }: { id: string }) {
             buttonLabel="引き渡し"
             dateLabel="引渡日"
             dateField="deliveryDate"
-            defaultDate={recordString(data.delivery, "deliveredDate", data.salesDate)}
+            defaultDate={recordString(data.delivery, "deliveredDate", data.salesDate ?? "")}
             version={data.version}
             icon={<Truck className="size-4" />}
             disabled={data.status !== "reservation_confirmed"}
