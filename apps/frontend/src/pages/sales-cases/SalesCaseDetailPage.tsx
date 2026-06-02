@@ -1,7 +1,16 @@
-import { Badge } from "@/components/atoms/badge";
 import { Button } from "@/components/atoms/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
-import { Separator } from "@/components/atoms/separator";
+import {
+  CaseStatusPill,
+  CaseTypePill,
+  DCard,
+  DCardBody,
+  DCardHeader,
+  DLRow,
+  type FlowStep,
+  Pill,
+  StatusFlow,
+} from "@/components/design/primitives";
 import { Guard } from "@/components/organisms/auth/Guard";
 import { LotSelectDialog } from "@/components/organisms/dialogs/LotSelectDialog";
 import {
@@ -26,14 +35,9 @@ import { describeApiError } from "@/lib/api-client";
 import { caseStatusLabel, formatAmount } from "@/lib/format";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  ArrowLeft,
-  CalendarDays,
   CircleDollarSign,
   ClipboardCheck,
   FileText,
-  Hash,
-  Layers3,
-  type LucideIcon,
   Package,
   PackageSearch,
   ReceiptText,
@@ -44,19 +48,13 @@ import {
 import { type ReactNode, useActionState, useState } from "react";
 import { toast } from "sonner";
 
-const DIRECT_STATUS_FLOW = [
-  "before_appraisal",
-  "appraised",
-  "contracted",
-  "shipping_instructed",
-  "shipping_completed",
-] as const;
-
-const CASE_TYPE_LABEL: Record<string, string> = {
-  direct: "直接販売",
-  reservation: "予約",
-  consignment: "委託",
-};
+const DIRECT_STATUS_FLOW: FlowStep[] = [
+  { value: "before_appraisal", label: "査定前", sub: "Pre-appraisal" },
+  { value: "appraised", label: "査定済", sub: "Appraised" },
+  { value: "contracted", label: "契約済", sub: "Contracted" },
+  { value: "shipping_instructed", label: "出荷指示済", sub: "Shipping ordered" },
+  { value: "shipping_completed", label: "出荷完了", sub: "Shipped" },
+];
 
 const FIELD_LABELS: Record<string, string> = {
   type: "査定種別",
@@ -91,11 +89,17 @@ export function SalesCaseDetailPage({ id }: { id: string }) {
 
   const [editLotsOpen, setEditLotsOpen] = useState(false);
 
-  if (isLoading) return <p>読み込み中…</p>;
-  if (error) return <p className="text-destructive">エラー: {describeApiError(error)}</p>;
+  if (isLoading) return <p className="page">読み込み中…</p>;
+  if (error)
+    return (
+      <p className="page" style={{ color: "var(--danger)" }}>
+        エラー: {describeApiError(error)}
+      </p>
+    );
   if (!data) return null;
 
   const statusLabel = caseStatusLabel(data.caseType, data.status);
+  const flowIdx = DIRECT_STATUS_FLOW.findIndex((s) => s.value === data.status);
   // 直接販売は査定登録前のみロット修正可。
   const editLotsAllowed = data.caseType === "direct" && data.status === "before_appraisal";
 
@@ -110,115 +114,154 @@ export function SalesCaseDetailPage({ id }: { id: string }) {
   const lotCount = data.lots.length;
 
   return (
-    <div className="space-y-6" data-testid="sales-case-detail">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">{CASE_TYPE_LABEL[data.caseType] ?? data.caseType}</Badge>
-            <Badge variant="secondary">{statusLabel}</Badge>
-            <Badge variant="outline">v{data.version}</Badge>
-          </div>
-          <div className="space-y-1">
-            <h1 className="font-semibold text-2xl tracking-normal">販売案件 {id}</h1>
-            <p className="text-muted-foreground text-sm">
-              {data.salesDate} / 事業部 {data.divisionCode} / ロット {lotCount} 件
-            </p>
+    <div className="page" data-testid="sales-case-detail">
+      <div className="detail-header">
+        <div className="detail-header-meta">
+          <CaseTypePill caseType={data.caseType} />
+          <CaseStatusPill caseType={data.caseType} status={data.status} />
+          <Pill tone="outline" mono>
+            v{data.version}
+          </Pill>
+          <Pill tone="accent">{lotCount} ロット</Pill>
+        </div>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <h1>
+              販売案件 <span className="id">{id}</span>
+            </h1>
+            <div className="muted text-sm mt-2">
+              販売日 {data.salesDate ?? "—"} · 事業部{" "}
+              <span className="mono">{data.divisionCode ?? "—"}</span> · ロット {lotCount} 件
+            </div>
           </div>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link to="/sales-cases">
-            <ArrowLeft className="size-4" />
-            一覧
-          </Link>
-        </Button>
-      </header>
+      </div>
 
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-4" aria-label="案件サマリー">
-        <SummaryTile icon={CalendarDays} label="販売日" value={data.salesDate} />
-        <SummaryTile icon={Layers3} label="状態" value={statusLabel} />
-        <SummaryTile icon={Package} label="ロット数" value={`${lotCount} 件`} />
-        <SummaryTile icon={Hash} label="バージョン" value={`v${data.version}`} />
-      </section>
+      <div data-testid="sales-case-status-flow">
+        <StatusFlow steps={DIRECT_STATUS_FLOW} currentIndex={flowIdx < 0 ? 0 : flowIdx} />
+      </div>
 
-      <section className="space-y-3 rounded-lg border p-4" data-testid="sales-case-status-flow">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium text-base">状態フロー</h2>
-          <Badge variant="outline">{nextActionLabel(data.status)}</Badge>
-        </div>
-        <ol className="grid grid-cols-1 gap-2 md:grid-cols-5">
-          {DIRECT_STATUS_FLOW.map((status, index) => (
-            <StatusStep key={status} status={status} currentStatus={data.status} index={index} />
-          ))}
-        </ol>
-      </section>
+      <div className="split-2 mt-6">
+        <DCard>
+          <DCardHeader title="案件サマリー" icon={<ReceiptText className="ico" size={15} />} />
+          <DCardBody>
+            <dl className="dl">
+              <DLRow label="案件番号">
+                <span className="mono">{id}</span>
+              </DLRow>
+              <DLRow label="種別">
+                <CaseTypePill caseType={data.caseType} />
+              </DLRow>
+              <DLRow label="現在の状態">
+                <CaseStatusPill caseType={data.caseType} status={data.status} />
+              </DLRow>
+              <DLRow label="販売日">{data.salesDate ?? "—"}</DLRow>
+              <DLRow label="事業部">
+                <span className="mono">{data.divisionCode ?? "—"}</span>
+              </DLRow>
+              <DLRow label="対象ロット数">{lotCount} 件</DLRow>
+              <DLRow label="バージョン">
+                <span className="mono">v{data.version}</span>
+              </DLRow>
+            </dl>
+          </DCardBody>
+        </DCard>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[0.85fr_1.15fr]">
-        <section className="space-y-3 rounded-lg border p-4" data-testid="sales-case-lots">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Package className="size-4 text-muted-foreground" />
-              <h2 className="font-medium text-base">対象ロット</h2>
+        <DCard data-testid="sales-case-lots">
+          <DCardHeader
+            title={`対象ロット (${lotCount})`}
+            icon={<Package className="ico" size={15} />}
+            actions={
+              editLotsAllowed && (
+                <Guard requiredRole="operator">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => setEditLotsOpen(true)}
+                  >
+                    <PackageSearch className="ico" />
+                    ロットを修正
+                  </button>
+                </Guard>
+              )
+            }
+          />
+          <DCardBody>
+            <div className="col gap-2">
+              {data.lots.map((lotNumber) => (
+                <Link
+                  key={lotNumber}
+                  to="/lots/$id"
+                  params={{ id: lotNumber }}
+                  className="row"
+                  style={{
+                    justifyContent: "space-between",
+                    padding: "8px 10px",
+                    border: "1px solid var(--border-design)",
+                    borderRadius: "var(--r-sm)",
+                  }}
+                >
+                  <span className="row gap-2">
+                    <Package size={14} style={{ color: "var(--fg-subtle)" }} />
+                    <span className="mono text-sm">{lotNumber}</span>
+                  </span>
+                  <span className="text-xs muted">詳細</span>
+                </Link>
+              ))}
             </div>
             {editLotsAllowed && (
-              <Guard requiredRole="operator">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEditLotsOpen(true)}
-                >
-                  <PackageSearch className="size-4" />
-                  ロットを修正
-                </Button>
-              </Guard>
+              <LotSelectDialog
+                open={editLotsOpen}
+                onOpenChange={setEditLotsOpen}
+                value={data.lots}
+                excludeCase={id}
+                onConfirm={onEditLots}
+                title="対象ロットを修正"
+                confirmLabel="更新"
+              />
             )}
-          </div>
-          <div className="grid gap-2">
-            {data.lots.map((lotNumber) => (
-              <Link
-                key={lotNumber}
-                to="/lots/$id"
-                params={{ id: lotNumber }}
-                className="flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors hover:bg-accent"
-              >
-                <span className="font-mono">{lotNumber}</span>
-                <span className="text-muted-foreground text-xs">詳細</span>
-              </Link>
-            ))}
-          </div>
-          {editLotsAllowed && (
-            <LotSelectDialog
-              open={editLotsOpen}
-              onOpenChange={setEditLotsOpen}
-              value={data.lots}
-              excludeCase={id}
-              onConfirm={onEditLots}
-              title="対象ロットを修正"
-              confirmLabel="更新"
-            />
-          )}
-        </section>
+          </DCardBody>
+        </DCard>
+      </div>
 
-        <section className="space-y-3 rounded-lg border p-4" data-testid="sales-case-business-data">
-          <div className="flex items-center gap-2">
-            <FileText className="size-4 text-muted-foreground" />
-            <h2 className="font-medium text-base">業務データ</h2>
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <DataBlock icon={CircleDollarSign} title="価格査定" data={data.appraisal} />
-            <DataBlock icon={ReceiptText} title="売買契約" data={data.contract} />
-            <DataBlock icon={ClipboardCheck} title="出荷指示" data={data.shippingInstruction} />
-            <DataBlock icon={Truck} title="出荷完了" data={data.shippingCompletion} />
-          </div>
-        </section>
+      <div className="mt-6" data-testid="sales-case-business-data">
+        <div className="row mb-3 gap-2">
+          <FileText className="ico" size={15} style={{ color: "var(--fg-subtle)" }} />
+          <span style={{ fontWeight: 600, fontSize: 13 }}>業務データ</span>
+        </div>
+        <div className="data-grid">
+          <DataBlock
+            icon={<CircleDollarSign className="ico" />}
+            title="価格査定"
+            data={data.appraisal}
+          />
+          <DataBlock icon={<ReceiptText className="ico" />} title="売買契約" data={data.contract} />
+          <DataBlock
+            icon={<ClipboardCheck className="ico" />}
+            title="出荷指示"
+            data={data.shippingInstruction}
+          />
+          <DataBlock
+            icon={<Truck className="ico" />}
+            title="出荷完了"
+            data={data.shippingCompletion}
+          />
+        </div>
       </div>
 
       <Guard requiredRole="admin">
-        <section className="rounded-lg border border-destructive/30 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className="mt-6"
+          style={{
+            border: "1px solid oklch(0.85 0.06 25)",
+            borderRadius: "var(--r-md)",
+            padding: 16,
+          }}
+        >
+          <div className="row" style={{ justifyContent: "space-between" }}>
             <div>
-              <h2 className="font-medium text-base">管理操作</h2>
-              <p className="text-muted-foreground text-sm">現在の状態: {statusLabel}</p>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>管理操作</div>
+              <p className="muted text-sm">現在の状態: {statusLabel}</p>
             </div>
             <form action={deleteAction}>
               <Button
@@ -231,25 +274,23 @@ export function SalesCaseDetailPage({ id }: { id: string }) {
               </Button>
             </form>
           </div>
-        </section>
+        </div>
       </Guard>
 
-      <Separator />
+      <hr className="sep" />
 
       <Guard
         requiredRole="operator"
-        fallback={
-          <p className="text-muted-foreground text-sm">
-            状態遷移には operator 以上のロールが必要です。
-          </p>
-        }
+        fallback={<p className="muted text-sm">状態遷移には operator 以上のロールが必要です。</p>}
       >
-        <section className="space-y-3" data-testid="sales-case-actions">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-medium text-base">状態遷移</h2>
-            <Badge variant="secondary">{nextActionLabel(data.status)}</Badge>
+        <section data-testid="sales-case-actions">
+          <div className="row mb-3" style={{ justifyContent: "space-between" }}>
+            <span style={{ fontWeight: 600, fontSize: 13 }}>状態遷移</span>
+            <Pill tone="warn" dot>
+              {nextActionLabel(data.status)}
+            </Pill>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid-2">
             <DirectAppraisalForm
               data={data}
               title="価格査定 登録"
@@ -297,7 +338,7 @@ export function SalesCaseDetailPage({ id }: { id: string }) {
               defaultDate={recordString(
                 data.shippingInstruction,
                 "instructionDate",
-                data.salesDate,
+                data.salesDate ?? "",
               )}
               version={data.version}
               icon={<ClipboardCheck className="size-4" />}
@@ -317,7 +358,11 @@ export function SalesCaseDetailPage({ id }: { id: string }) {
               title="出荷完了"
               buttonLabel="登録"
               dateLabel="完了日"
-              defaultDate={recordString(data.shippingCompletion, "completionDate", data.salesDate)}
+              defaultDate={recordString(
+                data.shippingCompletion,
+                "completionDate",
+                data.salesDate ?? "",
+              )}
               version={data.version}
               icon={<Truck className="size-4" />}
               disabled={data.status !== "shipping_instructed"}
@@ -336,59 +381,12 @@ function requireVersion(v: number | undefined): number {
   return v;
 }
 
-function SummaryTile({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="flex items-center gap-2 text-muted-foreground text-xs">
-        <Icon className="size-4" />
-        <span>{label}</span>
-      </div>
-      <p className="mt-2 truncate font-medium text-sm">{value}</p>
-    </div>
-  );
-}
-
-function StatusStep({
-  status,
-  currentStatus,
-  index,
-}: {
-  status: (typeof DIRECT_STATUS_FLOW)[number];
-  currentStatus: string;
-  index: number;
-}) {
-  const currentIndex = DIRECT_STATUS_FLOW.findIndex((item) => item === currentStatus);
-  const state = index < currentIndex ? "completed" : index === currentIndex ? "current" : "pending";
-
-  return (
-    <li
-      data-state={state}
-      className="rounded-lg border p-3 data-[state=completed]:border-primary/40 data-[state=current]:border-primary data-[state=current]:bg-accent"
-    >
-      <div className="flex items-center gap-2">
-        <span className="flex size-6 items-center justify-center rounded-full border font-mono text-xs">
-          {index + 1}
-        </span>
-        <span className="font-medium text-sm">{caseStatusLabel("direct", status)}</span>
-      </div>
-    </li>
-  );
-}
-
 function DataBlock({
-  icon: Icon,
+  icon,
   title,
   data,
 }: {
-  icon: LucideIcon;
+  icon: ReactNode;
   title: string;
   data: unknown;
 }) {
@@ -396,25 +394,37 @@ function DataBlock({
   const hasData = entries.length > 0;
 
   return (
-    <div className="rounded-lg border p-4" data-state={hasData ? "filled" : "empty"}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Icon className="size-4 text-muted-foreground" />
-          <h3 className="font-medium text-sm">{title}</h3>
+    <div
+      className={`data-block ${hasData ? "" : "empty"}`}
+      data-state={hasData ? "filled" : "empty"}
+    >
+      <div className="data-block-head">
+        <div className="data-block-title">
+          {icon}
+          {title}
         </div>
-        <Badge variant={hasData ? "secondary" : "outline"}>{hasData ? "登録済" : "未登録"}</Badge>
+        {hasData ? (
+          <Pill tone="info" dot>
+            登録済
+          </Pill>
+        ) : (
+          <Pill tone="outline">未登録</Pill>
+        )}
       </div>
       {hasData ? (
-        <dl className="mt-3 grid gap-2">
+        <dl className="dl dl-tight">
           {entries.map(([key, value]) => (
-            <div key={key} className="grid grid-cols-[8rem_1fr] gap-2 text-sm">
-              <dt className="text-muted-foreground">{FIELD_LABELS[key] ?? key}</dt>
-              <dd className="min-w-0 break-words">{formatFieldValue(value)}</dd>
-            </div>
+            <DLRow key={key} label={FIELD_LABELS[key] ?? key}>
+              {typeof value === "number" ? (
+                <span className="mono tnum">{formatFieldValue(value)}</span>
+              ) : (
+                formatFieldValue(value)
+              )}
+            </DLRow>
           ))}
         </dl>
       ) : (
-        <p className="mt-3 text-muted-foreground text-sm">未登録</p>
+        <div className="data-block-empty">未登録</div>
       )}
     </div>
   );
@@ -447,7 +457,7 @@ function SimpleAction({
     return null;
   }, null);
   return (
-    <Card>
+    <Card aria-disabled={disabled} className={disabled ? "opacity-55" : undefined}>
       <CardHeader>
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>

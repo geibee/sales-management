@@ -11,10 +11,12 @@ import { expect, test } from "@playwright/test";
 
 test("home page renders and lists every aggregate", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "Sales Management Admin" })).toBeVisible();
-  await expect(page.getByText("在庫ロット")).toBeVisible();
-  await expect(page.getByText("販売案件")).toBeVisible();
-  await expect(page.getByText("外部価格チェック")).toBeVisible();
+  // サイドバーのブランド表示
+  await expect(page.getByText("Sales Management").first()).toBeVisible();
+  // サイドバーナビ / クイックアクションに各アグリゲートが並ぶ
+  await expect(page.getByText("在庫ロット").first()).toBeVisible();
+  await expect(page.getByText("販売案件").first()).toBeVisible();
+  await expect(page.getByText("外部価格チェック").first()).toBeVisible();
 });
 
 test("RoleBadge shows '未認証' when no token is configured", async ({ page }) => {

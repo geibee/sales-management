@@ -1,33 +1,23 @@
-import { Badge } from "@/components/atoms/badge";
-import { Button } from "@/components/atoms/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/atoms/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/atoms/table";
+  CaseStatusPill,
+  CaseTypePill,
+  DesignPageHeader,
+  EmptyState,
+} from "@/components/design/primitives";
 import { useSalesCasesList } from "@/hooks/use-sales-cases-list";
 import { describeApiError } from "@/lib/api-client";
 import { caseStatusLabel } from "@/lib/format";
 import { Link } from "@tanstack/react-router";
+import { ChevronLeft, ChevronRight, Plus, Receipt } from "lucide-react";
 import { useState } from "react";
 
 const PAGE_SIZE = 20;
-const CASE_TYPE_OPTIONS = ["all", "direct", "reservation", "consignment"] as const;
-const CASE_TYPE_LABEL: Record<string, string> = {
-  direct: "直接販売",
-  reservation: "予約",
-  consignment: "委託",
-};
+const TYPE_CHIPS = [
+  { v: "all", label: "すべて" },
+  { v: "direct", label: "直接販売" },
+  { v: "reservation", label: "予約" },
+  { v: "consignment", label: "委託" },
+] as const;
 
 const STATUS_OPTIONS = [
   "all",
@@ -70,129 +60,165 @@ export function SalesCaseListPage() {
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="font-semibold text-2xl">販売案件一覧</h1>
-        <Link to="/sales-cases/new" className="text-sm font-medium underline underline-offset-4">
-          新規作成
-        </Link>
-      </div>
+    <div className="page">
+      <DesignPageHeader
+        eyebrow="販売管理"
+        title="販売案件"
+        subtitle={`${total} 件の案件`}
+        actions={
+          <Link to="/sales-cases/new" className="btn btn-sm btn-primary">
+            <Plus className="ico" />
+            新規案件
+          </Link>
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-muted-foreground text-sm">種別:</span>
-        <Select
-          value={caseType}
-          onValueChange={(v) => {
-            setCaseType(v);
-            setOffset(0);
-          }}
-        >
-          <SelectTrigger size="sm" className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CASE_TYPE_OPTIONS.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c === "all" ? "(すべて)" : CASE_TYPE_LABEL[c]}
-              </SelectItem>
+      <div className="t-wrap">
+        <div className="t-toolbar" style={{ flexWrap: "wrap" }}>
+          <div className="chips">
+            {TYPE_CHIPS.map((c) => (
+              <button
+                type="button"
+                key={c.v}
+                className={`chip ${caseType === c.v ? "on" : ""}`}
+                onClick={() => {
+                  setCaseType(c.v);
+                  setOffset(0);
+                }}
+              >
+                {c.label}
+              </button>
             ))}
-          </SelectContent>
-        </Select>
-
-        <span className="text-muted-foreground text-sm">状態:</span>
-        <Select
-          value={status}
-          onValueChange={(v) => {
-            setStatus(v);
-            setOffset(0);
-          }}
-        >
-          <SelectTrigger size="sm" className="w-56">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
+          </div>
+          <div style={{ flex: 1 }} />
+          <select
+            className="select"
+            style={{ width: 200, height: 30 }}
+            value={status}
+            aria-label="状態フィルタ"
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setOffset(0);
+            }}
+          >
             {STATUS_OPTIONS.map((s) => (
-              <SelectItem key={s} value={s}>
+              <option key={s} value={s}>
                 {s === "all"
-                  ? "(すべて)"
+                  ? "(すべての状態)"
                   : caseStatusLabel(caseType === "all" ? null : caseType, s)}
-              </SelectItem>
+              </option>
             ))}
-          </SelectContent>
-        </Select>
+          </select>
+        </div>
 
-        <span className="text-muted-foreground text-xs">{total} 件</span>
-      </div>
+        {error && (
+          <div className="t-toolbar" style={{ borderTop: 0 }}>
+            <p className="text-sm" style={{ color: "var(--danger)" }}>
+              エラー: {describeApiError(error)}
+            </p>
+          </div>
+        )}
 
-      {error && <p className="text-destructive text-sm">エラー: {describeApiError(error)}</p>}
+        <div className="t-scroll">
+          <table className="t">
+            <thead>
+              <tr>
+                <th>案件番号</th>
+                <th>種別</th>
+                <th>状態</th>
+                <th>販売日</th>
+                <th style={{ width: 36 }} />
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading && items.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="muted" style={{ padding: "16px var(--cell-px)" }}>
+                    読み込み中…
+                  </td>
+                </tr>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>
+                    <EmptyState
+                      icon={<Receipt />}
+                      t1="該当する案件がありません"
+                      t2="種別・状態フィルタを変更してください"
+                    />
+                  </td>
+                </tr>
+              ) : (
+                items.map((it) => (
+                  <tr key={it.salesCaseNumber}>
+                    <td>
+                      <Link
+                        to={detailRouteFor(it.caseType)}
+                        params={{ id: it.salesCaseNumber }}
+                        className="lot-num"
+                      >
+                        {it.salesCaseNumber}
+                      </Link>
+                    </td>
+                    <td>
+                      <CaseTypePill caseType={it.caseType} />
+                    </td>
+                    <td>
+                      <CaseStatusPill caseType={it.caseType} status={it.status} />
+                    </td>
+                    <td className="text-sm">{it.salesDate ?? <span className="subtle">—</span>}</td>
+                    <td>
+                      <Link
+                        to={detailRouteFor(it.caseType)}
+                        params={{ id: it.salesCaseNumber }}
+                        className="icon-btn"
+                        aria-label={`案件 ${it.salesCaseNumber} の詳細`}
+                      >
+                        <ChevronRight size={14} />
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>案件番号</TableHead>
-              <TableHead>種別</TableHead>
-              <TableHead>状態</TableHead>
-              <TableHead>販売日</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
-                  読み込み中…
-                </TableCell>
-              </TableRow>
-            ) : items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
-                  該当する案件がありません
-                </TableCell>
-              </TableRow>
-            ) : (
-              items.map((it) => (
-                <TableRow key={it.salesCaseNumber}>
-                  <TableCell>
-                    <Link
-                      to={detailRouteFor(it.caseType)}
-                      params={{ id: it.salesCaseNumber }}
-                      className="font-mono underline underline-offset-4"
-                    >
-                      {it.salesCaseNumber}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{CASE_TYPE_LABEL[it.caseType] ?? it.caseType}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{caseStatusLabel(it.caseType, it.status)}</Badge>
-                  </TableCell>
-                  <TableCell>{it.salesDate ?? "—"}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      <div className="flex items-center justify-end gap-2">
-        <span className="text-muted-foreground text-sm">
-          {page} / {lastPage}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={offset === 0}
-          onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+        <div
+          className="t-toolbar"
+          style={{
+            borderTop: "1px solid var(--border-design)",
+            borderBottom: 0,
+            justifyContent: "space-between",
+          }}
         >
-          前へ
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={offset + PAGE_SIZE >= total}
-          onClick={() => setOffset(offset + PAGE_SIZE)}
-        >
-          次へ
-        </Button>
+          <div className="text-sm muted">
+            <span className="mono tnum">{items.length}</span> /{" "}
+            <span className="mono tnum">{total}</span> 件
+          </div>
+          <div className="row gap-2">
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              disabled={offset === 0}
+              onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+            >
+              <ChevronLeft size={13} />
+              前へ
+            </button>
+            <span className="text-sm muted mono">
+              {page} / {lastPage}
+            </span>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              disabled={offset + PAGE_SIZE >= total}
+              onClick={() => setOffset(offset + PAGE_SIZE)}
+            >
+              次へ
+              <ChevronRight size={13} />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

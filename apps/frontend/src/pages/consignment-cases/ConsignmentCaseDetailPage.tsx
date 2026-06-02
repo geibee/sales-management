@@ -1,7 +1,15 @@
-import { Badge } from "@/components/atoms/badge";
 import { Button } from "@/components/atoms/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
-import { Separator } from "@/components/atoms/separator";
+import {
+  CaseStatusPill,
+  CaseTypePill,
+  DCard,
+  DCardBody,
+  DCardHeader,
+  type FlowStep,
+  Pill,
+  StatusFlow,
+} from "@/components/design/primitives";
 import { Guard } from "@/components/organisms/auth/Guard";
 import { LotSelectDialog } from "@/components/organisms/dialogs/LotSelectDialog";
 import {
@@ -16,11 +24,16 @@ import {
 } from "@/hooks/use-consignment-case";
 import { updateSalesCaseLots } from "@/hooks/use-sales-case";
 import { describeApiError } from "@/lib/api-client";
-import { caseStatusLabel } from "@/lib/format";
 import { Link } from "@tanstack/react-router";
-import { PackageSearch } from "lucide-react";
+import { Package, PackageSearch } from "lucide-react";
 import { useActionState, useState } from "react";
 import { toast } from "sonner";
+
+const CONSIGNMENT_FLOW: FlowStep[] = [
+  { value: "before_consignment", label: "委託前", sub: "Pre-consignment" },
+  { value: "consignment_designated", label: "委託指定", sub: "Designated" },
+  { value: "consignment_result_entered", label: "結果入力", sub: "Result entered" },
+];
 
 export function ConsignmentCaseDetailPage({ id }: { id: string }) {
   const { data, error, isLoading } = useConsignmentCase(id);
@@ -43,12 +56,18 @@ export function ConsignmentCaseDetailPage({ id }: { id: string }) {
 
   const [editLotsOpen, setEditLotsOpen] = useState(false);
 
-  if (isLoading) return <p>読み込み中…</p>;
-  if (error) return <p className="text-destructive">エラー: {describeApiError(error)}</p>;
+  if (isLoading) return <p className="page">読み込み中…</p>;
+  if (error)
+    return (
+      <p className="page" style={{ color: "var(--danger)" }}>
+        エラー: {describeApiError(error)}
+      </p>
+    );
   if (!data) return null;
 
   // 委託は委託指定前のみロット修正可。
   const editLotsAllowed = data.status === "before_consignment";
+  const flowIdx = CONSIGNMENT_FLOW.findIndex((s) => s.value === data.status);
 
   const onEditLots = async (lots: string[]) => {
     if (data.version == null) {
@@ -64,50 +83,64 @@ export function ConsignmentCaseDetailPage({ id }: { id: string }) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="font-semibold text-2xl">委託販売案件 {id}</h1>
-        <div className="flex items-center gap-2">
-          {data.status && (
-            <Badge variant="secondary">{caseStatusLabel("consignment", data.status)}</Badge>
-          )}
-          <Link to="/" className="text-muted-foreground text-sm underline underline-offset-4">
-            ホームへ
-          </Link>
+    <div className="page">
+      <div className="detail-header">
+        <div className="detail-header-meta">
+          <CaseTypePill caseType="consignment" />
+          {data.status && <CaseStatusPill caseType="consignment" status={data.status} />}
+          <Pill tone="outline" mono>
+            v{data.version}
+          </Pill>
         </div>
+        <h1>
+          委託販売案件 <span className="id">{id}</span>
+        </h1>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-base">対象ロット</CardTitle>
-            {editLotsAllowed && (
+      <StatusFlow steps={CONSIGNMENT_FLOW} currentIndex={flowIdx < 0 ? 0 : flowIdx} />
+
+      <DCard className="mt-6" data-testid="consignment-case-lots">
+        <DCardHeader
+          title={`対象ロット (${data.lots.length})`}
+          icon={<Package className="ico" size={15} />}
+          actions={
+            editLotsAllowed && (
               <Guard requiredRole="operator">
-                <Button
+                <button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  className="btn btn-sm btn-ghost"
                   onClick={() => setEditLotsOpen(true)}
                 >
-                  <PackageSearch className="size-4" />
+                  <PackageSearch className="ico" />
                   ロットを修正
-                </Button>
+                </button>
               </Guard>
-            )}
+            )
+          }
+        />
+        <DCardBody>
+          <div className="col gap-2">
+            {data.lots.map((lotNumber) => (
+              <Link
+                key={lotNumber}
+                to="/lots/$id"
+                params={{ id: lotNumber }}
+                className="row"
+                style={{
+                  justifyContent: "space-between",
+                  padding: "8px 10px",
+                  border: "1px solid var(--border-design)",
+                  borderRadius: "var(--r-sm)",
+                }}
+              >
+                <span className="row gap-2">
+                  <Package size={14} style={{ color: "var(--fg-subtle)" }} />
+                  <span className="mono text-sm">{lotNumber}</span>
+                </span>
+                <span className="text-xs muted">詳細</span>
+              </Link>
+            ))}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-1">
-          {data.lots.map((lotNumber) => (
-            <Link
-              key={lotNumber}
-              to="/lots/$id"
-              params={{ id: lotNumber }}
-              className="flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors hover:bg-accent"
-            >
-              <span className="font-mono">{lotNumber}</span>
-              <span className="text-muted-foreground text-xs">詳細</span>
-            </Link>
-          ))}
           {editLotsAllowed && (
             <LotSelectDialog
               open={editLotsOpen}
@@ -119,29 +152,16 @@ export function ConsignmentCaseDetailPage({ id }: { id: string }) {
               confirmLabel="更新"
             />
           )}
-        </CardContent>
-      </Card>
+        </DCardBody>
+      </DCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>委託情報</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="overflow-x-auto text-xs">{JSON.stringify(data, null, 2)}</pre>
-        </CardContent>
-      </Card>
-
-      <Separator />
+      <hr className="sep" />
 
       <Guard
         requiredRole="operator"
-        fallback={
-          <p className="text-muted-foreground text-sm">
-            状態遷移には operator 以上のロールが必要です。
-          </p>
-        }
+        fallback={<p className="muted text-sm">状態遷移には operator 以上のロールが必要です。</p>}
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid-2">
           <ConsignmentDesignationForm
             data={data}
             disabled={data.status !== "before_consignment"}

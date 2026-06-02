@@ -1,11 +1,15 @@
 import type { ReactNode } from "react";
-import { Header } from "./Header";
+import { Sidebar } from "./Sidebar";
+import { Topbar } from "./Topbar";
 
 export function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Header />
-      <main className="mx-auto max-w-screen-xl px-4 py-6">{children}</main>
+    <div className="app">
+      <Sidebar />
+      <main className="main">
+        <Topbar />
+        {children}
+      </main>
     </div>
   );
 }
