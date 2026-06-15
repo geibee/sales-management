@@ -28,7 +28,11 @@ import {
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { deferred } from "../../../../support/deferred";
-import { makeSalesCase } from "../../../../support/fixtures";
+import {
+  makeConsignmentSalesCase,
+  makeDirectSalesCase,
+  makeReservationSalesCase,
+} from "../../../../support/fixtures";
 import { renderWithApp } from "../../../../support/render";
 
 function fill(label: string, value: string | number): void {
@@ -47,7 +51,7 @@ function submitForm(buttonName: string | RegExp): void {
 describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
   it("FE-COMP-RICH-DA-001: 必須空で submit → API 未呼出、全 invalid field にエラー", async () => {
     const onSubmit = vi.fn();
-    const data = makeSalesCase({ lots: ["2026-A-1"] });
+    const data = makeDirectSalesCase({ lots: ["2026-A-1"] });
     renderWithApp(
       <DirectAppraisalForm data={data} title="査定 登録" buttonLabel="登録" onSubmit={onSubmit} />,
     );
@@ -64,7 +68,7 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
 
   it("FE-COMP-RICH-DA-002: 期中調整率 89 (範囲外) → field エラー、API 未呼出", async () => {
     const onSubmit = vi.fn();
-    const data = makeSalesCase({ lots: ["2026-A-1"] });
+    const data = makeDirectSalesCase({ lots: ["2026-A-1"] });
     renderWithApp(
       <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={onSubmit} />,
     );
@@ -76,7 +80,7 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
 
   it("FE-COMP-RICH-DA-003: 期中調整率 90 / 取引先調整率 110 (境界) → API 受理、body は ÷100 換算", async () => {
     const onSubmit = vi.fn<(body: Record<string, unknown>) => Promise<void>>(async () => {});
-    const data = makeSalesCase({ lots: ["2026-A-1"] });
+    const data = makeDirectSalesCase({ lots: ["2026-A-1"] });
     renderWithApp(
       <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={onSubmit} />,
     );
@@ -100,7 +104,7 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
   });
 
   it("FE-COMP-RICH-DA-004: 単価/調整率を変えると税抜査定合計が `Σ 基準単価 × rate ÷ 100` で即更新", async () => {
-    const data = makeSalesCase({ lots: ["2026-A-1", "2026-A-2"] });
+    const data = makeDirectSalesCase({ lots: ["2026-A-1", "2026-A-2"] });
     renderWithApp(
       <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={vi.fn()} />,
     );
@@ -115,7 +119,7 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
   });
 
   it("FE-COMP-RICH-DA-005: 「変更する」→ 承認 → total input enabled、承認者は read-only `営業部長（システム既定）`", async () => {
-    const data = makeSalesCase({ lots: ["2026-A-1"] });
+    const data = makeDirectSalesCase({ lots: ["2026-A-1"] });
     renderWithApp(
       <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={vi.fn()} />,
     );
@@ -139,7 +143,7 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
   });
 
   it("FE-COMP-RICH-DA-006: 「変更する」→ キャンセル → total は自動計算のまま (hidden input)", async () => {
-    const data = makeSalesCase({ lots: ["2026-A-1"] });
+    const data = makeDirectSalesCase({ lots: ["2026-A-1"] });
     renderWithApp(
       <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={vi.fn()} />,
     );
@@ -157,7 +161,7 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
 describe("SalesContractForm (FE-COMP-RICH-SC-*)", () => {
   it("FE-COMP-RICH-SC-001: 必須空で submit → API 未呼出 (顧客番号等を空に戻す)", async () => {
     const onSubmit = vi.fn();
-    const data = makeSalesCase();
+    const data = makeDirectSalesCase();
     renderWithApp(
       <SalesContractForm data={data} title="契約" buttonLabel="登録" onSubmit={onSubmit} />,
     );
@@ -214,7 +218,7 @@ describe("DateVersionActionForm (FE-COMP-RICH-DV-*)", () => {
 describe("ReservationPriceForm (FE-COMP-RICH-RP-*)", () => {
   it("FE-COMP-RICH-RP-001: 予約金額が空 → field エラー、API 未呼出", async () => {
     const onSubmit = vi.fn();
-    const data = makeSalesCase();
+    const data = makeReservationSalesCase();
     renderWithApp(<ReservationPriceForm data={data} onSubmit={onSubmit} />);
     fireEvent.change(screen.getByLabelText("予約金額"), { target: { value: "" } });
     submitForm("登録");
@@ -228,7 +232,7 @@ describe("ReservationPriceForm (FE-COMP-RICH-RP-*)", () => {
 describe("ReservationConfirmationForm (FE-COMP-RICH-RC-*)", () => {
   it("FE-COMP-RICH-RC-001: 確定金額空 → field エラー、API 未呼出", async () => {
     const onSubmit = vi.fn();
-    const data = makeSalesCase();
+    const data = makeReservationSalesCase();
     renderWithApp(<ReservationConfirmationForm data={data} onSubmit={onSubmit} />);
     fireEvent.change(screen.getByLabelText("確定金額"), { target: { value: "" } });
     submitForm("確定");
@@ -242,7 +246,7 @@ describe("ReservationConfirmationForm (FE-COMP-RICH-RC-*)", () => {
 describe("ConsignmentDesignationForm (FE-COMP-RICH-CD-*)", () => {
   it("FE-COMP-RICH-CD-001: 委託先名空 → field エラー、API 未呼出", async () => {
     const onSubmit = vi.fn();
-    const data = makeSalesCase();
+    const data = makeConsignmentSalesCase();
     renderWithApp(<ConsignmentDesignationForm data={data} onSubmit={onSubmit} />);
     fireEvent.change(screen.getByLabelText("委託先名"), { target: { value: "" } });
     submitForm("登録");
@@ -256,7 +260,7 @@ describe("ConsignmentDesignationForm (FE-COMP-RICH-CD-*)", () => {
 describe("ConsignmentResultForm (FE-COMP-RICH-CR-*)", () => {
   it("FE-COMP-RICH-CR-001: 結果金額空 → field エラー、API 未呼出", async () => {
     const onSubmit = vi.fn();
-    const data = makeSalesCase();
+    const data = makeConsignmentSalesCase();
     renderWithApp(<ConsignmentResultForm data={data} onSubmit={onSubmit} />);
     fireEvent.change(screen.getByLabelText("結果金額"), { target: { value: "" } });
     submitForm("登録");
@@ -292,7 +296,7 @@ describe("RichActionForms 共通 (FE-COMP-RICH-COMMON-*)", () => {
   });
 
   it("FE-COMP-RICH-COMMON-002: mount 直後 (blur なし) はエラー非表示", () => {
-    const data = makeSalesCase();
+    const data = makeDirectSalesCase();
     renderWithApp(
       <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={vi.fn()} />,
     );

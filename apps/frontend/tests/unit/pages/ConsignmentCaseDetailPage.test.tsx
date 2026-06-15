@@ -11,7 +11,7 @@ import { ConsignmentCaseDetailPage } from "@/pages/consignment-cases/Consignment
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
-import { makeAvailableLot, makeAvailableLotsResponse, makeSalesCase } from "../../support/fixtures";
+import { makeAvailableLot, makeAvailableLotsResponse, makeConsignmentSalesCase } from "../../support/fixtures";
 import { renderWithRouter } from "../../support/render";
 import { requestsFor, server } from "../../support/server";
 
@@ -27,7 +27,7 @@ describe("<ConsignmentCaseDetailPage> (FE-PAGE-CONSIGNMENT-* / FE-REQ-CONSIGNMEN
     server.use(
       http.get(`/api/sales-cases/${ID}`, () =>
         HttpResponse.json(
-          makeSalesCase({
+          makeConsignmentSalesCase({
             salesCaseNumber: ID,
             caseType: "consignment",
             status: "consignment_designated",
@@ -48,7 +48,7 @@ describe("<ConsignmentCaseDetailPage> (FE-PAGE-CONSIGNMENT-* / FE-REQ-CONSIGNMEN
     server.use(
       http.get(`/api/sales-cases/${ID}`, () =>
         HttpResponse.json(
-          makeSalesCase({
+          makeConsignmentSalesCase({
             salesCaseNumber: ID,
             caseType: "consignment",
             status: "consignment_designated",
@@ -76,7 +76,7 @@ describe("<ConsignmentCaseDetailPage> (FE-PAGE-CONSIGNMENT-* / FE-REQ-CONSIGNMEN
     server.use(
       http.get(`/api/sales-cases/${ID}`, () =>
         HttpResponse.json(
-          makeSalesCase({
+          makeConsignmentSalesCase({
             salesCaseNumber: ID,
             caseType: "consignment",
             status: "before_consignment",
@@ -117,7 +117,7 @@ describe("<ConsignmentCaseDetailPage> (FE-PAGE-CONSIGNMENT-* / FE-REQ-CONSIGNMEN
     server.use(
       http.get(`/api/sales-cases/${ID}`, () =>
         HttpResponse.json(
-          makeSalesCase({
+          makeConsignmentSalesCase({
             salesCaseNumber: ID,
             caseType: "consignment",
             status: "consignment_designated",

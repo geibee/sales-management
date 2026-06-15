@@ -184,26 +184,100 @@ const CreatedSalesCaseResponse = z
 const EditCaseLotsRequest = z
   .object({ lots: z.array(z.string()), version: z.number().int() })
   .passthrough();
-const SalesCaseDetailResponse = z
+const DirectAppraisal = z
+  .object({
+    type: z.string(),
+    appraisalDate: z.string(),
+    deliveryDate: z.string(),
+    salesMarket: z.string(),
+    taxExcludedEstimatedTotal: z.number().int(),
+  })
+  .passthrough();
+const DirectContract = z
+  .object({
+    contractDate: z.string(),
+    person: z.string(),
+    customerNumber: z.string(),
+    taxExcludedContractAmount: z.number().int(),
+    consumptionTax: z.number().int(),
+  })
+  .passthrough();
+const ShippingInstruction = z
+  .object({ instructionDate: z.string() })
+  .passthrough();
+const ShippingCompletion = z
+  .object({ completionDate: z.string() })
+  .passthrough();
+const DirectSalesCaseDetail = z
   .object({
     salesCaseNumber: z.string(),
-    caseType: SalesCaseType,
+    caseType: z.literal("direct"),
     status: z.string(),
     lots: z.array(z.string()),
     divisionCode: z.number().int(),
     salesDate: z.string(),
     version: z.number().int(),
-    appraisal: z.object({}).partial().passthrough().nullish(),
-    contract: z.object({}).partial().passthrough().nullish(),
-    shippingInstruction: z.object({}).partial().passthrough().nullish(),
-    shippingCompletion: z.object({}).partial().passthrough().nullish(),
-    reservationPrice: z.object({}).partial().passthrough().nullish(),
-    determination: z.object({}).partial().passthrough().nullish(),
-    delivery: z.object({}).partial().passthrough().nullish(),
-    consignor: z.object({}).partial().passthrough().nullish(),
-    result: z.object({}).partial().passthrough().nullish(),
+    appraisal: DirectAppraisal.nullable(),
+    contract: DirectContract.nullable(),
+    shippingInstruction: ShippingInstruction.nullable(),
+    shippingCompletion: ShippingCompletion.nullable(),
   })
   .passthrough();
+const ReservationPrice = z
+  .object({
+    appraisalDate: z.string(),
+    reservedLotInfo: z.string(),
+    reservedAmount: z.number().int(),
+  })
+  .passthrough();
+const ReservationDetermination = z
+  .object({ determinedDate: z.string(), determinedAmount: z.number().int() })
+  .passthrough();
+const ReservationDelivery = z
+  .object({ deliveredDate: z.string() })
+  .passthrough();
+const ReservationSalesCaseDetail = z
+  .object({
+    salesCaseNumber: z.string(),
+    caseType: z.literal("reservation"),
+    status: z.string(),
+    lots: z.array(z.string()),
+    divisionCode: z.number().int(),
+    salesDate: z.string(),
+    version: z.number().int(),
+    reservationPrice: ReservationPrice.nullable(),
+    determination: ReservationDetermination.nullable(),
+    delivery: ReservationDelivery.nullable(),
+  })
+  .passthrough();
+const Consignor = z
+  .object({
+    consignorName: z.string(),
+    consignorCode: z.string(),
+    designatedDate: z.string(),
+  })
+  .passthrough();
+const ConsignmentResult = z
+  .object({ resultDate: z.string(), resultAmount: z.number().int() })
+  .passthrough();
+const ConsignmentSalesCaseDetail = z
+  .object({
+    salesCaseNumber: z.string(),
+    caseType: z.literal("consignment"),
+    status: z.string(),
+    lots: z.array(z.string()),
+    divisionCode: z.number().int(),
+    salesDate: z.string(),
+    version: z.number().int(),
+    consignor: Consignor.nullable(),
+    result: ConsignmentResult.nullable(),
+  })
+  .passthrough();
+const SalesCaseDetailResponse = z.discriminatedUnion("caseType", [
+  DirectSalesCaseDetail,
+  ReservationSalesCaseDetail,
+  ConsignmentSalesCaseDetail,
+]);
 const createSalesAppraisal_Body = z
   .object({
     type: z.enum(["normal", "customer_contract"]),
@@ -337,6 +411,18 @@ export const schemas = {
   createSalesCase_Body,
   CreatedSalesCaseResponse,
   EditCaseLotsRequest,
+  DirectAppraisal,
+  DirectContract,
+  ShippingInstruction,
+  ShippingCompletion,
+  DirectSalesCaseDetail,
+  ReservationPrice,
+  ReservationDetermination,
+  ReservationDelivery,
+  ReservationSalesCaseDetail,
+  Consignor,
+  ConsignmentResult,
+  ConsignmentSalesCaseDetail,
   SalesCaseDetailResponse,
   createSalesAppraisal_Body,
   createSalesContract_Body,
@@ -864,26 +950,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.string(),
       },
     ],
-    response: z
-      .object({
-        salesCaseNumber: z.string(),
-        caseType: SalesCaseType,
-        status: z.string(),
-        lots: z.array(z.string()),
-        divisionCode: z.number().int(),
-        salesDate: z.string(),
-        version: z.number().int(),
-        appraisal: z.object({}).partial().passthrough().nullish(),
-        contract: z.object({}).partial().passthrough().nullish(),
-        shippingInstruction: z.object({}).partial().passthrough().nullish(),
-        shippingCompletion: z.object({}).partial().passthrough().nullish(),
-        reservationPrice: z.object({}).partial().passthrough().nullish(),
-        determination: z.object({}).partial().passthrough().nullish(),
-        delivery: z.object({}).partial().passthrough().nullish(),
-        consignor: z.object({}).partial().passthrough().nullish(),
-        result: z.object({}).partial().passthrough().nullish(),
-      })
-      .passthrough(),
+    response: SalesCaseDetailResponse,
     errors: [
       {
         status: 400,

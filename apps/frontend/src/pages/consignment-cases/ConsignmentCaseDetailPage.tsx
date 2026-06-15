@@ -64,6 +64,13 @@ export function ConsignmentCaseDetailPage({ id }: { id: string }) {
       </p>
     );
   if (!data) return null;
+  if (data.caseType !== "consignment") {
+    return (
+      <p className="page" style={{ color: "var(--danger)" }}>
+        この画面は委託販売案件用です（このID は {data.caseType} 案件です）。
+      </p>
+    );
+  }
 
   // 委託は委託指定前のみロット修正可。
   const editLotsAllowed = data.status === "before_consignment";

@@ -13,10 +13,12 @@
 import type {
   AvailableLotsResponse,
   CodeMastersResponse,
+  ConsignmentSalesCaseDetail,
+  DirectSalesCaseDetail,
   LotResponse,
   PriceCheckResponse,
   ProblemJson,
-  SalesCaseDetailResponse,
+  ReservationSalesCaseDetail,
 } from "@/contracts";
 
 type DeepPartial<T> = T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
@@ -61,10 +63,10 @@ export function makeLot(overrides: DeepPartial<LotResponse> = {}): LotResponse {
 
 // ---- 販売案件 ----
 
-export function makeSalesCase(
-  overrides: DeepPartial<SalesCaseDetailResponse> = {},
-): SalesCaseDetailResponse {
-  const base: SalesCaseDetailResponse = {
+export function makeDirectSalesCase(
+  overrides: DeepPartial<DirectSalesCaseDetail> = {},
+): DirectSalesCaseDetail {
+  const base: DirectSalesCaseDetail = {
     salesCaseNumber: "S-0001",
     caseType: "direct",
     status: "before_appraisal",
@@ -76,13 +78,43 @@ export function makeSalesCase(
     contract: null,
     shippingInstruction: null,
     shippingCompletion: null,
+  };
+  return { ...base, ...overrides } as DirectSalesCaseDetail;
+}
+
+export function makeReservationSalesCase(
+  overrides: DeepPartial<ReservationSalesCaseDetail> = {},
+): ReservationSalesCaseDetail {
+  const base: ReservationSalesCaseDetail = {
+    salesCaseNumber: "S-0001",
+    caseType: "reservation",
+    status: "before_reservation",
+    lots: ["L-0001"],
+    divisionCode: 10,
+    salesDate: "2026-05-01",
+    version: 1,
     reservationPrice: null,
     determination: null,
     delivery: null,
+  };
+  return { ...base, ...overrides } as ReservationSalesCaseDetail;
+}
+
+export function makeConsignmentSalesCase(
+  overrides: DeepPartial<ConsignmentSalesCaseDetail> = {},
+): ConsignmentSalesCaseDetail {
+  const base: ConsignmentSalesCaseDetail = {
+    salesCaseNumber: "S-0001",
+    caseType: "consignment",
+    status: "before_consignment",
+    lots: ["L-0001"],
+    divisionCode: 10,
+    salesDate: "2026-05-01",
+    version: 1,
     consignor: null,
     result: null,
   };
-  return { ...base, ...overrides } as SalesCaseDetailResponse;
+  return { ...base, ...overrides } as ConsignmentSalesCaseDetail;
 }
 
 // ---- problem+json (RFC 9457) ----

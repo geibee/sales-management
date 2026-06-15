@@ -18,7 +18,7 @@ import { http, HttpResponse } from "msw";
 import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
 import { deferred } from "../../support/deferred";
-import { makeAvailableLot, makeAvailableLotsResponse, makeSalesCase } from "../../support/fixtures";
+import { makeAvailableLot, makeAvailableLotsResponse, makeDirectSalesCase } from "../../support/fixtures";
 import { renderWithRouter } from "../../support/render";
 import { requestsFor, server } from "../../support/server";
 
@@ -35,14 +35,14 @@ describe("<SalesCaseDetailPage> (FE-PAGE-SALES-DETAIL-* / FE-REQ-SALES-*)", () =
     server.use(http.get(`/api/sales-cases/${ID}`, () => d.promise));
     renderWithRouter(<SalesCaseDetailPage id={ID} />);
     expect(await screen.findByText("読み込み中…")).toBeInTheDocument();
-    d.resolve(HttpResponse.json(makeSalesCase({ salesCaseNumber: ID })) as unknown as Response);
+    d.resolve(HttpResponse.json(makeDirectSalesCase({ salesCaseNumber: ID })) as unknown as Response);
   });
 
   it("FE-PAGE-SALES-DETAIL-002: success → heading / badge / 状態フロー", async () => {
     authDisabled();
     server.use(
       http.get(`/api/sales-cases/${ID}`, () =>
-        HttpResponse.json(makeSalesCase({ salesCaseNumber: ID, status: "before_appraisal" })),
+        HttpResponse.json(makeDirectSalesCase({ salesCaseNumber: ID, status: "before_appraisal" })),
       ),
     );
     renderWithRouter(<SalesCaseDetailPage id={ID} />);
@@ -71,7 +71,7 @@ describe("<SalesCaseDetailPage> (FE-PAGE-SALES-DETAIL-* / FE-REQ-SALES-*)", () =
     server.use(
       http.get(`/api/sales-cases/${ID}`, () =>
         HttpResponse.json(
-          makeSalesCase({
+          makeDirectSalesCase({
             salesCaseNumber: ID,
             status: "before_appraisal",
             caseType: "direct",
@@ -118,7 +118,7 @@ describe("<SalesCaseDetailPage> (FE-PAGE-SALES-DETAIL-* / FE-REQ-SALES-*)", () =
     server.use(
       http.get(`/api/sales-cases/${ID}`, () =>
         HttpResponse.json(
-          makeSalesCase({
+          makeDirectSalesCase({
             salesCaseNumber: ID,
             status: "appraised",
             caseType: "direct",
@@ -138,7 +138,7 @@ describe("<SalesCaseDetailPage> (FE-PAGE-SALES-DETAIL-* / FE-REQ-SALES-*)", () =
     server.use(
       http.get(`/api/sales-cases/${ID}`, () =>
         HttpResponse.json(
-          makeSalesCase({
+          makeDirectSalesCase({
             salesCaseNumber: ID,
             status: "appraised",
             caseType: "direct",
@@ -167,7 +167,7 @@ describe("<SalesCaseDetailPage> (FE-PAGE-SALES-DETAIL-* / FE-REQ-SALES-*)", () =
     server.use(
       http.get(`/api/sales-cases/${ID}`, () =>
         HttpResponse.json(
-          makeSalesCase({
+          makeDirectSalesCase({
             salesCaseNumber: ID,
             status: "appraised",
             caseType: "direct",
