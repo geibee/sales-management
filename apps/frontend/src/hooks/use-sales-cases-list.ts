@@ -1,4 +1,4 @@
-import { type SalesCasesListResponse, SalesCasesListResponseSchema } from "@/contracts";
+import { schemas, type SalesCasesListResponse } from "@/contracts";
 import { apiGet } from "@/lib/api-client";
 import useSWR from "swr";
 
@@ -23,7 +23,7 @@ export function useSalesCasesList(q: SalesCasesListQuery) {
   const key = buildPath(q);
   return useSWR<SalesCasesListResponse>(
     key,
-    (k: string) => apiGet(k, SalesCasesListResponseSchema),
+    (k: string) => apiGet(k, schemas.SalesCasesListResponse),
     {
       keepPreviousData: true,
     },

@@ -13,7 +13,7 @@
  *   - `tests/setup.ts` のグローバル stub (`URL.createObjectURL` / anchor
  *     click) が CSV ダウンロードテストで使える状態にある
  */
-import { LotResponseSchema } from "@/contracts";
+import { schemas } from "@/contracts";
 import { apiDownload, apiGet, apiSend } from "@/lib/api-client";
 import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
@@ -28,7 +28,7 @@ describe("tests/support 基盤", () => {
     server.use(
       http.get("/api/lots/L-0001", () => HttpResponse.json(makeLot({ lotNumber: "L-0001" }))),
     );
-    const lot = await apiGet("/lots/L-0001", LotResponseSchema);
+    const lot = await apiGet("/lots/L-0001", schemas.LotResponse);
     expect(lot.lotNumber).toBe("L-0001");
     expect(lot.status).toBe("manufacturing");
   });
@@ -71,7 +71,7 @@ describe("tests/support 基盤", () => {
   });
 
   it("fixture は contract スキーマを満たす形状を返す", () => {
-    expect(() => LotResponseSchema.parse(makeLot())).not.toThrow();
+    expect(() => schemas.LotResponse.parse(makeLot())).not.toThrow();
     expect(makePriceQuote().basePrice).toBe(1000);
     expect(makeCodeMasters().divisions).toHaveLength(2);
   });

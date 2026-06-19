@@ -1,4 +1,4 @@
-import { type PriceCheckResponse, PriceCheckResponseSchema } from "@/contracts";
+import { schemas, type PriceCheckResponse } from "@/contracts";
 import { apiGet } from "@/lib/api-client";
 import useSWR from "swr";
 
@@ -12,7 +12,7 @@ import useSWR from "swr";
  */
 export function useExternalPriceCheck(lotId: string | null) {
   const key = lotId ? `/external/price-check?lotId=${encodeURIComponent(lotId)}` : null;
-  return useSWR<PriceCheckResponse>(key, (k) => apiGet(k, PriceCheckResponseSchema), {
+  return useSWR<PriceCheckResponse>(key, (k) => apiGet(k, schemas.PriceCheckResponse), {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     revalidateOnMount: true,

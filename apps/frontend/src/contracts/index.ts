@@ -1,26 +1,19 @@
 /**
- * Re-exports the auto-generated Zod schemas plus ProblemJson (which openapi-zod-client
- * does not surface as a named export since it only appears in error responses).
- * Form-level validators live in src/forms/validators.ts.
+ * Re-exports the auto-generated Zod schemas plus ProblemJson.
+ *
+ * ProblemJson (RFC 9457): openapi.yaml には `components.schemas.ProblemDetails` として
+ * named schema で書かれているが、すべての参照が `application/problem+json` メディアタイプ
+ * 経由のため、`application/json` しか拾わない openapi-zod-client は generated.ts に
+ * 出力しない。フロントが error body を parse する用に同じ shape を手書きで再現している。
+ *
+ * Schemas は generated.ts の `schemas.X` を直接参照する。型だけは `z.infer<typeof schemas.X>`
+ * のショートカットとして alias を提供する。Form-level validators は src/forms/validators.ts。
  */
 import { z } from "zod";
 import { schemas } from "./generated";
 
 export { schemas, api, createApiClient } from "./generated";
 
-// Re-export commonly used generated schemas with friendlier names.
-export const LotResponseSchema = schemas.LotResponse;
-export const LotStatusSchema = schemas.LotStatus;
-export const CreateLotResponseSchema = schemas.CreateLotResponse;
-export const LotsListResponseSchema = schemas.LotsListResponse;
-export const PriceCheckResponseSchema = schemas.PriceCheckResponse;
-export const CreatedSalesCaseResponseSchema = schemas.CreatedSalesCaseResponse;
-export const SalesCasesListResponseSchema = schemas.SalesCasesListResponse;
-export const SalesCaseTypeSchema = schemas.SalesCaseType;
-export const SalesCaseDetailResponseSchema = schemas.SalesCaseDetailResponse;
-export const DirectSalesCaseDetailSchema = schemas.DirectSalesCaseDetail;
-export const ReservationSalesCaseDetailSchema = schemas.ReservationSalesCaseDetail;
-export const ConsignmentSalesCaseDetailSchema = schemas.ConsignmentSalesCaseDetail;
 export type LotResponse = z.infer<typeof schemas.LotResponse>;
 export type LotStatus = z.infer<typeof schemas.LotStatus>;
 export type CreateLotResponse = z.infer<typeof schemas.CreateLotResponse>;
@@ -33,8 +26,6 @@ export type SalesCaseDetailResponse = z.infer<typeof schemas.SalesCaseDetailResp
 export type DirectSalesCaseDetail = z.infer<typeof schemas.DirectSalesCaseDetail>;
 export type ReservationSalesCaseDetail = z.infer<typeof schemas.ReservationSalesCaseDetail>;
 export type ConsignmentSalesCaseDetail = z.infer<typeof schemas.ConsignmentSalesCaseDetail>;
-export const CodeMastersResponseSchema = schemas.CodeMastersResponse;
-export const AvailableLotsResponseSchema = schemas.AvailableLotsResponse;
 export type CodeMastersResponse = z.infer<typeof schemas.CodeMastersResponse>;
 export type AvailableLotsResponse = z.infer<typeof schemas.AvailableLotsResponse>;
 

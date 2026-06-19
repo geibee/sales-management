@@ -1,8 +1,7 @@
 import {
+  schemas,
   type CreatedSalesCaseResponse,
-  CreatedSalesCaseResponseSchema,
   type SalesCaseDetailResponse,
-  SalesCaseDetailResponseSchema,
 } from "@/contracts";
 import { ApiError, apiGet, apiSend } from "@/lib/api-client";
 import useSWR, { mutate as globalMutate } from "swr";
@@ -17,7 +16,7 @@ export function salesCaseKey(id: string): string {
  */
 export function useSalesCase(id: string | null) {
   return useSWR<SalesCaseDetailResponse>(id ? salesCaseKey(id) : null, (key: string) =>
-    apiGet(key, SalesCaseDetailResponseSchema),
+    apiGet(key, schemas.SalesCaseDetailResponse),
   );
 }
 
@@ -49,7 +48,7 @@ type SalesCaseCreateBody = {
 export async function createSalesCase(
   body: SalesCaseCreateBody,
 ): Promise<CreatedSalesCaseResponse> {
-  return await apiSend("POST", "/sales-cases", body, CreatedSalesCaseResponseSchema);
+  return await apiSend("POST", "/sales-cases", body, schemas.CreatedSalesCaseResponse);
 }
 
 export async function deleteSalesCase(id: string): Promise<void> {

@@ -1,4 +1,4 @@
-import { type SalesCaseDetailResponse, SalesCaseDetailResponseSchema } from "@/contracts";
+import { schemas, type SalesCaseDetailResponse } from "@/contracts";
 import { ApiError, apiGet, apiSend } from "@/lib/api-client";
 import useSWR, { mutate as globalMutate } from "swr";
 
@@ -9,7 +9,7 @@ export function reservationCaseKey(id: string): string {
 
 export function useReservationCase(id: string | null) {
   return useSWR<SalesCaseDetailResponse>(id ? reservationCaseKey(id) : null, (key: string) =>
-    apiGet(key, SalesCaseDetailResponseSchema),
+    apiGet(key, schemas.SalesCaseDetailResponse),
   );
 }
 

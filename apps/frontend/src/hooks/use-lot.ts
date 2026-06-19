@@ -1,15 +1,10 @@
-import {
-  type CreateLotResponse,
-  CreateLotResponseSchema,
-  type LotResponse,
-  LotResponseSchema,
-} from "@/contracts";
+import { schemas, type CreateLotResponse, type LotResponse } from "@/contracts";
 import { ApiError, apiDownload, apiGet, apiSend } from "@/lib/api-client";
 import useSWR, { mutate as globalMutate } from "swr";
 
 export function useLot(id: string | null) {
   return useSWR<LotResponse>(id ? `/lots/${id}` : null, (key: string) =>
-    apiGet(key, LotResponseSchema),
+    apiGet(key, schemas.LotResponse),
   );
 }
 
@@ -63,7 +58,7 @@ type LotCreateBody = {
 };
 
 export async function createLot(body: LotCreateBody): Promise<CreateLotResponse> {
-  return await apiSend("POST", "/lots", body, CreateLotResponseSchema);
+  return await apiSend("POST", "/lots", body, schemas.CreateLotResponse);
 }
 
 // ---- Lot state transitions ----
@@ -73,7 +68,7 @@ export async function completeManufacturing(
   version: number,
 ): Promise<LotResponse> {
   return await withConflictRefresh(id, () =>
-    apiSend("POST", `/lots/${id}/complete-manufacturing`, { date, version }, LotResponseSchema),
+    apiSend("POST", `/lots/${id}/complete-manufacturing`, { date, version }, schemas.LotResponse),
   );
 }
 
@@ -82,7 +77,7 @@ export async function cancelManufacturingCompletion(
   version: number,
 ): Promise<LotResponse> {
   return await withConflictRefresh(id, () =>
-    apiSend("POST", `/lots/${id}/cancel-manufacturing-completion`, { version }, LotResponseSchema),
+    apiSend("POST", `/lots/${id}/cancel-manufacturing-completion`, { version }, schemas.LotResponse),
   );
 }
 
@@ -92,7 +87,7 @@ export async function instructShipping(
   version: number,
 ): Promise<LotResponse> {
   return await withConflictRefresh(id, () =>
-    apiSend("POST", `/lots/${id}/instruct-shipping`, { deadline, version }, LotResponseSchema),
+    apiSend("POST", `/lots/${id}/instruct-shipping`, { deadline, version }, schemas.LotResponse),
   );
 }
 
@@ -102,7 +97,7 @@ export async function completeShipping(
   version: number,
 ): Promise<LotResponse> {
   return await withConflictRefresh(id, () =>
-    apiSend("POST", `/lots/${id}/complete-shipping`, { date, version }, LotResponseSchema),
+    apiSend("POST", `/lots/${id}/complete-shipping`, { date, version }, schemas.LotResponse),
   );
 }
 
@@ -116,7 +111,7 @@ export async function instructItemConversion(
       "POST",
       `/lots/${id}/instruct-item-conversion`,
       { destinationItem, version },
-      LotResponseSchema,
+      schemas.LotResponse,
     ),
   );
 }
@@ -126,7 +121,7 @@ export async function cancelItemConversionInstruction(
   version: number,
 ): Promise<LotResponse> {
   return await withConflictRefresh(id, () =>
-    apiSend("DELETE", `/lots/${id}/instruct-item-conversion`, { version }, LotResponseSchema),
+    apiSend("DELETE", `/lots/${id}/instruct-item-conversion`, { version }, schemas.LotResponse),
   );
 }
 
