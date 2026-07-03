@@ -109,7 +109,7 @@ verify = ".ralph/verify/R1-A.sh"
 ralph-worker subagent は spawn 後に下記 Skill を `Skill()` で呼べる:
 
 - このプラグイン同梱: `ralph-task` (タスクライフサイクル契約の再確認)
-- ユーザ環境にあるもの: `moonbit-agent-guide`, `moonbit-refactoring`, `simplify`, `review` など `~/.claude/skills/` にあるもの全て
+- ユーザ環境にあるもの: `simplify`, `review` など `~/.claude/skills/` にあるもの全て
 
 タスク固有のヒントは `tasks.toml` の `prompt_extra` に書く。
 
