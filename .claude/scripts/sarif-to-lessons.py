@@ -1,27 +1,67 @@
 #!/usr/bin/env python3
-"""Stop フック: merged.sarif を読み、頻出 ruleId を AGENTS.md に「教訓」として追記する。
+"""Stop フック: merged.sarif を読み、頻出 ruleId を LESSONS.md に「教訓」として記録する。
 
 挙動:
   1. apps/api-fsharp/ci-results/merged.sarif (CWD 相対) を読む。なければ exit 0
   2. ruleId を `<tool_name>.<ruleId>` でカウントし、最初に出会った message を保持
   3. 環境変数 SARIF_LESSONS_THRESHOLD (default=3) 以上の検出回数の rule を教訓として整形
-  4. root の AGENTS.md を開き、`## 失敗から学んだこと (自動生成)` 見出しを末尾に追加 (なければ)
-  5. 同じ ruleId の行が既に教訓セクションにあればスキップ。新規行のみ append
+  4. LESSONS.md のマーカ (<!-- lessons:begin --> / <!-- lessons:end -->) の間に記録する
+     - 新規 rule: ツール別の対応ヒントを付けて追記
+     - 既存 rule: 最終検出日と直近件数のみ更新 (本文は人間の蒸留編集を保持)
+  5. エントリは最終検出日の降順で保持。SARIF_LESSONS_MAX (default=50) を超えた分は古い順に削除
+  6. マーカの外 (ヘッダや人間が書いたメモ) には触れない
+
+メモリ品質の設計方針 (ループエンジニアリング):
+  - ここは「未消化の教訓」の受け皿。恒久対応 (linter / ast-grep / verify スクリプト / スキーマ修正)
+    が済んだ項目は人間または後続タスクが行ごと削除する
+  - 追記のみで無限成長させない (上限 + 再発時は追記でなく更新)
 
 CWD は Claude Code 起動時のリポジトリルートを想定。
 """
 import json
 import os
 import pathlib
+import re
 import sys
 from collections import Counter
 from datetime import date
 
 THRESHOLD = int(os.environ.get("SARIF_LESSONS_THRESHOLD", "3"))
-HEADING = "## 失敗から学んだこと (自動生成)"
-HEADING_ANCHOR = "\n" + HEADING  # 行頭の見出しのみマッチさせる (本文中の引用と区別)
+MAX_ENTRIES = int(os.environ.get("SARIF_LESSONS_MAX", "50"))
 SARIF_PATH = pathlib.Path("apps/api-fsharp/ci-results/merged.sarif")
-AGENTS_PATH = pathlib.Path("AGENTS.md")
+LESSONS_PATH = pathlib.Path("LESSONS.md")
+
+BEGIN_MARK = "<!-- lessons:begin -->"
+END_MARK = "<!-- lessons:end -->"
+
+# エントリ形式: - `<key>` — 最終検出 YYYY-MM-DD / 直近 N件: <本文>
+ENTRY_RE = re.compile(
+    r"^- `(?P<key>[^`]+)` — 最終検出 (?P<date>\d{4}-\d{2}-\d{2}) / 直近 (?P<count>\d+)件: (?P<body>.*)$"
+)
+
+# ツール名 → 対応ヒント (生の検出結果を「次に取るべき行動」に変換する)
+TOOL_HINTS = {
+    "Schemathesis": "openapi.yaml のスキーマ制約・examples と API バリデーション実装のどちらが正か判断して修正。恒常的な誤検知は schemathesis-hooks.py で除外",
+    "OWASP ZAP": "API 側の修正か zap-rules.tsv でのルール調整かを判断",
+    "gitleaks": "漏えいした秘密情報は即ローテーション。誤検知のみ .gitleaks.toml の allowlist に追加",
+    "Trivy": "renovate.json の優先度更新または依存の手動更新で対応",
+    "FSharpLint": "lint ルールに従い修正。規約化できるものは fsharplint 設定に固定",
+}
+
+HEADER_TEMPLATE = """# 失敗から学んだこと (自動生成)
+
+Stop フック (`.claude/scripts/sarif-to-lessons.py`) が `apps/api-fsharp/ci-results/merged.sarif` の
+頻出ルール (検出数 ≥ SARIF_LESSONS_THRESHOLD, 既定 3) を下のマーカ間に記録する。マーカの外は人間の編集領域。
+
+運用ルール:
+
+- ここは「未消化の教訓」の受け皿。恒久対応 (linter / ast-grep / verify スクリプト / スキーマ修正) が済んだ項目は行ごと削除する
+- 同じルールが再検出されたら日付と件数が更新される (再発の検知)。本文の手動編集 (蒸留) は保持される
+- エントリ数が上限 (SARIF_LESSONS_MAX, 既定 50) を超えると、最終検出が古いものから削除される
+
+{begin}
+{end}
+"""
 
 
 def load_results() -> tuple[Counter, dict[str, str]]:
@@ -45,50 +85,84 @@ def load_results() -> tuple[Counter, dict[str, str]]:
     return counts, samples
 
 
-def ensure_section(text: str) -> str:
-    if HEADING_ANCHOR in text:
-        return text
-    suffix = "\n\n" if not text.endswith("\n") else "\n"
-    return text + suffix + HEADING + "\n"
+def hint_for(key: str) -> str:
+    for tool, hint in TOOL_HINTS.items():
+        if key.startswith(tool + "."):
+            return hint
+    return ""
 
 
-def append_lessons(text: str, new_lines: list[str]) -> str:
-    if not new_lines:
-        return text
-    text = ensure_section(text)
-    idx = text.find(HEADING_ANCHOR)
-    head = text[: idx + 1]  # 改行込みの直前まで
-    tail = text[idx + 1 :]  # HEADING を含む後半
-    return head + tail.rstrip("\n") + "\n" + "\n".join(new_lines) + "\n"
+def parse_entries(section: str) -> dict[str, dict]:
+    """マーカ間のテキストを {key: {date, count, body}} に構造的にパースする。"""
+    entries: dict[str, dict] = {}
+    for line in section.splitlines():
+        m = ENTRY_RE.match(line.strip())
+        if m:
+            entries[m.group("key")] = {
+                "date": m.group("date"),
+                "count": int(m.group("count")),
+                "body": m.group("body"),
+            }
+    return entries
+
+
+def render_entries(entries: dict[str, dict]) -> tuple[str, int]:
+    ordered = sorted(entries.items(), key=lambda kv: kv[1]["date"], reverse=True)
+    dropped = len(ordered) - MAX_ENTRIES
+    if dropped > 0:
+        ordered = ordered[:MAX_ENTRIES]
+    lines = [
+        f"- `{key}` — 最終検出 {e['date']} / 直近 {e['count']}件: {e['body']}"
+        for key, e in ordered
+    ]
+    return "\n".join(lines), max(dropped, 0)
 
 
 def main() -> int:
-    if not AGENTS_PATH.exists():
-        return 0
     counts, samples = load_results()
     if not counts:
         return 0
 
     today = date.today().isoformat()
-    text = AGENTS_PATH.read_text()
-    text = ensure_section(text)
-    section_text = text[text.find(HEADING_ANCHOR):]
 
-    new_lines: list[str] = []
+    if LESSONS_PATH.exists():
+        text = LESSONS_PATH.read_text()
+        if BEGIN_MARK not in text or END_MARK not in text:
+            suffix = "" if text.endswith("\n") else "\n"
+            text = text + suffix + "\n" + BEGIN_MARK + "\n" + END_MARK + "\n"
+    else:
+        text = HEADER_TEMPLATE.format(begin=BEGIN_MARK, end=END_MARK)
+
+    begin_idx = text.index(BEGIN_MARK) + len(BEGIN_MARK)
+    end_idx = text.index(END_MARK)
+    entries = parse_entries(text[begin_idx:end_idx])
+
+    added = updated = 0
     for key, n in counts.most_common():
         if n < THRESHOLD:
             continue
-        if key in section_text:
-            continue
-        msg = samples.get(key, "")
-        new_lines.append(f"- {today} {key}: {n}回検出。{msg}")
+        if key in entries:
+            if entries[key]["date"] != today or entries[key]["count"] != n:
+                entries[key]["date"] = today
+                entries[key]["count"] = n
+                updated += 1
+        else:
+            msg = samples.get(key, "")
+            hint = hint_for(key)
+            body = f"{msg} → 対応: {hint}" if hint else msg
+            entries[key] = {"date": today, "count": n, "body": body}
+            added += 1
 
-    if not new_lines:
+    if not (added or updated):
         return 0
 
-    text = append_lessons(text, new_lines)
-    AGENTS_PATH.write_text(text)
-    print(f"[sarif-to-lessons] appended {len(new_lines)} lesson(s) to {AGENTS_PATH}")
+    rendered, dropped = render_entries(entries)
+    section = "\n" + rendered + "\n" if rendered else "\n"
+    LESSONS_PATH.write_text(text[:begin_idx] + section + text[end_idx:])
+    note = f"[sarif-to-lessons] {LESSONS_PATH}: +{added} updated {updated}"
+    if dropped:
+        note += f" dropped {dropped} (max {MAX_ENTRIES})"
+    print(note)
     return 0
 
 
