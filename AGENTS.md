@@ -67,7 +67,7 @@ apps/api-kotlin/  (将来予定)
 後続のタスクを追加するときは以下を前提とする：
 
 - すべての CI ツールの結果は `ci-results/sarif/<tool>.sarif` に出力し、`ci-results/merged.sarif` に統合する
-- 失敗の自己分析は `Stop` フック（`.claude/scripts/sarif-to-lessons.py`）が本ファイル末尾の "## 失敗から学んだこと (自動生成)" セクションに追記する
+- 失敗の自己分析は `Stop` フック（`.claude/scripts/sarif-to-lessons.py`）がリポジトリルートの `LESSONS.md`（マーカ間の自動生成領域）に記録する。恒久対応が済んだ教訓は `LESSONS.md` から削除する
 
 ## 関連ディレクトリ
 
@@ -90,7 +90,7 @@ ci-results/                    # gitignore 対象
 ├── scripts/
 │   ├── start-trace.py         # SessionStart: trace ID 生成
 │   ├── emit-otel.py           # PostToolUse: OTel スパン送信
-│   └── sarif-to-lessons.py    # Stop: AGENTS.md 自動更新
+│   └── sarif-to-lessons.py    # Stop: LESSONS.md 自動更新
 └── plugins/
     └── ralph-orchestrator/    # DAG ベース multi-session RALPH (詳細は README 参照)
 ```
@@ -119,11 +119,10 @@ worker 用のライフサイクル契約は `.claude/plugins/ralph-orchestrator/
 
 `apps/api-fsharp/ci.sh` は ZAP 直後に Schemathesis を回し、`openapi.yaml` から property-based の入力を生成して `http://localhost:5000` を叩く。固定 seed `42` / `-n 200` / `--request-timeout 2.0` で反復可能。`SCHEMATHESIS_ENABLED=0` で全体スキップ可能（高速モード）。事前状態を要するエンドポイント（`POST /sales-cases/{id}/contracts` など appraised 必須のもの、ロット状態遷移、reservation/consignment 多段フロー）は `apps/api-fsharp/schemathesis-hooks.py` の `before_load_schema` フックで raw schema から物理的に除外している。出力は `ci-results/schemathesis-junit.xml` / `ci-results/sarif/schemathesis.sarif` / `ci-results/schemathesis.tar.gz` の 3 点。`scripts/junit-to-sarif.py` が JUnit XML を SARIF v2.1.0 に変換し、`merged.sarif` にも統合される。発見は当面 `warning` レベル扱いで CI を落とさない（信号品質が安定したら `error` に昇格する）。
 
-<!-- 以下は Stop フック (.claude/scripts/sarif-to-lessons.py) が自動追記する領域 -->
+# 失敗から学んだこと
 
-## 失敗から学んだこと (自動生成)
-- 2026-05-01 OWASP ZAP.100000: 311回検出。A Client Error response code was returned by the server: 400
-- 2026-05-01 OWASP ZAP.10049: 9回検出。Non-Storable Content: 400
-- 2026-05-01 OWASP ZAP.10104: 5回検出。User Agent Fuzzer: <p>Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search
-- 2026-05-11 Schemathesis.failure: 19回検出。POST /lots: 1. Test Case ID: qhqW6S  - API accepted schema-violating request      Invalid data should have been rejected
-- 2026-05-11 Schemathesis.skipped: 11回検出。POST /lots: No examples in schema
+CI 失敗の頻出パターン（未消化の教訓）は [`LESSONS.md`](LESSONS.md) に集約している。
+**作業開始時に `LESSONS.md` の未消化教訓に目を通し、同じ失敗を繰り返さないこと。**
+Stop フックが自動更新するため、本ファイルには追記しない。
+恒久対応（linter / ast-grep / verify スクリプト / スキーマ修正）が済んだ教訓は `LESSONS.md` から削除する。
+対応不要と判断した検出は `LESSONS.md` の `lessons:ignore` ディレクティブで恒久的に無視できる。

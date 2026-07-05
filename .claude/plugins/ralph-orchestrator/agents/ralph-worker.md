@@ -16,16 +16,17 @@ The task spec is provided to you via `--append-system-prompt` and includes:
 
 ## 厳守ルール
 
-1. **編集対象**: `files:` リストに記載されたパスのみ。それ以外 (PLAN.md / .ralph/* / .github/* 含む) は読み取りのみ
-2. **検証**: 実装完了後、必ず順に実行:
-   - `moon check`
-   - `moon test`
-   - `moon info && moon fmt`
-   - `bash <verify_script>` (system prompt に記載)
+1. **編集対象**: `files:` リストに記載されたパスのみ。それ以外 (LESSONS.md / .ralph/* / .github/* 含む) は読み取りのみ
+2. **検証**: 実装完了後、必ず順に実行 (1〜4 は `apps/api-fsharp/` で。fantomas はローカルツールのため):
+   - `dotnet build src/SalesManagement --warnaserror`
+   - `dotnet build tests/SalesManagement.Tests --warnaserror`
+   - `dotnet fantomas --check src/ tests/`
+   - `dotnet test tests/SalesManagement.Tests` (pass 数 ≥ baseline)
+   - `bash <verify_script>` (worktree ルートで実行。system prompt に記載)
    全部通って初めて完了
-3. **MoonBit 構文**: 自動 memory の `feedback_moonbit_syntax.md` を必ず参照。判断に迷ったら `Skill(moonbit-agent-guide)` を呼ぶ
+3. **F# 構文/配置**: F# は宣言順依存。`.fsproj` の `<Compile Include>` 順序に注意 (Support 等は先頭)。新規テストは `Support/*` ハーネスを使い `[<Trait("Category", "Integration")>]` を付ける。DSL 解釈ルール・命名規約は `AGENTS.md` を参照
 4. **コミット**: タスク完了時にコミットする (worktree branch にいる)。push しない (orchestrator が main rebase merge する)
-   - メッセージ形式: `feat({phase|lower}): {title}` または `refactor(...)` `fix(...)` 等
+   - メッセージ形式: `feat({phase|lower}): {title}` または `refactor(...)` `fix(...)` 等。日本語で書く
    - **Co-Authored-By は付けない** (project memory `feedback_no_coauthor.md` 参照)
 5. **完了出力**: 最終ターンの末尾に正確に `<task-status>done</task-status>` を出力。これが orchestrator の検出マーカ
 6. **ブロック時**: 解決不能/権限不足/設計判断が必要な場合は完了せず、最終ターン末尾に
@@ -37,21 +38,19 @@ The task spec is provided to you via `--append-system-prompt` and includes:
    を出力。verify を通せないコミットや、嘘の done は **絶対禁止**
 7. **禁止行為**:
    - `git push` / `gh pr create` / 他 worktree への操作
-   - PLAN.md / `.ralph/tasks.toml` / `.ralph/verify/*` の編集
+   - LESSONS.md / `.ralph/tasks.toml` / `.ralph/verify/*` の編集
    - allowlist 外の Bash (Web リクエストなど) — 必要なら blocked 出力で要求
    - `--no-verify` 等の hook bypass
 8. **積極的に使う Skill**:
-   - `Skill(ralph-task)` 起動直後にライフサイクル契約を再確認
-   - `Skill(moonbit-agent-guide)` MoonBit 実装ガイド
-   - `Skill(moonbit-refactoring)` リファクタ系タスクで構造変更前
+   - `Skill(ralph-task)` 起動直後にライフサイクル契約を再確認 (本リポジトリ F#/.NET 向けの詳細版)
    - `Skill(simplify)` 完了直前の品質チェック (任意)
    - `Skill(security-review)` セキュリティ感度の高い変更時 (任意)
 
 ## 進め方
 
 1. 起動直後: `git status` で clean を確認、`Skill(ralph-task)` を呼んで契約を再確認
-2. PLAN.md の該当タスク部分と `files:` の現状を Read
+2. タスクに関連する仕様 (`dsl/domain-model.md` / `AGENTS.md`)、`LESSONS.md` の未消化教訓、`files:` の現状を Read
 3. `prompt_extra` に書かれた具体仕様に厳密に従う
-4. 実装 → `moon check && moon test && moon info && moon fmt`
+4. 実装 → `apps/api-fsharp/` で build → fantomas → test の順に検証
 5. verify script 実行
 6. green ならば commit → `<task-status>done</task-status>` を出力して終了

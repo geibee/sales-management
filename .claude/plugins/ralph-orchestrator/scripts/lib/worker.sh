@@ -36,7 +36,7 @@ worker_render_prompt() {
 
 # Capture current test count to record as baseline. Returns integer.
 # If <repo>/.ralph/capture-baseline.sh exists, run it instead of the default
-# moon-based capture (allows non-MoonBit projects to override).
+# dotnet-based capture (allows other project layouts to override).
 worker_capture_baseline() {
   local override="$PROJECT_ROOT/.ralph/capture-baseline.sh"
   if [[ -f "$override" ]]; then
@@ -46,12 +46,14 @@ worker_capture_baseline() {
     echo "$count"
     return
   fi
-  local count
-  count=$(cd "$PROJECT_ROOT" && moon test 2>&1 | grep -oE 'Total tests: [0-9]+' | grep -oE '[0-9]+' | tail -1 || echo 0)
+  local out count
+  out=$(cd "$PROJECT_ROOT/apps/api-fsharp" && dotnet test tests/SalesManagement.Tests 2>&1 || true)
+  # VSTest 形式 "Passed: NN"
+  count=$(echo "$out" | grep -oE 'Passed:[[:space:]]*[0-9]+' | grep -oE '[0-9]+' | tail -1 || echo 0)
   [[ -z "$count" ]] && count=0
-  # fallback: grep the trailing summary "passed: NN, failed: NN"
+  # fallback: MTP 形式 "Total tests: NN"
   if [[ "$count" == "0" ]]; then
-    count=$(cd "$PROJECT_ROOT" && moon test 2>&1 | grep -oE 'passed: [0-9]+' | grep -oE '[0-9]+' | tail -1 || echo 0)
+    count=$(echo "$out" | grep -oE 'Total tests: [0-9]+' | grep -oE '[0-9]+' | tail -1 || echo 0)
     [[ -z "$count" ]] && count=0
   fi
   echo "$count"

@@ -12,7 +12,7 @@ verify_run() {
   verify_script=$(echo "$task_json" | jq -r '.verify // ""')
 
   # Resolve verify path (either absolute or relative to project root)
-  # Prefer project-local _generic.sh if present (allows non-MoonBit projects).
+  # Prefer project-local _generic.sh if present (allows other project layouts to override).
   local generic_default="$worktree/.ralph/verify/_generic.sh"
   [[ -f "$generic_default" ]] || generic_default="$PLUGIN_ROOT/scripts/verify/_generic.sh"
   if [[ -z "$verify_script" || "$verify_script" == "null" ]]; then
