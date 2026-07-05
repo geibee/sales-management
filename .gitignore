@@ -16,9 +16,19 @@ test-results/
 # CI aggregated results
 ci-results/
 
+# Build artifacts (Gradle/JVM)
+.gradle/
+build/
+
 # Python
 .venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+
+# RALPH orchestrator local state (halt flag / logs / run state)
+.ralph/
+
+# Stray Spring build tree (成果物のみ・ソース無し。追跡対象外)
+apps/api-spring/
