@@ -932,7 +932,7 @@ paths:
         販売案件をページング付きで取得する。`status` / `caseType` クエリでフィルタ、
         `limit` (1..200, default 50) と `offset` (>= 0, default 0) でページング。
       parameters:
-        - { name: status, in: query, required: false, schema: { type: string, description: 案件ステータス (例 before_appraisal, appraised, contracted など) } }
+        - { name: status, in: query, required: false, schema: { type: string, description: "案件ステータス (例 before_appraisal, appraised, contracted など)" } }
         - { name: caseType, in: query, required: false, schema: { type: string, enum: [direct, reservation, consignment] } }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
         - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
