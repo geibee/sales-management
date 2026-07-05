@@ -21,7 +21,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "gen:api": "openapi-zod-client ../api-fsharp/openapi.yaml -o src/contracts/generated.ts"
+    "gen:api": "openapi-zod-client ../api-fsharp/openapi.yaml -o src/contracts/generated.ts",
+    "lint:contracts": "spectral lint --ruleset ../../.spectral.yaml ../api-fsharp/openapi.yaml"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -52,6 +53,7 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@playwright/test": "^1.49.1",
+    "@stoplight/spectral-cli": "^6.16.1",
     "@tailwindcss/vite": "^4.0.0",
     "@tanstack/router-plugin": "^1.95.0",
     "@testing-library/jest-dom": "^6.6.3",
