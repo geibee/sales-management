@@ -21,7 +21,7 @@ import { LotCreatePage } from "@/pages/lots/LotCreatePage";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
-import { makeCodeMasters, makeSalesCase } from "../support/fixtures";
+import { makeCodeMasters, makeDirectSalesCase } from "../support/fixtures";
 import { renderWithApp, renderWithRouter } from "../support/render";
 import { requestsFor, server } from "../support/server";
 
@@ -75,7 +75,7 @@ describe("Validation 表示ポリシー (FE-VAL-POLICY-*)", () => {
   });
 
   it("FE-VAL-POLICY-004: 未操作 field は赤くしない (mount 直後 aria-invalid なし)", async () => {
-    const data = makeSalesCase({ lots: ["2026-A-1"] });
+    const data = makeDirectSalesCase({ lots: ["2026-A-1"] });
     renderWithApp(
       <DirectAppraisalForm data={data} title="査定" buttonLabel="登録" onSubmit={vi.fn()} />,
     );

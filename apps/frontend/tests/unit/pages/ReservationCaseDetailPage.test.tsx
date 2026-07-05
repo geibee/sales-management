@@ -11,7 +11,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
-import { makeSalesCase } from "../../support/fixtures";
+import { makeReservationSalesCase } from "../../support/fixtures";
 import { renderWithRouter } from "../../support/render";
 import { requestsFor, server } from "../../support/server";
 
@@ -27,7 +27,7 @@ describe("<ReservationCaseDetailPage> (FE-PAGE-RESERVATION-* / FE-REQ-RESERVATIO
     server.use(
       http.get(`/api/sales-cases/${ID}`, () =>
         HttpResponse.json(
-          makeSalesCase({
+          makeReservationSalesCase({
             salesCaseNumber: ID,
             caseType: "reservation",
             status: "reservation_confirmed",
@@ -48,7 +48,7 @@ describe("<ReservationCaseDetailPage> (FE-PAGE-RESERVATION-* / FE-REQ-RESERVATIO
     server.use(
       http.get(`/api/sales-cases/${ID}`, () =>
         HttpResponse.json(
-          makeSalesCase({
+          makeReservationSalesCase({
             salesCaseNumber: ID,
             caseType: "reservation",
             status: "reservation_confirmed",
@@ -78,7 +78,7 @@ describe("<ReservationCaseDetailPage> (FE-PAGE-RESERVATION-* / FE-REQ-RESERVATIO
     server.use(
       http.get(`/api/sales-cases/${ID}`, () =>
         HttpResponse.json(
-          makeSalesCase({
+          makeReservationSalesCase({
             salesCaseNumber: ID,
             caseType: "reservation",
             status: "reservation_confirmed",

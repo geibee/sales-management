@@ -1,0 +1,64 @@
+# Spectral linting rules for apps/api-fsharp/openapi.yaml
+#
+# 目的: openapi.yaml にサボった契約定義が混入することをレビュー前に弾く。
+# 「`additionalProperties: true` で逃げる」「`type: object` で中身未定義」など、
+# 過去に実装-契約の乖離を生んだ典型パターンを CI で fail させる。
+#
+# 実行: npm --prefix apps/frontend run lint:contracts
+extends:
+  - [spectral:oas, recommended]
+
+rules:
+  # ---- カスタムルール: 緩い契約を弾く ----
+
+  # additionalProperties: true は契約をパススルー化するため原則禁止。
+  # 真にパススルーが必要なケースは named schema にして `x-passthrough-justified: <reason>`
+  # を付けるなど、別途運用ルールでカバーする。
+  no-additional-properties-true:
+    description: '`additionalProperties: true` は契約をパススルー化する。フィールドを明示するか named schema を $ref で参照する形に書き換える。'
+    message: '{{path}} で `additionalProperties: true` が使われている。'
+    given: "$..additionalProperties"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "^true$"
+    severity: error
+
+  # type: object で properties / $ref / oneOf / allOf / anyOf いずれも持たない
+  # 「中身未定義の object」は実質 unknown 同等で型安全性が消える。
+  no-opaque-object:
+    description: '`type: object` のスキーマは `properties` / `$ref` / `oneOf` / `allOf` / `anyOf` のいずれかで中身を定義する。'
+    message: '{{path}} が中身未定義の `type: object` になっている。`properties` を定義するか named schema を `$ref` する。'
+    given: "$..[?(@property !== 'not' && @ && @.type === 'object' && !@.properties && !@.$ref && !@.oneOf && !@.allOf && !@.anyOf && !@.additionalProperties)]"
+    then:
+      function: falsy
+    severity: error
+
+  # discriminator フィールドを持ちながら oneOf になっていないスキーマを検出。
+  # caseType / kind / type / discriminator など、サブタイプ判別を匂わせる string enum
+  # フィールドを持つ場合は oneOf + discriminator にすべき。
+  polymorphic-without-oneof:
+    description: 'サブタイプ判別フィールド (caseType / kind / discriminator) を持つスキーマは `oneOf` + `discriminator` で書く。'
+    message: '{{path}} が discriminator らしきフィールドを持ちながら `oneOf` で分割されていない。'
+    given:
+      - "$.components.schemas[?(@.properties && @.properties.caseType && !@.oneOf)]"
+      - "$.components.schemas[?(@.properties && @.properties.kind && !@.oneOf)]"
+      - "$.components.schemas[?(@.properties && @.properties.discriminator && !@.oneOf)]"
+    then:
+      function: falsy
+    severity: warn
+
+  # ---- 既存ルールの調整 ----
+
+  # 説明 description の必須化は厳しすぎるため warn に降格。
+  operation-description: warn
+  operation-tag-defined: warn
+
+  # 全 path に operationId を強制 (フロント生成器の都合)。
+  operation-operationId: error
+
+  # duplicated-entry-in-enum は spectral 6.16 系 (nimma 0.2.3) の再帰探索で
+  # "Cannot read properties of null (reading 'enum')" を投げて lint 全体を
+  # クラッシュさせる（本ドキュメント固有ではなくエンジン側の既知不具合）。
+  # 本 openapi.yaml の enum は全て重複なしを手検証済みのため無効化して回避する。
+  duplicated-entry-in-enum: off

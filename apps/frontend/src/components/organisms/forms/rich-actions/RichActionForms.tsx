@@ -12,7 +12,11 @@ import {
 import { Input } from "@/components/atoms/input";
 import { Label } from "@/components/atoms/label";
 import { FieldError } from "@/components/molecules";
-import type { SalesCaseDetailResponse } from "@/contracts";
+import type {
+  ConsignmentSalesCaseDetail,
+  DirectSalesCaseDetail,
+  ReservationSalesCaseDetail,
+} from "@/contracts";
 import { describeApiError } from "@/lib/api-client";
 import { formatAmount } from "@/lib/format";
 import {
@@ -62,10 +66,10 @@ export function DirectAppraisalForm({
   disabled,
   disabledReason,
   onSubmit,
-}: Omit<BaseFormProps, "version"> & { data: SalesCaseDetailResponse }) {
-  const appraisalDate = fieldString(data.appraisal, "appraisalDate", data.salesDate);
-  const deliveryDate = fieldString(data.appraisal, "deliveryDate", data.salesDate);
-  const salesMarket = fieldString(data.appraisal, "salesMarket", "国内卸売");
+}: Omit<BaseFormProps, "version"> & { data: DirectSalesCaseDetail }) {
+  const appraisalDate = data.appraisal?.appraisalDate ?? data.salesDate;
+  const deliveryDate = data.appraisal?.deliveryDate ?? data.salesDate;
+  const salesMarket = data.appraisal?.salesMarket ?? "国内卸売";
 
   // 税抜査定合計は入力された明細から自動計算する（= Σ 基準単価 × 期中調整率 × 取引先調整率 × 例外調整率）。
   // フォームの各明細フィールド初期値（基準単価1000 / 各調整率1）から初期値を求める。
@@ -224,12 +228,12 @@ export function SalesContractForm({
   disabled,
   disabledReason,
   onSubmit,
-}: Omit<BaseFormProps, "version"> & { data: SalesCaseDetailResponse }) {
-  const contractDate = fieldString(data.contract, "contractDate", data.salesDate);
-  const person = fieldString(data.contract, "person", "sales-operator");
-  const customerNumber = fieldString(data.contract, "customerNumber", "C-001");
-  const taxExcludedContractAmount = fieldNumber(data.contract, "taxExcludedContractAmount", 10000);
-  const consumptionTax = fieldNumber(data.contract, "consumptionTax", 1000);
+}: Omit<BaseFormProps, "version"> & { data: DirectSalesCaseDetail }) {
+  const contractDate = data.contract?.contractDate ?? data.salesDate;
+  const person = data.contract?.person ?? "sales-operator";
+  const customerNumber = data.contract?.customerNumber ?? "C-001";
+  const taxExcludedContractAmount = data.contract?.taxExcludedContractAmount ?? 10000;
+  const consumptionTax = data.contract?.consumptionTax ?? 1000;
 
   const { action, isPending, errors, onBlur } = useRichAction(title, disabled, onSubmit, (r) => ({
     contractDate: r.requiredString("contractDate", "契約日"),
@@ -377,18 +381,14 @@ export function ReservationPriceForm({
   disabledReason,
   onSubmit,
 }: {
-  data: SalesCaseDetailResponse;
+  data: ReservationSalesCaseDetail;
   disabled?: boolean;
   disabledReason?: string;
   onSubmit: SubmitBody;
 }) {
-  const appraisalDate = fieldString(data.reservationPrice, "appraisalDate", data.salesDate);
-  const reservedLotInfo = fieldString(
-    data.reservationPrice,
-    "reservedLotInfo",
-    data.lots.join(", "),
-  );
-  const reservedAmount = fieldNumber(data.reservationPrice, "reservedAmount", 10000);
+  const appraisalDate = data.reservationPrice?.appraisalDate ?? data.salesDate;
+  const reservedLotInfo = data.reservationPrice?.reservedLotInfo ?? data.lots.join(", ");
+  const reservedAmount = data.reservationPrice?.reservedAmount ?? 10000;
 
   const { action, isPending, errors, onBlur } = useRichAction(
     "予約価格 登録",
@@ -445,13 +445,13 @@ export function ReservationConfirmationForm({
   disabledReason,
   onSubmit,
 }: {
-  data: SalesCaseDetailResponse;
+  data: ReservationSalesCaseDetail;
   disabled?: boolean;
   disabledReason?: string;
   onSubmit: SubmitBody;
 }) {
-  const determinedDate = fieldString(data.determination, "determinedDate", data.salesDate);
-  const determinedAmount = fieldNumber(data.determination, "determinedAmount", 10000);
+  const determinedDate = data.determination?.determinedDate ?? data.salesDate;
+  const determinedAmount = data.determination?.determinedAmount ?? 10000;
 
   const { action, isPending, errors, onBlur } = useRichAction(
     "予約 確定",
@@ -501,14 +501,14 @@ export function ConsignmentDesignationForm({
   disabledReason,
   onSubmit,
 }: {
-  data: SalesCaseDetailResponse;
+  data: ConsignmentSalesCaseDetail;
   disabled?: boolean;
   disabledReason?: string;
   onSubmit: SubmitBody;
 }) {
-  const consignorName = fieldString(data.consignor, "consignorName", "委託先A");
-  const consignorCode = fieldString(data.consignor, "consignorCode", "CN-001");
-  const designatedDate = fieldString(data.consignor, "designatedDate", data.salesDate);
+  const consignorName = data.consignor?.consignorName ?? "委託先A";
+  const consignorCode = data.consignor?.consignorCode ?? "CN-001";
+  const designatedDate = data.consignor?.designatedDate ?? data.salesDate;
 
   const { action, isPending, errors, onBlur } = useRichAction(
     "委託指定",
@@ -564,13 +564,13 @@ export function ConsignmentResultForm({
   disabledReason,
   onSubmit,
 }: {
-  data: SalesCaseDetailResponse;
+  data: ConsignmentSalesCaseDetail;
   disabled?: boolean;
   disabledReason?: string;
   onSubmit: SubmitBody;
 }) {
-  const resultDate = fieldString(data.result, "resultDate", data.salesDate);
-  const resultAmount = fieldNumber(data.result, "resultAmount", 10000);
+  const resultDate = data.result?.resultDate ?? data.salesDate;
+  const resultAmount = data.result?.resultAmount ?? 10000;
 
   const { action, isPending, errors, onBlur } = useRichAction(
     "委託結果 登録",
@@ -1070,18 +1070,3 @@ class FieldReader {
   }
 }
 
-function fieldString(source: unknown, key: string, fallback: string): string {
-  if (!isRecord(source)) return fallback;
-  const value = source[key];
-  return typeof value === "string" && value.trim() ? value : fallback;
-}
-
-function fieldNumber(source: unknown, key: string, fallback: number): number {
-  if (!isRecord(source)) return fallback;
-  const value = source[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}

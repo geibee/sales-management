@@ -1,4 +1,4 @@
-import { type SalesCaseDetailResponse, SalesCaseDetailResponseSchema } from "@/contracts";
+import { schemas, type SalesCaseDetailResponse } from "@/contracts";
 import { ApiError, apiGet, apiSend } from "@/lib/api-client";
 import useSWR, { mutate as globalMutate } from "swr";
 
@@ -8,7 +8,7 @@ export function consignmentCaseKey(id: string): string {
 
 export function useConsignmentCase(id: string | null) {
   return useSWR<SalesCaseDetailResponse>(id ? consignmentCaseKey(id) : null, (key: string) =>
-    apiGet(key, SalesCaseDetailResponseSchema),
+    apiGet(key, schemas.SalesCaseDetailResponse),
   );
 }
 

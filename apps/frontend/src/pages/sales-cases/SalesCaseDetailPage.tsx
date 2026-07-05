@@ -97,6 +97,13 @@ export function SalesCaseDetailPage({ id }: { id: string }) {
       </p>
     );
   if (!data) return null;
+  if (data.caseType !== "direct") {
+    return (
+      <p className="page" style={{ color: "var(--danger)" }}>
+        この画面は直販案件用です（このID は {data.caseType} 案件です）。
+      </p>
+    );
+  }
 
   const statusLabel = caseStatusLabel(data.caseType, data.status);
   const flowIdx = DIRECT_STATUS_FLOW.findIndex((s) => s.value === data.status);
@@ -335,11 +342,7 @@ export function SalesCaseDetailPage({ id }: { id: string }) {
               title="出荷指示"
               buttonLabel="登録"
               dateLabel="指示日"
-              defaultDate={recordString(
-                data.shippingInstruction,
-                "instructionDate",
-                data.salesDate ?? "",
-              )}
+              defaultDate={data.shippingInstruction?.instructionDate ?? data.salesDate ?? ""}
               version={data.version}
               icon={<ClipboardCheck className="size-4" />}
               disabled={data.status !== "contracted"}
@@ -358,11 +361,7 @@ export function SalesCaseDetailPage({ id }: { id: string }) {
               title="出荷完了"
               buttonLabel="登録"
               dateLabel="完了日"
-              defaultDate={recordString(
-                data.shippingCompletion,
-                "completionDate",
-                data.salesDate ?? "",
-              )}
+              defaultDate={data.shippingCompletion?.completionDate ?? data.salesDate ?? ""}
               version={data.version}
               icon={<Truck className="size-4" />}
               disabled={data.status !== "shipping_instructed"}
@@ -506,12 +505,6 @@ function recordEntries(value: unknown): Array<[string, unknown]> {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function recordString(source: unknown, key: string, fallback: string): string {
-  if (!isRecord(source)) return fallback;
-  const value = source[key];
-  return typeof value === "string" && value.trim() ? value : fallback;
 }
 
 function formatFieldValue(value: unknown): string {

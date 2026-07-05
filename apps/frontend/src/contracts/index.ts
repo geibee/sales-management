@@ -1,33 +1,19 @@
 /**
- * Re-exports the auto-generated Zod schemas plus a small set of hand-written
- * extensions for shapes the OpenAPI spec leaves opaque.
+ * Re-exports the auto-generated Zod schemas plus ProblemJson.
  *
- * Auto-generated (`gen:api` from openapi.yaml) — see ./generated.ts `schemas`:
- *   - LotStatus, LotResponse, CreateLotResponse
- *   - completeManufacturing_Body, instructLotShipping_Body, instructItemConversion_Body
- *   - createSalesCase_Body, CreatedSalesCaseResponse, SalesCaseDetailResponse, ...
- *   - PriceCheckResponse
+ * ProblemJson (RFC 9457): openapi.yaml には `components.schemas.ProblemDetails` として
+ * named schema で書かれているが、すべての参照が `application/problem+json` メディアタイプ
+ * 経由のため、`application/json` しか拾わない openapi-zod-client は generated.ts に
+ * 出力しない。フロントが error body を parse する用に同じ shape を手書きで再現している。
  *
- * Hand-written:
- *   - ProblemJson (RFC 9457 — yaml has it inline; openapi-zod-client doesn't
- *     surface a named export for it)
- *   - DateOnly (form-level helper)
+ * Schemas は generated.ts の `schemas.X` を直接参照する。型だけは `z.infer<typeof schemas.X>`
+ * のショートカットとして alias を提供する。Form-level validators は src/forms/validators.ts。
  */
 import { z } from "zod";
 import { schemas } from "./generated";
 
 export { schemas, api, createApiClient } from "./generated";
 
-// Re-export commonly used generated schemas with friendlier names.
-export const LotResponseSchema = schemas.LotResponse;
-export const LotStatusSchema = schemas.LotStatus;
-export const CreateLotResponseSchema = schemas.CreateLotResponse;
-export const LotsListResponseSchema = schemas.LotsListResponse;
-export const PriceCheckResponseSchema = schemas.PriceCheckResponse;
-export const CreatedSalesCaseResponseSchema = schemas.CreatedSalesCaseResponse;
-export const SalesCasesListResponseSchema = schemas.SalesCasesListResponse;
-export const SalesCaseTypeSchema = schemas.SalesCaseType;
-export const SalesCaseDetailResponseSchema = schemas.SalesCaseDetailResponse;
 export type LotResponse = z.infer<typeof schemas.LotResponse>;
 export type LotStatus = z.infer<typeof schemas.LotStatus>;
 export type CreateLotResponse = z.infer<typeof schemas.CreateLotResponse>;
@@ -37,8 +23,9 @@ export type CreatedSalesCaseResponse = z.infer<typeof schemas.CreatedSalesCaseRe
 export type SalesCasesListResponse = z.infer<typeof schemas.SalesCasesListResponse>;
 export type SalesCaseType = z.infer<typeof schemas.SalesCaseType>;
 export type SalesCaseDetailResponse = z.infer<typeof schemas.SalesCaseDetailResponse>;
-export const CodeMastersResponseSchema = schemas.CodeMastersResponse;
-export const AvailableLotsResponseSchema = schemas.AvailableLotsResponse;
+export type DirectSalesCaseDetail = z.infer<typeof schemas.DirectSalesCaseDetail>;
+export type ReservationSalesCaseDetail = z.infer<typeof schemas.ReservationSalesCaseDetail>;
+export type ConsignmentSalesCaseDetail = z.infer<typeof schemas.ConsignmentSalesCaseDetail>;
 export type CodeMastersResponse = z.infer<typeof schemas.CodeMastersResponse>;
 export type AvailableLotsResponse = z.infer<typeof schemas.AvailableLotsResponse>;
 
@@ -51,10 +38,3 @@ export const ProblemJsonSchema = z.object({
   detail: z.string().optional(),
 });
 export type ProblemJson = z.infer<typeof ProblemJsonSchema>;
-
-/**
- * Date input helper (yyyy-MM-dd).
- */
-export const DateOnlySchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "yyyy-MM-dd 形式で入力してください");

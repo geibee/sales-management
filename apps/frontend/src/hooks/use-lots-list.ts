@@ -1,4 +1,4 @@
-import { type LotsListResponse, LotsListResponseSchema } from "@/contracts";
+import { schemas, type LotsListResponse } from "@/contracts";
 import { apiGet } from "@/lib/api-client";
 import useSWR from "swr";
 
@@ -19,7 +19,7 @@ function buildPath(q: LotsListQuery): string {
 
 export function useLotsList(q: LotsListQuery) {
   const key = buildPath(q);
-  return useSWR<LotsListResponse>(key, (k: string) => apiGet(k, LotsListResponseSchema), {
+  return useSWR<LotsListResponse>(key, (k: string) => apiGet(k, schemas.LotsListResponse), {
     keepPreviousData: true,
   });
 }

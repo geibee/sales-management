@@ -370,22 +370,97 @@ components:
         status: { type: string }
         version: { type: integer, description: 楽観的ロック用バージョン番号 }
 
-    SalesCaseDetailResponse:
+    DirectAppraisal:
       type: object
-      description: |
-        販売案件詳細レスポンス。`caseType` で direct / reservation / consignment を判別する
-        ポリモーフィックスキーマ。サブタイプ固有のフィールドは欠落 / null を許容するため
-        `additionalProperties: true` でパススルー扱いとする。
-      additionalProperties: true
-      required: [salesCaseNumber, caseType, status, lots, divisionCode, salesDate, version]
+      description: direct 案件の価格査定情報
+      required: [type, appraisalDate, deliveryDate, salesMarket, taxExcludedEstimatedTotal]
+      properties:
+        type: { type: string, description: 査定種別 (normal / customer_contract) }
+        appraisalDate: { type: string, format: date }
+        deliveryDate: { type: string, format: date }
+        salesMarket: { type: string }
+        taxExcludedEstimatedTotal: { type: integer }
+
+    DirectContract:
+      type: object
+      description: direct 案件の売買契約情報
+      required: [contractDate, person, customerNumber, taxExcludedContractAmount, consumptionTax]
+      properties:
+        contractDate: { type: string, format: date }
+        person: { type: string }
+        customerNumber: { type: string }
+        taxExcludedContractAmount: { type: integer }
+        consumptionTax: { type: integer }
+
+    ShippingInstruction:
+      type: object
+      description: direct 案件の出荷指示情報
+      required: [instructionDate]
+      properties:
+        instructionDate: { type: string, format: date }
+
+    ShippingCompletion:
+      type: object
+      description: direct 案件の出荷完了情報
+      required: [completionDate]
+      properties:
+        completionDate: { type: string, format: date }
+
+    ReservationPrice:
+      type: object
+      description: reservation 案件の予約価格
+      required: [appraisalDate, reservedLotInfo, reservedAmount]
+      properties:
+        appraisalDate: { type: string, format: date }
+        reservedLotInfo: { type: string }
+        reservedAmount: { type: integer }
+
+    ReservationDetermination:
+      type: object
+      description: reservation 案件の確定情報
+      required: [determinedDate, determinedAmount]
+      properties:
+        determinedDate: { type: string, format: date }
+        determinedAmount: { type: integer }
+
+    ReservationDelivery:
+      type: object
+      description: reservation 案件の引き渡し情報
+      required: [deliveredDate]
+      properties:
+        deliveredDate: { type: string, format: date }
+
+    Consignor:
+      type: object
+      description: consignment 案件の委託元情報
+      required: [consignorName, consignorCode, designatedDate]
+      properties:
+        consignorName: { type: string }
+        consignorCode: { type: string }
+        designatedDate: { type: string, format: date }
+
+    ConsignmentResult:
+      type: object
+      description: consignment 案件の結果情報
+      required: [resultDate, resultAmount]
+      properties:
+        resultDate: { type: string, format: date }
+        resultAmount: { type: integer }
+
+    DirectSalesCaseDetail:
+      type: object
+      description: direct 案件の詳細レスポンス
+      required: [salesCaseNumber, caseType, status, lots, divisionCode, salesDate, version, appraisal, contract, shippingInstruction, shippingCompletion]
       properties:
         salesCaseNumber:
           type: string
           example: "2026-01-001"
-        caseType: { $ref: '#/components/schemas/SalesCaseType' }
+        caseType:
+          type: string
+          enum: [direct]
         status:
           type: string
-          description: 案件ステータス (例 before_appraisal, appraised, contracted, reserved, reservation_confirmed, reservation_delivered, before_consignment, consignment_designated 等)
+          description: 案件ステータス (before_appraisal, appraised, contracted など)
         lots:
           type: array
           items: { type: string }
@@ -393,45 +468,92 @@ components:
         divisionCode: { type: integer }
         salesDate: { type: string, format: date }
         version: { type: integer, description: 楽観的ロック用バージョン番号 }
-        # direct 案件向け
         appraisal:
-          type: object
+          allOf: [{ $ref: '#/components/schemas/DirectAppraisal' }]
           nullable: true
-          description: direct 案件の価格査定情報（未登録時は null）
         contract:
-          type: object
+          allOf: [{ $ref: '#/components/schemas/DirectContract' }]
           nullable: true
-          description: direct 案件の売買契約情報（未登録時は null）
         shippingInstruction:
-          type: object
+          allOf: [{ $ref: '#/components/schemas/ShippingInstruction' }]
           nullable: true
-          description: direct 案件の出荷指示情報（未指示時は null）
         shippingCompletion:
-          type: object
+          allOf: [{ $ref: '#/components/schemas/ShippingCompletion' }]
           nullable: true
-          description: direct 案件の出荷完了情報（未完了時は null）
-        # reservation 案件向け
+
+    ReservationSalesCaseDetail:
+      type: object
+      description: reservation 案件の詳細レスポンス
+      required: [salesCaseNumber, caseType, status, lots, divisionCode, salesDate, version, reservationPrice, determination, delivery]
+      properties:
+        salesCaseNumber:
+          type: string
+          example: "2026-01-001"
+        caseType:
+          type: string
+          enum: [reservation]
+        status:
+          type: string
+          description: 案件ステータス (reserved, reservation_confirmed, reservation_delivered など)
+        lots:
+          type: array
+          items: { type: string }
+          description: 関連するロット番号
+        divisionCode: { type: integer }
+        salesDate: { type: string, format: date }
+        version: { type: integer, description: 楽観的ロック用バージョン番号 }
         reservationPrice:
-          type: object
+          allOf: [{ $ref: '#/components/schemas/ReservationPrice' }]
           nullable: true
-          description: reservation 案件の予約価格（未登録時は null）
         determination:
-          type: object
+          allOf: [{ $ref: '#/components/schemas/ReservationDetermination' }]
           nullable: true
-          description: reservation 案件の確定情報（未確定時は null）
         delivery:
-          type: object
+          allOf: [{ $ref: '#/components/schemas/ReservationDelivery' }]
           nullable: true
-          description: reservation 案件の引き渡し情報（引き渡し前は null）
-        # consignment 案件向け
+
+    ConsignmentSalesCaseDetail:
+      type: object
+      description: consignment 案件の詳細レスポンス
+      required: [salesCaseNumber, caseType, status, lots, divisionCode, salesDate, version, consignor, result]
+      properties:
+        salesCaseNumber:
+          type: string
+          example: "2026-01-001"
+        caseType:
+          type: string
+          enum: [consignment]
+        status:
+          type: string
+          description: 案件ステータス (before_consignment, consignment_designated など)
+        lots:
+          type: array
+          items: { type: string }
+          description: 関連するロット番号
+        divisionCode: { type: integer }
+        salesDate: { type: string, format: date }
+        version: { type: integer, description: 楽観的ロック用バージョン番号 }
         consignor:
-          type: object
+          allOf: [{ $ref: '#/components/schemas/Consignor' }]
           nullable: true
-          description: consignment 案件の委託元情報（未指定時は null）
         result:
-          type: object
+          allOf: [{ $ref: '#/components/schemas/ConsignmentResult' }]
           nullable: true
-          description: consignment 案件の結果情報（未登録時は null）
+
+    SalesCaseDetailResponse:
+      description: |
+        販売案件詳細レスポンス。`caseType` で direct / reservation / consignment を判別する
+        ポリモーフィックスキーマ (oneOf + discriminator)。
+      oneOf:
+        - $ref: '#/components/schemas/DirectSalesCaseDetail'
+        - $ref: '#/components/schemas/ReservationSalesCaseDetail'
+        - $ref: '#/components/schemas/ConsignmentSalesCaseDetail'
+      discriminator:
+        propertyName: caseType
+        mapping:
+          direct: '#/components/schemas/DirectSalesCaseDetail'
+          reservation: '#/components/schemas/ReservationSalesCaseDetail'
+          consignment: '#/components/schemas/ConsignmentSalesCaseDetail'
 
     PriceCheckResponse:
       type: object
@@ -810,7 +932,7 @@ paths:
         販売案件をページング付きで取得する。`status` / `caseType` クエリでフィルタ、
         `limit` (1..200, default 50) と `offset` (>= 0, default 0) でページング。
       parameters:
-        - { name: status, in: query, required: false, schema: { type: string, description: 案件ステータス (例 before_appraisal, appraised, contracted など) } }
+        - { name: status, in: query, required: false, schema: { type: string, description: "案件ステータス (例 before_appraisal, appraised, contracted など)" } }
         - { name: caseType, in: query, required: false, schema: { type: string, enum: [direct, reservation, consignment] } }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
         - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }

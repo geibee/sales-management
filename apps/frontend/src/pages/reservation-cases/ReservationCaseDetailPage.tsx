@@ -63,6 +63,13 @@ export function ReservationCaseDetailPage({ id }: { id: string }) {
       </p>
     );
   if (!data) return null;
+  if (data.caseType !== "reservation") {
+    return (
+      <p className="page" style={{ color: "var(--danger)" }}>
+        この画面は予約販売案件用です（このID は {data.caseType} 案件です）。
+      </p>
+    );
+  }
 
   const flowIdx = RESERVATION_FLOW.findIndex((s) => s.value === data.status);
 
@@ -138,7 +145,7 @@ export function ReservationCaseDetailPage({ id }: { id: string }) {
             buttonLabel="引き渡し"
             dateLabel="引渡日"
             dateField="deliveryDate"
-            defaultDate={recordString(data.delivery, "deliveredDate", data.salesDate ?? "")}
+            defaultDate={data.delivery?.deliveredDate ?? data.salesDate ?? ""}
             version={data.version}
             icon={<Truck className="size-4" />}
             disabled={data.status !== "reservation_confirmed"}
@@ -151,8 +158,3 @@ export function ReservationCaseDetailPage({ id }: { id: string }) {
   );
 }
 
-function recordString(source: unknown, key: string, fallback: string): string {
-  if (typeof source !== "object" || source === null || Array.isArray(source)) return fallback;
-  const value = (source as Record<string, unknown>)[key];
-  return typeof value === "string" && value.trim() ? value : fallback;
-}
