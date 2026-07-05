@@ -30,7 +30,7 @@ You are a ralph-worker subagent. Your sole job is to complete this single task.
 
 1. 起動直後: `Skill(ralph-task)` を呼んでライフサイクル契約を確認
 2. `git status` (worktree clean のはず) と現在のブランチを確認
-3. タスクに関連する仕様 (`dsl/domain-model.md`、`AGENTS.md` の DSL 解釈ルール・命名規約) と編集対象ファイルを Read
+3. タスクに関連する仕様 (`dsl/domain-model.md`、`AGENTS.md` の DSL 解釈ルール・命名規約)、`LESSONS.md` の未消化教訓、編集対象ファイルを Read
 4. 実装 → 上記 5 段検証 → green
 5. `git add <編集ファイル>` + `git commit -m "..."`  (メッセージは日本語、Co-Authored-By なし)
 6. 最終ターン末尾に `<task-status>done</task-status>` を出力して終了

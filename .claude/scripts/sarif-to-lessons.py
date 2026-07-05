@@ -10,6 +10,8 @@
      - 既存 rule: 最終検出日と直近件数のみ更新 (本文は人間の蒸留編集を保持)
   5. エントリは最終検出日の降順で保持。SARIF_LESSONS_MAX (default=50) を超えた分は古い順に削除
   6. マーカの外 (ヘッダや人間が書いたメモ) には触れない
+  7. `<!-- lessons:ignore `<key>` 理由 -->` 行のあるルールは記録しない (既存エントリも削除する)。
+     「対応不要」という人間の判断を恒久記録し、削除した教訓の自動復活を防ぐ
 
 メモリ品質の設計方針 (ループエンジニアリング):
   - ここは「未消化の教訓」の受け皿。恒久対応 (linter / ast-grep / verify スクリプト / スキーマ修正)
@@ -39,6 +41,10 @@ ENTRY_RE = re.compile(
     r"^- `(?P<key>[^`]+)` — 最終検出 (?P<date>\d{4}-\d{2}-\d{2}) / 直近 (?P<count>\d+)件: (?P<body>.*)$"
 )
 
+# 人間のオーバーライド: この key は今後記録しない
+# 例: <!-- lessons:ignore `OWASP ZAP.10104` User Agent Fuzzer はノイズと判断 (2026-07) -->
+IGNORE_RE = re.compile(r"<!--\s*lessons:ignore\s+`([^`]+)`")
+
 # ツール名 → 対応ヒント (生の検出結果を「次に取るべき行動」に変換する)
 TOOL_HINTS = {
     "Schemathesis": "openapi.yaml のスキーマ制約・examples と API バリデーション実装のどちらが正か判断して修正。恒常的な誤検知は schemathesis-hooks.py で除外",
@@ -58,6 +64,8 @@ Stop フック (`.claude/scripts/sarif-to-lessons.py`) が `apps/api-fsharp/ci-r
 - ここは「未消化の教訓」の受け皿。恒久対応 (linter / ast-grep / verify スクリプト / スキーマ修正) が済んだ項目は行ごと削除する
 - 同じルールが再検出されたら日付と件数が更新される (再発の検知)。本文の手動編集 (蒸留) は保持される
 - エントリ数が上限 (SARIF_LESSONS_MAX, 既定 50) を超えると、最終検出が古いものから削除される
+- 対応不要と判断したルールは `<!-- lessons:ignore `<key>` 理由 -->` をマーカ外に書く。以後は再検出されても記録されない
+- 追加・更新の履歴は本ファイルの git log で追跡する (別途の実行ログは持たない)
 
 {begin}
 {end}
@@ -137,9 +145,16 @@ def main() -> int:
     end_idx = text.index(END_MARK)
     entries = parse_entries(text[begin_idx:end_idx])
 
+    ignored = set(IGNORE_RE.findall(text))
+    removed = 0
+    for key in list(entries):
+        if key in ignored:
+            del entries[key]
+            removed += 1
+
     added = updated = 0
     for key, n in counts.most_common():
-        if n < THRESHOLD:
+        if n < THRESHOLD or key in ignored:
             continue
         if key in entries:
             if entries[key]["date"] != today or entries[key]["count"] != n:
@@ -153,13 +168,13 @@ def main() -> int:
             entries[key] = {"date": today, "count": n, "body": body}
             added += 1
 
-    if not (added or updated):
+    if not (added or updated or removed):
         return 0
 
     rendered, dropped = render_entries(entries)
     section = "\n" + rendered + "\n" if rendered else "\n"
     LESSONS_PATH.write_text(text[:begin_idx] + section + text[end_idx:])
-    note = f"[sarif-to-lessons] {LESSONS_PATH}: +{added} updated {updated}"
+    note = f"[sarif-to-lessons] {LESSONS_PATH}: +{added} updated {updated} ignored-removed {removed}"
     if dropped:
         note += f" dropped {dropped} (max {MAX_ENTRIES})"
     print(note)

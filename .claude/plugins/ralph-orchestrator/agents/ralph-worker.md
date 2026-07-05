@@ -49,7 +49,7 @@ The task spec is provided to you via `--append-system-prompt` and includes:
 ## 進め方
 
 1. 起動直後: `git status` で clean を確認、`Skill(ralph-task)` を呼んで契約を再確認
-2. タスクに関連する仕様 (`dsl/domain-model.md` / `AGENTS.md`) と `files:` の現状を Read
+2. タスクに関連する仕様 (`dsl/domain-model.md` / `AGENTS.md`)、`LESSONS.md` の未消化教訓、`files:` の現状を Read
 3. `prompt_extra` に書かれた具体仕様に厳密に従う
 4. 実装 → `apps/api-fsharp/` で build → fantomas → test の順に検証
 5. verify script 実行

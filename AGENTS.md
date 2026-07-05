@@ -122,5 +122,7 @@ worker 用のライフサイクル契約は `.claude/plugins/ralph-orchestrator/
 # 失敗から学んだこと
 
 CI 失敗の頻出パターン（未消化の教訓）は [`LESSONS.md`](LESSONS.md) に集約している。
+**作業開始時に `LESSONS.md` の未消化教訓に目を通し、同じ失敗を繰り返さないこと。**
 Stop フックが自動更新するため、本ファイルには追記しない。
 恒久対応（linter / ast-grep / verify スクリプト / スキーマ修正）が済んだ教訓は `LESSONS.md` から削除する。
+対応不要と判断した検出は `LESSONS.md` の `lessons:ignore` ディレクティブで恒久的に無視できる。
