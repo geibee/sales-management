@@ -1,5 +1,6 @@
 import { DesignPageHeader, EmptyState, LotStatusPill } from "@/components/design/primitives";
 import { SalesCaseCreateDialog } from "@/components/organisms/dialogs/SalesCaseCreateDialog";
+import { useAvailableLots } from "@/hooks/use-available-lots";
 import { useLotsList } from "@/hooks/use-lots-list";
 import { describeApiError } from "@/lib/api-client";
 import { Link } from "@tanstack/react-router";
@@ -12,7 +13,7 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 const PAGE_SIZE = 20;
 const STATUS_CHIPS = [
@@ -28,6 +29,15 @@ export function LotListPage() {
   const [status, setStatus] = useState<string>("all");
   const [offset, setOffset] = useState(0);
   const { data, error, isLoading } = useLotsList({ status, limit: PAGE_SIZE, offset });
+
+  // 製造完了でも既に販売案件へ割り当て済みのロットは選択不可。
+  // 一覧 API (LotSummary) は割当状態を返さないため、未割当ロットだけを返す
+  // `/lots/available` を引いて、選択可能集合の source of truth とする。
+  const { data: availableData } = useAvailableLots();
+  const availableLots = useMemo(
+    () => new Set((availableData?.items ?? []).map((it) => it.lotNumber)),
+    [availableData],
+  );
 
   const total = data?.total ?? 0;
   const items = data?.items ?? [];
@@ -129,7 +139,10 @@ export function LotListPage() {
               ) : (
                 items.map((it) => {
                   const sel = selected.has(it.lotNumber);
-                  const disabled = it.status !== "manufactured";
+                  // 未割当の製造完了ロットのみ選択可。割当済みロットを選ぶと
+                  // 案件作成時にバックエンドのバリデーションで弾かれるため、
+                  // UI 側で先回りして無効化する。
+                  const disabled = !availableLots.has(it.lotNumber);
                   return (
                     <tr key={it.lotNumber} className={sel ? "selected" : ""}>
                       <td>
@@ -140,7 +153,7 @@ export function LotListPage() {
                           disabled={disabled}
                           onChange={() => toggle(it.lotNumber)}
                           aria-label={`ロット ${it.lotNumber} を選択`}
-                          title={disabled ? "製造完了ロットのみ選択できます" : undefined}
+                          title={disabled ? "未割当の製造完了ロットのみ選択できます" : undefined}
                         />
                       </td>
                       <td>
