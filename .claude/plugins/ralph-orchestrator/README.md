@@ -119,6 +119,7 @@ ralph-worker subagent は spawn 後に下記 Skill を `Skill()` で呼べる:
 - **worktree 隔離**: 各 worker は別 worktree。並列でも干渉しない
 - **serial_only**: これが true のタスクが ready の間は他 worker 起動を抑止
 - **verify 失敗時はマージしない**: blocked 状態で残す
+- **fail-closed verify**: デフォルト verify (`scripts/verify/_generic.sh`) はリポジトリの `scripts/verify.sh` (統合 verify) へ委譲する。verify.sh 欠如・ツールチェーン不足は「スキップして合格」にせず失敗扱い (検証できないものを auto_merge で main に入れない)
 - **auto_push = false** にすればローカル commit 止まり (人間が後で push)
 - **`/ralph-orch stop`**: 走行中の worker プロセスを SIGTERM、worktree は残す
 

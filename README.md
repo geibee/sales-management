@@ -67,6 +67,15 @@ dotnet test
 bash ci.sh        # CI 一式（SARIF を ci-results/ に出力）
 ```
 
+### 統合 verify（コミット前ゲート）
+
+```bash
+bash scripts/verify.sh                   # main との diff から backend / frontend スコープを自動判定
+VERIFY_SCOPE=all bash scripts/verify.sh  # 全スコープ強制
+```
+
+backend は build（--warnaserror）/ Fantomas / dotnet test、frontend は typecheck / Biome / Spectral 契約 lint / Vitest を実行する。必要なツールチェーンが無い場合はスキップせず失敗する（fail-closed）。ralph-orchestrator のデフォルト verify も本スクリプトに委譲する。
+
 ### Stage 1 仕様入力
 
 このリポジトリでは、仕様駆動開発の最小対応として `dsl/domain-model.md` を人間が読む仕様入力にする。専用パーサーやIR生成は前提にしない。

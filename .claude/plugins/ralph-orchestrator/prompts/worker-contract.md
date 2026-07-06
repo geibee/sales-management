@@ -10,15 +10,18 @@
 
 ## 2. 検証
 
-1〜4 は worktree 内の `apps/api-fsharp/` で実行する (fantomas はローカルツールのため、マニフェスト `dotnet-tools.json` のあるディレクトリで実行する必要がある):
+worktree ルートで統合 verify を実行する:
 
 ```
-dotnet build src/SalesManagement --warnaserror         → exit 0
-dotnet build tests/SalesManagement.Tests --warnaserror → exit 0
-dotnet fantomas --check src/ tests/                    → exit 0 (no diff)
-dotnet test tests/SalesManagement.Tests                → exit 0, passed >= baseline
-bash <verify>                                          → exit 0 (worktree ルートで実行)
+BASELINE_TEST_COUNT=<baseline> bash scripts/verify.sh  → exit 0
+bash <verify>                                          → exit 0 (タスク固有 verify。デフォルトは scripts/verify.sh へ委譲)
 ```
+
+`scripts/verify.sh` は main との diff から変更スコープを自動判定して実行する:
+
+- backend: `apps/api-fsharp/` で `dotnet build --warnaserror` ×2 → `dotnet fantomas --check` → `dotnet test` (passed >= baseline)
+- frontend: `apps/frontend/` で `pnpm install --frozen-lockfile` → `typecheck` → `lint` → `lint:contracts` → `test`
+- fail-closed: 必要なツールチェーン (dotnet / pnpm) が無い場合はスキップ合格にせず失敗する
 
 ## 3. 完了マーカ
 

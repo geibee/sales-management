@@ -68,6 +68,7 @@ apps/api-kotlin/  (将来予定)
 
 - すべての CI ツールの結果は `ci-results/sarif/<tool>.sarif` に出力し、`ci-results/merged.sarif` に統合する
 - 失敗の自己分析は `Stop` フック（`.claude/scripts/sarif-to-lessons.py`）がリポジトリルートの `LESSONS.md`（マーカ間の自動生成領域）に記録する。恒久対応が済んだ教訓は `LESSONS.md` から削除する
+- コミット前の統合ゲートは `scripts/verify.sh`（backend + frontend を変更スコープで自動判定、fail-closed）。ralph-orchestrator のデフォルト verify もこれに委譲する。重量級検査（ZAP / Schemathesis / Pact / SBOM 等）は従来どおり `apps/api-fsharp/ci.sh`
 
 ## 関連ディレクトリ
 
