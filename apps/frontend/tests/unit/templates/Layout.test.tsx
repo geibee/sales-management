@@ -40,9 +40,16 @@ function mockSidebarCounts(lotsTotal = 0, casesTotal = 0) {
 }
 
 function mockHealth(ok: boolean) {
+  // 実 API (Program.fs healthHandler) の形状に合わせる:
+  // 200 {status: "UP", checks: {...}} / 503 {status: "DOWN", checks: {...}}
   server.use(
     http.get("/api/health", () =>
-      ok ? HttpResponse.json({ status: "ok" }) : HttpResponse.json({}, { status: 503 }),
+      ok
+        ? HttpResponse.json({ status: "UP", checks: { postgresql: "UP", self: "UP" } })
+        : HttpResponse.json(
+            { status: "DOWN", checks: { postgresql: "DOWN", self: "UP" } },
+            { status: 503 },
+          ),
     ),
   );
 }
