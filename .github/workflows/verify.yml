@@ -51,7 +51,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # gitleaks は git 履歴全体を走査する
+          fetch-depth: 0 # gitleaks は git 履歴全体を走査 / oasdiff は merge-base の spec が必要
+      - name: oasdiff インストール
+        run: go install github.com/oasdiff/oasdiff@latest && echo "$HOME/go/bin" >>"$GITHUB_PATH"
       - name: gitleaks インストール
         env:
           GITLEAKS_VERSION: "8.24.3"
@@ -64,6 +66,7 @@ jobs:
       - name: 統合 verify (repo スコープ)
         env:
           VERIFY_SCOPE: repo
+          VERIFY_BASE_REF: origin/main
         run: bash scripts/verify.sh
 
   backend:

@@ -108,6 +108,29 @@ verify_repo() {
     || fail "gitleaks が見つかりません (fail-closed: 秘密情報検査なしで合格にできない)"
   gitleaks detect --source . --no-banner --redact
 
+  # openapi.yaml の破壊的変更ゲート (oasdiff breaking)。
+  # AI ループは契約を「都合よく」変えがちなので、後方互換を壊す spec 変更
+  # (必須フィールド追加・enum 削除・型変更等) を PR 時点で機械検出する
+  local spec="apps/api-fsharp/openapi.yaml"
+  local spec_base
+  spec_base=$(git merge-base HEAD "$BASE_REF" 2>/dev/null) \
+    || fail "基準 ref '$BASE_REF' を解決できません (fail-closed: openapi.yaml の破壊的変更を検査できない)"
+
+  if git diff --quiet "$spec_base" -- "$spec"; then
+    log "openapi.yaml は $BASE_REF から変更なし — oasdiff スキップ (検査対象の契約変更なし)"
+  else
+    command -v oasdiff >/dev/null 2>&1 \
+      || fail "oasdiff が見つかりません (fail-closed: 契約変更は破壊的変更検査なしで合格にできない)"
+
+    local base_spec
+    base_spec=$(mktemp --suffix=.yaml)
+    git show "$spec_base:$spec" >"$base_spec"
+    oasdiff breaking --fail-on ERR "$base_spec" "$spec" \
+      || { rm -f "$base_spec"; fail "openapi.yaml に破壊的変更が含まれます (oasdiff breaking)"; }
+    rm -f "$base_spec"
+    log "oasdiff: 破壊的変更なし"
+  fi
+
   log "repo PASS"
 }
 
