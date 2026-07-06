@@ -469,7 +469,8 @@ let replaceCaseLots
         |> Db.setParams (salesCaseKeyParams caseNumber)
         |> Db.exec
 
-        lots |> List.iter (fun lot -> insertCaseLotRow tran caseNumber (Manufactured lot))
+        lots
+        |> List.iter (fun lot -> insertCaseLotRow tran caseNumber (Manufactured lot))
 
         bumpSalesCaseVersionTx tx caseNumber status expectedVersion)
 
