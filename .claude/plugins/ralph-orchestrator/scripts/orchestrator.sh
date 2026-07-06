@@ -19,6 +19,8 @@ source "$PLUGIN_ROOT/scripts/lib/worker.sh"
 source "$PLUGIN_ROOT/scripts/lib/verify.sh"
 # shellcheck source=lib/merge.sh
 source "$PLUGIN_ROOT/scripts/lib/merge.sh"
+# shellcheck source=lib/guard.sh
+source "$PLUGIN_ROOT/scripts/lib/guard.sh"
 
 # Default tick interval for daemon polling (seconds)
 TICK_INTERVAL="${RALPH_TICK_INTERVAL:-10}"
@@ -63,6 +65,13 @@ cmd_status() {
   if [[ -f "$HALT_FLAG" ]]; then
     printf "${C_YEL}halted: $(cat "$HALT_FLAG")${C_RST}\n"
   fi
+  if [[ -f "$KILL_FLAG" ]]; then
+    printf "${C_RED}KILL switch active (%s) — rm して解除${C_RST}\n" "$KILL_FLAG"
+  fi
+  local total_cost max_cost
+  total_cost=$(state_total_cost)
+  max_cost=$(dag_meta_json | jq -r '.max_cost_usd // 0')
+  printf "cost: \$%s (limit: %s)\n" "$total_cost" "$([[ "$max_cost" == "0" ]] && echo unlimited || echo "\$$max_cost")"
   echo ""
   echo "Per-task status:"
   printf "  %-12s %-12s %-10s %s\n" "ID" "STATUS" "PID" "REASON"
@@ -122,13 +131,21 @@ cmd_run_one() {
   # poll until exit
   while worker_alive "$pid"; do sleep 5; done
   log_info "worker $id exited; checking task-status marker"
-  local status
+  local status cost
   status=$(worker_extract_status "$stream_file")
-  log_info "task-status: ${status:-(none)}"
+  cost=$(worker_extract_cost "$stream_file")
+  with_state_lock state_set_task_field "$id" cost_usd "$cost" number
+  log_info "task-status: ${status:-(none)} cost=\$$cost"
   if [[ "$status" == "done" ]]; then
     if verify_run "$id"; then
-      with_state_lock state_mark_completed "$id" 0
-      with_state_lock merge_run "$id" || with_state_lock state_mark_blocked "$id" "merge failed" 1
+      local wt
+      wt=$(state_get ".tasks[\"$id\"].worktree")
+      if ! guard_denylist_check "$id" "$wt"; then
+        with_state_lock state_mark_blocked "$id" "denylist violation" 1
+      else
+        with_state_lock state_mark_completed "$id" 0
+        with_state_lock merge_run "$id" || with_state_lock state_mark_blocked "$id" "merge failed" 1
+      fi
     else
       with_state_lock state_mark_blocked "$id" "verify failed" $?
     fi
@@ -142,6 +159,7 @@ cmd_start() {
   require_project_root
   require_tools
   state_init_if_missing
+  [[ -f "$KILL_FLAG" ]] && die "kill-switch active ($KILL_FLAG). 解除するには手動で rm すること"
   dag_lint || die "tasks.toml has structural errors; aborting start"
   dag_mark_skipped
 
@@ -191,6 +209,7 @@ cmd_stop() {
 cmd_resume() {
   require_project_root
   state_init_if_missing
+  [[ -f "$KILL_FLAG" ]] && die "kill-switch active ($KILL_FLAG). 解除するには手動で rm すること"
   state_clear_halted
   log_info "halt marker cleared"
   cmd_start
@@ -204,6 +223,10 @@ cmd_tick() {
   require_project_root
   require_tools
   state_init_if_missing
+  if [[ -f "$KILL_FLAG" ]]; then
+    log_info "tick: kill-switch active ($KILL_FLAG), skipping"
+    return 0
+  fi
   if [[ -f "$STOP_FLAG" ]]; then
     log_info "tick: stop flag present, skipping"
     return 0
@@ -258,33 +281,65 @@ daemon_main() {
   log_info "daemon main loop started (pid=$$, tick=${TICK_INTERVAL}s)"
   trap 'log_info "daemon received SIGTERM, exiting"; exit 0' TERM INT
 
-  local meta pool_size
+  local meta pool_size task_timeout_min max_cost_usd
   meta=$(dag_meta_json)
   pool_size=$(echo "$meta" | jq -r '.worker_pool_size // 3')
+  # Budget & Limits: 0 は無制限。tasks.toml [meta] で設定する
+  task_timeout_min=$(echo "$meta" | jq -r '.task_timeout_minutes // 0')
+  max_cost_usd=$(echo "$meta" | jq -r '.max_cost_usd // 0')
 
   while true; do
+    # kill-switch: 検出したら全 worker を TERM して即終了 (halt 扱い)
+    if [[ -f "$KILL_FLAG" ]]; then
+      log_warn "kill-switch detected ($KILL_FLAG) — TERM all workers and exit"
+      while IFS=$'\t' read -r kid kpid; do
+        [[ -z "$kpid" || "$kpid" == "0" ]] && continue
+        log_info "TERM worker $kid pid=$kpid"
+        kill -TERM "$kpid" 2>/dev/null || true
+      done < <(state_running_pids)
+      with_state_lock state_set_halted "kill-switch ($KILL_FLAG)"
+      rm -f "$PIDFILE"
+      exit 0
+    fi
     [[ -f "$STOP_FLAG" ]] && { log_info "stop flag detected, exiting"; rm -f "$STOP_FLAG" "$PIDFILE"; exit 0; }
 
-    # 1) reap completed workers
+    # 1) reap completed workers (+ watchdog for running ones)
     while IFS=$'\t' read -r id pid; do
       [[ -z "$id" ]] && continue
       if ! worker_alive "$pid"; then
         local stream_file
         stream_file=$(state_get ".tasks[\"$id\"].log_file")
-        local status_marker
+        local status_marker cost
         status_marker=$(worker_extract_status "$stream_file")
-        log_info "worker $id (pid=$pid) exited; status-marker='${status_marker:-none}'"
+        cost=$(worker_extract_cost "$stream_file")
+        with_state_lock state_set_task_field "$id" cost_usd "$cost" number
+        log_info "worker $id (pid=$pid) exited; status-marker='${status_marker:-none}' cost=\$$cost"
         if [[ "$status_marker" == "done" ]]; then
           if with_state_lock verify_run "$id"; then
-            with_state_lock state_mark_completed "$id" 0
-            if ! with_state_lock merge_run "$id"; then
-              with_state_lock state_mark_blocked "$id" "merge failed" 1
+            local wt
+            wt=$(state_get ".tasks[\"$id\"].worktree")
+            if ! guard_denylist_check "$id" "$wt"; then
+              with_state_lock state_mark_blocked "$id" "denylist violation" 1
+            else
+              with_state_lock state_mark_completed "$id" 0
+              if ! with_state_lock merge_run "$id"; then
+                with_state_lock state_mark_blocked "$id" "merge failed" 1
+              fi
             fi
           else
             with_state_lock state_mark_blocked "$id" "verify failed" 1
           fi
         else
           with_state_lock state_mark_blocked "$id" "${status_marker:-no done marker}" 1
+        fi
+      elif [[ "$task_timeout_min" != "0" && "$task_timeout_min" != "null" ]]; then
+        # watchdog: 実行時間が上限を超えた worker は TERM して blocked にする
+        local started
+        started=$(state_get ".tasks[\"$id\"].started_at")
+        if guard_task_timed_out "$started" "$task_timeout_min"; then
+          log_warn "worker $id exceeded ${task_timeout_min}min (started $started) — TERM"
+          kill -TERM "$pid" 2>/dev/null || true
+          with_state_lock state_mark_blocked "$id" "timeout (${task_timeout_min}min)" 1
         fi
       fi
     done < <(state_running_pids)
@@ -306,7 +361,24 @@ daemon_main() {
       fi
     fi
 
-    # 3) spawn new workers up to pool_size
+    # 3) budget gate: 累積コストが上限に達したら新規 spawn を止める
+    local total_cost
+    total_cost=$(state_total_cost)
+    if guard_budget_exceeded "$total_cost" "$max_cost_usd"; then
+      local budget_running
+      budget_running=$(dag_running_count)
+      if (( budget_running == 0 )); then
+        log_warn "budget exhausted: \$$total_cost >= \$$max_cost_usd — halting"
+        with_state_lock state_set_halted "budget exhausted (\$$total_cost >= \$$max_cost_usd)"
+        rm -f "$PIDFILE"
+        exit 0
+      fi
+      log_warn "budget exhausted (\$$total_cost >= \$$max_cost_usd) — draining $budget_running worker(s), no new spawns"
+      sleep "$TICK_INTERVAL"
+      continue
+    fi
+
+    # 4) spawn new workers up to pool_size
     local running_count
     running_count=$(dag_running_count)
     local serial_active
@@ -342,7 +414,7 @@ daemon_main() {
       done
     fi
 
-    # 4) check end conditions: nothing running and no ready left → done
+    # 5) check end conditions: nothing running and no ready left → done
     running_count=$(dag_running_count)
     if (( running_count == 0 )); then
       ready=$(dag_ready_tasks)

@@ -70,6 +70,7 @@ apps/api-kotlin/  (将来予定)
 - 失敗の自己分析は `Stop` フック（`.claude/scripts/sarif-to-lessons.py`）がリポジトリルートの `LESSONS.md`（マーカ間の自動生成領域）に記録する。恒久対応が済んだ教訓は `LESSONS.md` から削除する
 - コミット前の統合ゲートは `scripts/verify.sh`（backend + frontend を変更スコープで自動判定、fail-closed）。ralph-orchestrator のデフォルト verify もこれに委譲する。重量級検査（ZAP / Schemathesis / Pact / SBOM 等）は従来どおり `apps/api-fsharp/ci.sh`
 - GitHub Actions: push / PR の軽量ゲートは `.github/workflows/verify.yml`（`scripts/verify.sh` に委譲）、nightly の重量ゲートは `.github/workflows/nightly.yml`（`ci.sh` フル実行、失敗時は `ci-nightly` ラベルの Issue にエスカレーション）
+- 品質ラチェット: backend は `ci.sh` 内の `scripts/quality-ratchet.py`（行カバレッジ / FSharpLint 警告数 / scc 最大複雑度、基準は `apps/api-fsharp/quality-baseline.json`）、frontend は `scripts/coverage-ratchet.mjs`（基準は `coverage-baseline.json`）。悪化のみ検出する方式。改善時は `RATCHET_UPDATE=1` で基準を引き上げてコミットする
 
 ## 関連ディレクトリ
 

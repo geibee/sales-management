@@ -133,3 +133,8 @@ state_clear_halted() {
 state_running_pids() {
   jq -r '.tasks | to_entries[] | select(.value.status == "running") | "\(.key)\t\(.value.worker_pid)"' "$STATE_JSON"
 }
+
+# 全タスクの累積 API コスト (USD)。cost_usd は worker の reap 時に記録される
+state_total_cost() {
+  jq -r '[.tasks[] | .cost_usd // 0] | add // 0' "$STATE_JSON"
+}

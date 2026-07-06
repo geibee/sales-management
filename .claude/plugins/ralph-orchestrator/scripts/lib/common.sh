@@ -31,8 +31,11 @@ require_project_root() {
   PIDFILE="$RALPH_DIR/orchestrator.pid"
   HALT_FLAG="$RALPH_DIR/halted"
   STOP_FLAG="$RALPH_DIR/stop-requested"
+  # kill-switch: このファイルが存在する限り start / tick / daemon は動かない。
+  # 停止要求は `touch .ralph/KILL`、解除は人間が手で rm する
+  KILL_FLAG="$RALPH_DIR/KILL"
   mkdir -p "$LOGS_DIR"
-  export PROJECT_ROOT RALPH_DIR TASKS_TOML STATE_JSON LOGS_DIR PIDFILE HALT_FLAG STOP_FLAG
+  export PROJECT_ROOT RALPH_DIR TASKS_TOML STATE_JSON LOGS_DIR PIDFILE HALT_FLAG STOP_FLAG KILL_FLAG
 }
 
 # Pidfile helpers (orchestrator daemon)

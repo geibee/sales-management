@@ -151,6 +151,18 @@ worker_alive() {
   [[ -n "$pid" && "$pid" != "0" ]] && kill -0 "$pid" 2>/dev/null
 }
 
+# Extract accumulated API cost (USD) from worker stream-json log.
+# claude -p の最終 result イベントが total_cost_usd を持つ。無ければ 0。
+worker_extract_cost() {
+  local stream_file="$1"
+  [[ -f "$stream_file" ]] || { echo 0; return; }
+  local cost
+  cost=$(jq -rs '[.[] | select(.type == "result") | .total_cost_usd // 0] | last // 0' \
+    "$stream_file" 2>/dev/null || echo 0)
+  [[ -z "$cost" || "$cost" == "null" ]] && cost=0
+  echo "$cost"
+}
+
 # Extract <task-status>...</task-status> from worker stream-json log.
 # Returns "done" / "blocked: <reason>" / "" (if not yet emitted).
 worker_extract_status() {

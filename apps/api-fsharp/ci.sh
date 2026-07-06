@@ -38,6 +38,7 @@ LINT_WARNINGS=$(echo "$LINT_OUTPUT" | grep -oE 'Summary: [0-9]+ warnings' | grep
 LINT_WARNINGS=${LINT_WARNINGS:-0}
 printf '{"timestamp":"%s","lint_warnings":%s}\n' "$TIMESTAMP" "$LINT_WARNINGS" >> "$RESULTS_DIR/lint.json"
 python3 scripts/lint-to-sarif.py "$LINT_TXT" ci-results/sarif/fsharplint.sarif
+python3 scripts/quality-ratchet.py fsharplint_warnings "$LINT_WARNINGS"
 
 echo "=== 複雑度 ==="
 if ! command -v scc >/dev/null 2>&1; then
@@ -45,6 +46,13 @@ if ! command -v scc >/dev/null 2>&1; then
     exit 1
 fi
 scc --by-file --format json src/ > "$RESULTS_DIR/scc_${TIMESTAMP}.json"
+SCC_MAX=$(python3 -c '
+import json, sys
+langs = json.load(open(sys.argv[1]))
+print(max((f.get("Complexity", 0) for l in langs for f in l.get("Files", [])), default=0))
+' "$RESULTS_DIR/scc_${TIMESTAMP}.json")
+echo "最大ファイル複雑度: $SCC_MAX"
+python3 scripts/quality-ratchet.py scc_max_file_complexity "$SCC_MAX"
 
 echo "=== テスト + カバレッジ ==="
 rm -rf coverage
@@ -56,6 +64,7 @@ COVERAGE_FILE=$(find coverage -name 'coverage.cobertura.xml' | head -1)
 COVERAGE=$(grep -oE 'line-rate="[0-9.]+"' "$COVERAGE_FILE" | head -1 | grep -oE '[0-9.]+' || true)
 COVERAGE=${COVERAGE:-0}
 printf '{"timestamp":"%s","coverage":%s}\n' "$TIMESTAMP" "$COVERAGE" >> "$RESULTS_DIR/coverage.json"
+python3 scripts/quality-ratchet.py coverage_line_rate "$COVERAGE"
 
 echo "=== アーキテクチャ適合性 ==="
 dotnet test tests/SalesManagement.Tests \
