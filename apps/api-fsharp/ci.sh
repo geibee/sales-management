@@ -208,6 +208,7 @@ if [ "$SCHEMATHESIS_ENABLED" = "1" ]; then
     docker run --rm --network host \
         --user "$(id -u):$(id -g)" \
         -e HOME=/tmp \
+        --tmpfs /app/.schemathesis:rw,mode=1777 \
         -v "$PWD/openapi.yaml:/app/openapi.yaml:ro" \
         -v "$PWD/schemathesis-hooks.py:/app/schemathesis-hooks.py:ro" \
         -v "$PWD/$RESULTS_DIR:/app/ci-results:rw" \
@@ -300,8 +301,13 @@ if errors:
     sys.exit(1)
 PY
 
-if [ $ZAP_EXIT -ne 0 ]; then
-    echo "DAST: 脆弱性が検出されました (exit=$ZAP_EXIT)"
+# zap-api-scan の終了コード: 0=検出なし / 1=FAIL / 2=WARN のみ / 3+=実行エラー。
+# WARN は SARIF (merged サマリの error レベルゲート) とレポートで追跡し CI は落とさない
+if [ "$ZAP_EXIT" -eq 2 ]; then
+    echo "DAST: WARN のみ検出 (exit=2) — SARIF / レポートで追跡し CI は継続"
+    echo "レポート: $RESULTS_DIR/zap-report.html"
+elif [ "$ZAP_EXIT" -ne 0 ]; then
+    echo "DAST: 脆弱性 (FAIL) または実行エラーが検出されました (exit=$ZAP_EXIT)"
     echo "レポート: $RESULTS_DIR/zap-report.html"
     exit 1
 fi
