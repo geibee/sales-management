@@ -54,6 +54,13 @@ jobs:
           fetch-depth: 0 # gitleaks は git 履歴全体を走査 / oasdiff は merge-base の spec が必要
       - name: oasdiff インストール
         run: go install github.com/oasdiff/oasdiff@latest && echo "$HOME/go/bin" >>"$GITHUB_PATH"
+      - name: shellcheck / bats / actionlint インストール
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q shellcheck bats
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          sudo install ./actionlint /usr/local/bin/actionlint && rm -f ./actionlint
+          actionlint -version
       - name: gitleaks インストール
         env:
           GITLEAKS_VERSION: "8.24.3"

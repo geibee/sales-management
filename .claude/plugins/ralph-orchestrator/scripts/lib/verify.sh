@@ -33,7 +33,7 @@ verify_run() {
 
   log_info "running verify for $task_id: $verify_script"
   (
-    cd "$worktree"
+    cd "$worktree" || exit 1
     TASK_ID="$task_id" \
     BASELINE_TEST_COUNT="$baseline" \
     PLUGIN_ROOT="$PLUGIN_ROOT" \

@@ -115,7 +115,7 @@ if [ $NEED_APP -eq 1 ]; then
     dotnet run --project src/SalesManagement --no-build &
     APP_PID=$!
 
-    for i in {1..30}; do
+    for _ in {1..30}; do
         if curl -sf --max-time 3 http://localhost:5000/health >/dev/null 2>&1; then
             break
         fi
@@ -233,9 +233,10 @@ if [ "$SCHEMATHESIS_ENABLED" = "1" ]; then
 JSON
     fi
     echo "=== Schemathesis アーティファクト bundle ==="
+    TAR_EXTRA=()
+    [ -f ci-results/schemathesis-junit.xml ] && TAR_EXTRA+=(schemathesis-junit.xml)
     tar -C ci-results -czf ci-results/schemathesis.tar.gz \
-        sarif/schemathesis.sarif \
-        $( [ -f ci-results/schemathesis-junit.xml ] && echo schemathesis-junit.xml ) 2>/dev/null || true
+        sarif/schemathesis.sarif "${TAR_EXTRA[@]}" 2>/dev/null || true
 fi
 
 echo "=== SARIF マージ ==="

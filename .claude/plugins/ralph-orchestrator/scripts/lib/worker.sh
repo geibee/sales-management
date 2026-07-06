@@ -123,7 +123,7 @@ worker_spawn() {
   local kickoff="Begin executing the RALPH task described in your system prompt. Follow the contract strictly. End with <task-status>done</task-status> on success or <task-status>blocked: ...</task-status> on failure."
   log_info "spawning worker for $id (worktree=$worktree branch=$branch)"
   (
-    cd "$worktree"
+    cd "$worktree" || exit 1
     setsid claude -p "$kickoff" \
       --model "$model" \
       --append-system-prompt "$(cat "$prompt_file")" \

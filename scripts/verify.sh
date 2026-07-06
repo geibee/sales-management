@@ -39,27 +39,9 @@ NEED_FRONTEND=0
 # 明示スコープ指定時は重複実行しない
 NEED_REPO=0
 
-classify_paths() {
-  # 引数: 変更ファイルパス (改行区切りを while read で受ける)
-  local path
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    case "$path" in
-      apps/api-fsharp/openapi.yaml | .spectral.yaml)
-        # API 契約は両スコープに影響する (frontend 側で Spectral lint / 契約テストが走る)
-        NEED_BACKEND=1; NEED_FRONTEND=1 ;;
-      apps/api-fsharp/* | dsl/* | pacts/*)
-        NEED_BACKEND=1 ;;
-      apps/frontend/*)
-        NEED_FRONTEND=1 ;;
-      docs/* | *.md)
-        ;; # ドキュメントのみの変更は検証対象外
-      *)
-        # 分類できないパス (ルート設定 / .claude / scripts など) は全部検証する
-        NEED_BACKEND=1; NEED_FRONTEND=1 ;;
-    esac
-  done
-}
+# classify_paths は scripts/lib/scope.sh に分離 (bats で単体テストするため)
+# shellcheck source=lib/scope.sh
+source scripts/lib/scope.sh
 
 case "$SCOPE" in
   all)      NEED_BACKEND=1; NEED_FRONTEND=1; NEED_REPO=1 ;;
@@ -107,6 +89,27 @@ verify_repo() {
   command -v gitleaks >/dev/null 2>&1 \
     || fail "gitleaks が見つかりません (fail-closed: 秘密情報検査なしで合格にできない)"
   gitleaks detect --source . --no-banner --redact
+
+  # bash 資産 (verify.sh / ci.sh / ralph-orchestrator lib) の静的検査。
+  # fail-closed ロジックのバグ = 全ゲートの fail-open なので、ゲート自体を検査する
+  command -v shellcheck >/dev/null 2>&1 \
+    || fail "shellcheck が見つかりません (fail-closed: ゲートスクリプト検査なしで合格にできない)"
+  # shellcheck disable=SC2046 # git ls-files のパスは空白を含まない前提 (本リポジトリ規約)
+  shellcheck --severity=warning $(git ls-files '*.sh')
+  log "shellcheck: OK"
+
+  # GitHub Actions ワークフローの静的検査 (構文 / 式 / shell script injection)
+  command -v actionlint >/dev/null 2>&1 \
+    || fail "actionlint が見つかりません (fail-closed: workflow 検査なしで合格にできない)"
+  actionlint
+  log "actionlint: OK"
+
+  # verify.sh 自身のスコープ判定 (classify_paths) の単体テスト。
+  # 「未知パス → 全検証」の fail-closed をリグレッションから守る
+  command -v bats >/dev/null 2>&1 \
+    || fail "bats が見つかりません (fail-closed: スコープ判定のテストなしで合格にできない)"
+  bats scripts/tests
+  log "bats: OK"
 
   # openapi.yaml の破壊的変更ゲート (oasdiff breaking)。
   # AI ループは契約を「都合よく」変えがちなので、後方互換を壊す spec 変更

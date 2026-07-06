@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # common.sh — shared logging / locking / pidfile helpers for ralph-orchestrator
 
-# colors
+# colors (source 先の各スクリプトで使用する。SC2034 はファイル横断を追えない)
+# shellcheck disable=SC2034
 if [[ -t 1 ]]; then
   C_DIM=$'\033[2m'; C_RED=$'\033[31m'; C_YEL=$'\033[33m'
   C_GRN=$'\033[32m'; C_CYA=$'\033[36m'; C_BLD=$'\033[1m'; C_RST=$'\033[0m'
