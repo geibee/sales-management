@@ -16,7 +16,8 @@
 #     それらは apps/api-fsharp/ci.sh と `pnpm test:e2e` で別途実行する
 #
 # Env:
-#   VERIFY_SCOPE          auto | all | backend | frontend  (default: auto)
+#   VERIFY_SCOPE          auto | all | backend | frontend | repo  (default: auto)
+#                         repo = スコープ不問のリポジトリ横断ゲートのみ (CI のジョブ分割用)
 #   VERIFY_BASE_REF       auto 判定の基準 ref               (default: main)
 #   VERIFY_DETECT_ONLY    1 ならスコープ判定だけ行い結果を出力して終了 (CI のジョブ分岐用)
 #   BASELINE_TEST_COUNT   バックエンドテスト pass 数の下限  (ralph orchestrator が設定)
@@ -33,6 +34,10 @@ fail() { echo "[verify] FAIL: $*" >&2; exit 1; }
 # ---------------------------------------------------------------- スコープ判定
 NEED_BACKEND=0
 NEED_FRONTEND=0
+# repo 横断ゲート (gitleaks 等) は変更パスによらず常に実行する (スコープ不問)。
+# CI では専用ジョブ (VERIFY_SCOPE=repo) に分離するため、backend / frontend の
+# 明示スコープ指定時は重複実行しない
+NEED_REPO=0
 
 classify_paths() {
   # 引数: 変更ファイルパス (改行区切りを while read で受ける)
@@ -57,10 +62,12 @@ classify_paths() {
 }
 
 case "$SCOPE" in
-  all)      NEED_BACKEND=1; NEED_FRONTEND=1 ;;
+  all)      NEED_BACKEND=1; NEED_FRONTEND=1; NEED_REPO=1 ;;
   backend)  NEED_BACKEND=1 ;;
   frontend) NEED_FRONTEND=1 ;;
+  repo)     NEED_REPO=1 ;;
   auto)
+    NEED_REPO=1
     if base=$(git merge-base HEAD "$BASE_REF" 2>/dev/null); then
       changed=$( { git diff --name-only "$base"; git ls-files --others --exclude-standard; } | sort -u )
       if [[ -z "$changed" ]]; then
@@ -75,25 +82,34 @@ case "$SCOPE" in
       NEED_BACKEND=1; NEED_FRONTEND=1
     fi
     ;;
-  *) fail "不明な VERIFY_SCOPE: $SCOPE (auto | all | backend | frontend)" ;;
+  *) fail "不明な VERIFY_SCOPE: $SCOPE (auto | all | backend | frontend | repo)" ;;
 esac
 
 if [[ "${VERIFY_DETECT_ONLY:-0}" == "1" ]]; then
   # GitHub Actions のジョブ分岐用: 判定結果だけ出力して終了する
-  log "detect-only: backend=$NEED_BACKEND frontend=$NEED_FRONTEND"
+  log "detect-only: backend=$NEED_BACKEND frontend=$NEED_FRONTEND repo=$NEED_REPO"
   if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
     {
       echo "backend=$NEED_BACKEND"
       echo "frontend=$NEED_FRONTEND"
+      echo "repo=$NEED_REPO"
     } >>"$GITHUB_OUTPUT"
   fi
   exit 0
 fi
 
-if [[ $NEED_BACKEND -eq 0 && $NEED_FRONTEND -eq 0 ]]; then
-  log "PASS: 検証対象の変更なし (ドキュメントのみ)"
-  exit 0
-fi
+# ---------------------------------------------------------------- repo 共通
+# スコープ不問のリポジトリ横断ゲート。ドキュメントのみの変更でも実行する。
+verify_repo() {
+  log "=== repo 共通 (スコープ不問) ==="
+
+  # 秘密情報は「一度 push されたら終わり」なので、変更パスを問わず PR 前に検査する
+  command -v gitleaks >/dev/null 2>&1 \
+    || fail "gitleaks が見つかりません (fail-closed: 秘密情報検査なしで合格にできない)"
+  gitleaks detect --source . --no-banner --redact
+
+  log "repo PASS"
+}
 
 # ---------------------------------------------------------------- backend
 verify_backend() {
@@ -109,11 +125,28 @@ verify_backend() {
   dotnet build tests/SalesManagement.Tests --warnaserror
   dotnet fantomas --check src/ tests/
 
+  # FSharpLint (nightly の SARIF 記録から exit code ゲートへ昇格。SARIF 出力は ci.sh のまま)
+  local lint_out lint_warnings
+  if ! lint_out=$(dotnet dotnet-fsharplint lint src/SalesManagement/SalesManagement.fsproj 2>&1); then
+    echo "$lint_out"
+    fail "FSharpLint の実行が失敗しました"
+  fi
+  echo "$lint_out" | grep -qE 'Summary: [0-9]+ warnings' \
+    || { echo "$lint_out"; fail "FSharpLint の出力から Summary が読めません (fail-closed: 検証できないものを緑にしない)"; }
+  lint_warnings=$(echo "$lint_out" | grep -oE 'Summary: [0-9]+ warnings' | grep -oE '[0-9]+' | head -1)
+  if [[ "$lint_warnings" != "0" ]]; then
+    echo "$lint_out"
+    fail "FSharpLint warnings: ${lint_warnings} 件 (マージゲートは 0 件必須)"
+  fi
+  log "FSharpLint: warnings 0"
+
   command -v python3 >/dev/null 2>&1 \
     || fail "python3 が見つかりません (fail-closed: カバレッジラチェットに必要)"
 
   local out current baseline
   rm -rf coverage
+  # フィルタなしの dotnet test はアーキテクチャテスト (Category=Architecture) と
+  # Broker レス Pact 検証も含めて実行する = どちらもマージゲート
   out=$(dotnet test tests/SalesManagement.Tests --collect:"XPlat Code Coverage" --results-directory ./coverage 2>&1) \
     || { echo "$out"; fail "backend テストが失敗しました"; }
   echo "$out"
@@ -162,7 +195,8 @@ verify_frontend() {
   popd >/dev/null
 }
 
+[[ $NEED_REPO     -eq 1 ]] && verify_repo
 [[ $NEED_BACKEND  -eq 1 ]] && verify_backend
 [[ $NEED_FRONTEND -eq 1 ]] && verify_frontend
 
-log "PASS: 統合 verify 完了 (backend=$NEED_BACKEND frontend=$NEED_FRONTEND)"
+log "PASS: 統合 verify 完了 (repo=$NEED_REPO backend=$NEED_BACKEND frontend=$NEED_FRONTEND)"
