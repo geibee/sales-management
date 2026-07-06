@@ -37,8 +37,7 @@ let private document: Lazy<OpenApiDocument> =
          let doc = OpenApiStreamReader().Read(stream, &diagnostic)
 
          if diagnostic.Errors.Count > 0 then
-             let messages =
-                 diagnostic.Errors |> Seq.map string |> String.concat "; "
+             let messages = diagnostic.Errors |> Seq.map string |> String.concat "; "
 
              failwithf "openapi.yaml の parse に失敗 (fail-closed): %s" messages
 
@@ -203,12 +202,9 @@ let private templateMatches (template: string) (actual: string) : int option =
         for i in 0 .. tSegs.Length - 1 do
             let t = tSegs.[i]
 
-            if t.StartsWith "{" && t.EndsWith "}" then
-                ()
-            elif t = aSegs.[i] then
-                literals <- literals + 1
-            else
-                ok <- false
+            if t.StartsWith "{" && t.EndsWith "}" then ()
+            elif t = aSegs.[i] then literals <- literals + 1
+            else ok <- false
 
         if ok then Some literals else None
 
@@ -268,7 +264,8 @@ let private validateResponse
                 if isJson && specResponse.Content.Count > 0 then
                     let mediaSchema =
                         specResponse.Content
-                        |> Seq.tryFind (fun (KeyValue(k, _)) -> String.Equals(k, contentType, StringComparison.OrdinalIgnoreCase))
+                        |> Seq.tryFind (fun (KeyValue(k, _)) ->
+                            String.Equals(k, contentType, StringComparison.OrdinalIgnoreCase))
                         |> Option.map (fun (KeyValue(_, v)) -> v.Schema)
 
                     match mediaSchema with

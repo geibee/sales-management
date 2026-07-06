@@ -6,21 +6,7 @@ open Donald
 open Npgsql
 open SalesManagement.Domain.Types
 open SalesManagement.Domain.SalesCaseTypes
-
-let private optionString (s: string option) : SqlType =
-    match s with
-    | Some v -> SqlType.String v
-    | None -> SqlType.Null
-
-let private optionInt (i: int option) : SqlType =
-    match i with
-    | Some v -> SqlType.Int32 v
-    | None -> SqlType.Null
-
-let private optionDecimal (d: decimal option) : SqlType =
-    match d with
-    | Some v -> SqlType.Decimal v
-    | None -> SqlType.Null
+open SalesManagement.Infrastructure.SqlParams
 
 let private optionAmount (a: Amount option) : SqlType =
     optionInt (a |> Option.map Amount.value)

@@ -44,21 +44,55 @@ let private respondCaseChange (n: SalesCaseNumber) (status: string) (result: Res
               status = status
               version = newVersion }
 
+/// DB 接続を開いて HttpHandler を組み立てる共通ヘルパ。
+/// ハンドラ本体のネストを浅く保つための足場 (FSharpLint FL0015 対応)。
+let private runWithConn (connectionString: string) (build: NpgsqlConnection -> HttpHandler) : HttpHandler =
+    fun next ctx -> task {
+        use conn = new NpgsqlConnection(connectionString)
+        conn.Open()
+        return! build conn next ctx
+    }
+
+/// ヘッダ取得 + status ガードの共通前段。
+let private requireCaseStatus
+    (conn: NpgsqlConnection)
+    (n: SalesCaseNumber)
+    (id: string)
+    (requiredStatus: string)
+    (statusError: string)
+    : Result<unit, HttpHandler> =
+    match SalesCaseRepository.tryFindHeader conn n with
+    | None -> Error(notFound (sprintf "Sales case not found: %s" id))
+    | Some header when header.Status <> requiredStatus -> Error(badRequest statusError)
+    | Some _ -> Ok()
+
+let private resolveAppraisedAppraisalNumber
+    (conn: NpgsqlConnection)
+    (n: SalesCaseNumber)
+    (id: string)
+    : Result<AppraisalNumber, HttpHandler> =
+    match SalesCaseRepository.tryFindHeader conn n with
+    | None -> Error(notFound (sprintf "Sales case not found: %s" id))
+    | Some header when header.Status <> "appraised" -> Error(badRequest "CaseNotAppraised")
+    | Some header ->
+        match header.AppraisalNumber with
+        | None -> Error(badRequest "Appraisal not present")
+        | Some appraisalNumber -> Ok appraisalNumber
+
+let private lookupManufacturedLot (conn: NpgsqlConnection) (id: string) : Result<ManufacturedLot, string> =
+    match LotNumber.tryParse id with
+    | None -> Error(sprintf "Invalid lot number %s" id)
+    | Some lotNumber ->
+        match LotRepository.load conn lotNumber with
+        | Error e -> Error e
+        | Ok None -> Error(sprintf "Lot %s not found" (LotNumber.toString lotNumber))
+        | Ok(Some lot) ->
+            match requireManufacturedLot lot with
+            | Ok m -> Ok m
+            | Error(LotNotManufactured id) -> Error(sprintf "Lot %s is not in manufactured state" id)
+
 let private fetchManufacturedLots (conn: NpgsqlConnection) (lotIds: string[]) : Result<ManufacturedLot list, string> =
-    let lookups =
-        lotIds
-        |> Array.toList
-        |> List.map (fun id ->
-            match LotNumber.tryParse id with
-            | None -> Error(sprintf "Invalid lot number %s" id)
-            | Some lotNumber ->
-                match LotRepository.load conn lotNumber with
-                | Error e -> Error e
-                | Ok None -> Error(sprintf "Lot %s not found" (LotNumber.toString lotNumber))
-                | Ok(Some lot) ->
-                    match requireManufacturedLot lot with
-                    | Ok m -> Ok m
-                    | Error(LotNotManufactured id) -> Error(sprintf "Lot %s is not in manufactured state" id))
+    let lookups = lotIds |> Array.toList |> List.map (lookupManufacturedLot conn)
 
     let folded =
         lookups
@@ -86,6 +120,36 @@ let private resolveCaseType (raw: string) : Result<string * string, string> =
     | "consignment" -> Ok("consignment", "before_consignment")
     | other -> Error(sprintf "Unknown caseType: %s" other)
 
+let private createSalesCaseCore
+    (caseType: string)
+    (initialStatus: string)
+    (salesDate: DateOnly)
+    (dto: CreateSalesCaseDto)
+    (conn: NpgsqlConnection)
+    : HttpHandler =
+    match fetchManufacturedLots conn dto.lots with
+    | Error e -> badRequest e
+    | Ok lots when lots |> List.exists (isAssignedToAnyCase conn) ->
+        badRequest "One or more lots are already assigned to a sales case"
+    | Ok lots ->
+        let nextSeq =
+            SalesCaseRepository.nextSalesCaseSeq conn salesDate.Year salesDate.Month
+
+        let caseNumber: SalesCaseNumber =
+            { Year = salesDate.Year
+              Month = salesDate.Month
+              Seq = nextSeq }
+
+        match createSalesCaseCommon lots caseNumber (DivisionCode dto.divisionCode) salesDate with
+        | Error NoManufacturedLots -> badRequest "NoManufacturedLots"
+        | Ok common ->
+            SalesCaseRepository.insertCommon conn caseType initialStatus common
+
+            json
+                { salesCaseNumber = formatSalesCaseNumber caseNumber
+                  status = initialStatus
+                  version = 1 }
+
 let private createSalesCaseHandler (connectionString: string) : HttpHandler =
     fun next ctx -> task {
         let! dto = ctx.BindJsonAsync<CreateSalesCaseDto>()
@@ -96,33 +160,7 @@ let private createSalesCaseHandler (connectionString: string) : HttpHandler =
             match resolveCaseType dto.caseType with
             | Error e -> return! badRequest e next ctx
             | Ok(caseType, initialStatus) ->
-                use conn = new NpgsqlConnection(connectionString)
-                conn.Open()
-
-                match fetchManufacturedLots conn dto.lots with
-                | Error e -> return! badRequest e next ctx
-                | Ok lots when lots |> List.exists (isAssignedToAnyCase conn) ->
-                    return! badRequest "One or more lots are already assigned to a sales case" next ctx
-                | Ok lots ->
-                    let nextSeq =
-                        SalesCaseRepository.nextSalesCaseSeq conn salesDate.Year salesDate.Month
-
-                    let caseNumber: SalesCaseNumber =
-                        { Year = salesDate.Year
-                          Month = salesDate.Month
-                          Seq = nextSeq }
-
-                    match createSalesCaseCommon lots caseNumber (DivisionCode dto.divisionCode) salesDate with
-                    | Error NoManufacturedLots -> return! badRequest "NoManufacturedLots" next ctx
-                    | Ok common ->
-                        SalesCaseRepository.insertCommon conn caseType initialStatus common
-
-                        let response =
-                            { salesCaseNumber = formatSalesCaseNumber caseNumber
-                              status = initialStatus
-                              version = 1 }
-
-                        return! json response next ctx
+                return! runWithConn connectionString (createSalesCaseCore caseType initialStatus salesDate dto) next ctx
     }
 
 let private deleteSalesCaseHandler (connectionString: string) (id: string) : HttpHandler =
@@ -165,6 +203,20 @@ let private buildAndInsertAppraisal
                   status = "appraised"
                   version = newVersion }
 
+let private createAppraisalCore
+    (id: string)
+    (n: SalesCaseNumber)
+    (v: int)
+    (dto: CreateAppraisalDto)
+    (conn: NpgsqlConnection)
+    : HttpHandler =
+    match requireCaseStatus conn n id "before_appraisal" "CaseNotBeforeAppraisal" with
+    | Error h -> h
+    | Ok() ->
+        match SalesCaseRepository.loadCaseLots conn n with
+        | Error e -> badRequest e
+        | Ok lots -> buildAndInsertAppraisal conn n dto lots v
+
 let private createAppraisalHandler (connectionString: string) (id: string) : HttpHandler =
     fun next ctx -> task {
         match trySalesCaseNumber id with
@@ -174,18 +226,7 @@ let private createAppraisalHandler (connectionString: string) (id: string) : Htt
 
             match r with
             | Error h -> return! h next ctx
-            | Ok(v, dto) ->
-                use conn = new NpgsqlConnection(connectionString)
-                conn.Open()
-
-                match SalesCaseRepository.tryFindHeader conn n with
-                | None -> return! notFound (sprintf "Sales case not found: %s" id) next ctx
-                | Some header when header.Status <> "before_appraisal" ->
-                    return! badRequest "CaseNotBeforeAppraisal" next ctx
-                | Some _ ->
-                    match SalesCaseRepository.loadCaseLots conn n with
-                    | Error e -> return! badRequest e next ctx
-                    | Ok lots -> return! buildAndInsertAppraisal conn n dto lots v next ctx
+            | Ok(v, dto) -> return! runWithConn connectionString (createAppraisalCore id n v dto) next ctx
     }
 
 let private buildAndUpdateAppraisal
@@ -207,6 +248,20 @@ let private buildAndUpdateAppraisal
                   status = "appraised"
                   version = newVersion }
 
+let private updateAppraisalCore
+    (id: string)
+    (n: SalesCaseNumber)
+    (v: int)
+    (dto: CreateAppraisalDto)
+    (conn: NpgsqlConnection)
+    : HttpHandler =
+    match resolveAppraisedAppraisalNumber conn n id with
+    | Error h -> h
+    | Ok appraisalNumber ->
+        match SalesCaseRepository.loadCaseLots conn n with
+        | Error e -> badRequest e
+        | Ok lots -> buildAndUpdateAppraisal conn n appraisalNumber dto lots v
+
 let private updateAppraisalHandler (connectionString: string) (id: string) : HttpHandler =
     fun next ctx -> task {
         match trySalesCaseNumber id with
@@ -216,21 +271,16 @@ let private updateAppraisalHandler (connectionString: string) (id: string) : Htt
 
             match r with
             | Error h -> return! h next ctx
-            | Ok(v, dto) ->
-                use conn = new NpgsqlConnection(connectionString)
-                conn.Open()
-
-                match SalesCaseRepository.tryFindHeader conn n with
-                | None -> return! notFound (sprintf "Sales case not found: %s" id) next ctx
-                | Some header when header.Status <> "appraised" -> return! badRequest "CaseNotAppraised" next ctx
-                | Some header ->
-                    match header.AppraisalNumber with
-                    | None -> return! badRequest "Appraisal not present" next ctx
-                    | Some appraisalNumber ->
-                        match SalesCaseRepository.loadCaseLots conn n with
-                        | Error e -> return! badRequest e next ctx
-                        | Ok lots -> return! buildAndUpdateAppraisal conn n appraisalNumber dto lots v next ctx
+            | Ok(v, dto) -> return! runWithConn connectionString (updateAppraisalCore id n v dto) next ctx
     }
+
+let private deleteAppraisalCore (id: string) (n: SalesCaseNumber) (v: int) (conn: NpgsqlConnection) : HttpHandler =
+    match resolveAppraisedAppraisalNumber conn n id with
+    | Error h -> h
+    | Ok appraisalNumber ->
+        match AppraisalRepository.deleteAppraisal conn n appraisalNumber v with
+        | Error e -> mapDomainErrorToResponse e
+        | Ok _ -> Successful.NO_CONTENT
 
 let private deleteAppraisalHandler (connectionString: string) (id: string) : HttpHandler =
     fun next ctx -> task {
@@ -241,20 +291,7 @@ let private deleteAppraisalHandler (connectionString: string) (id: string) : Htt
 
             match r with
             | Error h -> return! h next ctx
-            | Ok(v, _) ->
-                use conn = new NpgsqlConnection(connectionString)
-                conn.Open()
-
-                match SalesCaseRepository.tryFindHeader conn n with
-                | None -> return! notFound (sprintf "Sales case not found: %s" id) next ctx
-                | Some header when header.Status <> "appraised" -> return! badRequest "CaseNotAppraised" next ctx
-                | Some header ->
-                    match header.AppraisalNumber with
-                    | None -> return! badRequest "Appraisal not present" next ctx
-                    | Some appraisalNumber ->
-                        match AppraisalRepository.deleteAppraisal conn n appraisalNumber v with
-                        | Error e -> return! mapDomainErrorToResponse e next ctx
-                        | Ok _ -> return! Successful.NO_CONTENT next ctx
+            | Ok(v, _) -> return! runWithConn connectionString (deleteAppraisalCore id n v) next ctx
     }
 
 let private executeContractInsert
@@ -277,18 +314,16 @@ let private executeContractInsert
 
         respondCaseChange n "contracted" result
 
-let private resolveAppraisedAppraisalNumber
-    (conn: NpgsqlConnection)
-    (n: SalesCaseNumber)
+let private createContractCore
     (id: string)
-    : Result<AppraisalNumber, HttpHandler> =
-    match SalesCaseRepository.tryFindHeader conn n with
-    | None -> Error(notFound (sprintf "Sales case not found: %s" id))
-    | Some header when header.Status <> "appraised" -> Error(badRequest "CaseNotAppraised")
-    | Some header ->
-        match header.AppraisalNumber with
-        | None -> Error(badRequest "Appraisal not present")
-        | Some appraisalNumber -> Ok appraisalNumber
+    (n: SalesCaseNumber)
+    (v: int)
+    (dto: CreateContractDto)
+    (conn: NpgsqlConnection)
+    : HttpHandler =
+    match resolveAppraisedAppraisalNumber conn n id with
+    | Error h -> h
+    | Ok appraisalNumber -> executeContractInsert conn n appraisalNumber dto v
 
 let private createContractHandler (connectionString: string) (id: string) : HttpHandler =
     fun next ctx -> task {
@@ -299,14 +334,29 @@ let private createContractHandler (connectionString: string) (id: string) : Http
 
             match r with
             | Error h -> return! h next ctx
-            | Ok(v, dto) ->
-                use conn = new NpgsqlConnection(connectionString)
-                conn.Open()
-
-                match resolveAppraisedAppraisalNumber conn n id with
-                | Error h -> return! h next ctx
-                | Ok appraisalNumber -> return! executeContractInsert conn n appraisalNumber dto v next ctx
+            | Ok(v, dto) -> return! runWithConn connectionString (createContractCore id n v dto) next ctx
     }
+
+let private resolveContractedContractNumber
+    (conn: NpgsqlConnection)
+    (n: SalesCaseNumber)
+    (id: string)
+    : Result<ContractNumber, HttpHandler> =
+    match SalesCaseRepository.tryFindHeader conn n with
+    | None -> Error(notFound (sprintf "Sales case not found: %s" id))
+    | Some header when header.Status <> "contracted" -> Error(badRequest "CaseNotContracted")
+    | Some header ->
+        match header.ContractNumber with
+        | None -> Error(badRequest "Contract not present")
+        | Some contractNumber -> Ok contractNumber
+
+let private deleteContractCore (id: string) (n: SalesCaseNumber) (v: int) (conn: NpgsqlConnection) : HttpHandler =
+    match resolveContractedContractNumber conn n id with
+    | Error h -> h
+    | Ok contractNumber ->
+        match SalesCaseRepository.deleteContract conn n contractNumber v with
+        | Error e -> mapDomainErrorToResponse e
+        | Ok _ -> Successful.NO_CONTENT
 
 let private deleteContractHandler (connectionString: string) (id: string) : HttpHandler =
     fun next ctx -> task {
@@ -317,21 +367,21 @@ let private deleteContractHandler (connectionString: string) (id: string) : Http
 
             match r with
             | Error h -> return! h next ctx
-            | Ok(v, _) ->
-                use conn = new NpgsqlConnection(connectionString)
-                conn.Open()
-
-                match SalesCaseRepository.tryFindHeader conn n with
-                | None -> return! notFound (sprintf "Sales case not found: %s" id) next ctx
-                | Some header when header.Status <> "contracted" -> return! badRequest "CaseNotContracted" next ctx
-                | Some header ->
-                    match header.ContractNumber with
-                    | None -> return! badRequest "Contract not present" next ctx
-                    | Some contractNumber ->
-                        match SalesCaseRepository.deleteContract conn n contractNumber v with
-                        | Error e -> return! mapDomainErrorToResponse e next ctx
-                        | Ok _ -> return! Successful.NO_CONTENT next ctx
+            | Ok(v, _) -> return! runWithConn connectionString (deleteContractCore id n v) next ctx
     }
+
+let private instructShippingCore
+    (id: string)
+    (n: SalesCaseNumber)
+    (v: int)
+    (date: DateOnly)
+    (conn: NpgsqlConnection)
+    : HttpHandler =
+    match requireCaseStatus conn n id "contracted" "CaseNotContracted" with
+    | Error h -> h
+    | Ok() ->
+        let result = SalesCaseRepository.setShippingInstruction conn n date v
+        respondCaseChange n "shipping_instructed" result
 
 let private instructShippingHandler (connectionString: string) (id: string) : HttpHandler =
     fun next ctx -> task {
@@ -345,17 +395,21 @@ let private instructShippingHandler (connectionString: string) (id: string) : Ht
             | Ok(v, dto) ->
                 match parseDate dto.date with
                 | None -> return! badRequest "date must be ISO date" next ctx
-                | Some date ->
-                    use conn = new NpgsqlConnection(connectionString)
-                    conn.Open()
-
-                    match SalesCaseRepository.tryFindHeader conn n with
-                    | None -> return! notFound (sprintf "Sales case not found: %s" id) next ctx
-                    | Some header when header.Status <> "contracted" -> return! badRequest "CaseNotContracted" next ctx
-                    | Some _ ->
-                        let result = SalesCaseRepository.setShippingInstruction conn n date v
-                        return! respondCaseChange n "shipping_instructed" result next ctx
+                | Some date -> return! runWithConn connectionString (instructShippingCore id n v date) next ctx
     }
+
+let private completeShippingCore
+    (id: string)
+    (n: SalesCaseNumber)
+    (v: int)
+    (date: DateOnly)
+    (conn: NpgsqlConnection)
+    : HttpHandler =
+    match requireCaseStatus conn n id "shipping_instructed" "CaseNotShippingInstructed" with
+    | Error h -> h
+    | Ok() ->
+        let result = SalesCaseRepository.setShippingCompletion conn n date v
+        respondCaseChange n "shipping_completed" result
 
 let private completeShippingHandler (connectionString: string) (id: string) : HttpHandler =
     fun next ctx -> task {
@@ -369,18 +423,21 @@ let private completeShippingHandler (connectionString: string) (id: string) : Ht
             | Ok(v, dto) ->
                 match parseDate dto.date with
                 | None -> return! badRequest "date must be ISO date" next ctx
-                | Some date ->
-                    use conn = new NpgsqlConnection(connectionString)
-                    conn.Open()
-
-                    match SalesCaseRepository.tryFindHeader conn n with
-                    | None -> return! notFound (sprintf "Sales case not found: %s" id) next ctx
-                    | Some header when header.Status <> "shipping_instructed" ->
-                        return! badRequest "CaseNotShippingInstructed" next ctx
-                    | Some _ ->
-                        let result = SalesCaseRepository.setShippingCompletion conn n date v
-                        return! respondCaseChange n "shipping_completed" result next ctx
+                | Some date -> return! runWithConn connectionString (completeShippingCore id n v date) next ctx
     }
+
+let private cancelShippingInstructionCore
+    (id: string)
+    (n: SalesCaseNumber)
+    (v: int)
+    (conn: NpgsqlConnection)
+    : HttpHandler =
+    match requireCaseStatus conn n id "shipping_instructed" "CaseNotShippingInstructed" with
+    | Error h -> h
+    | Ok() ->
+        match SalesCaseRepository.clearShippingInstruction conn n v with
+        | Error e -> mapDomainErrorToResponse e
+        | Ok _ -> Successful.NO_CONTENT
 
 let private cancelShippingInstructionHandler (connectionString: string) (id: string) : HttpHandler =
     fun next ctx -> task {
@@ -391,102 +448,54 @@ let private cancelShippingInstructionHandler (connectionString: string) (id: str
 
             match r with
             | Error h -> return! h next ctx
-            | Ok(v, _) ->
-                use conn = new NpgsqlConnection(connectionString)
-                conn.Open()
-
-                match SalesCaseRepository.tryFindHeader conn n with
-                | None -> return! notFound (sprintf "Sales case not found: %s" id) next ctx
-                | Some header when header.Status <> "shipping_instructed" ->
-                    return! badRequest "CaseNotShippingInstructed" next ctx
-                | Some _ ->
-                    match SalesCaseRepository.clearShippingInstruction conn n v with
-                    | Error e -> return! mapDomainErrorToResponse e next ctx
-                    | Ok _ -> return! Successful.NO_CONTENT next ctx
+            | Ok(v, _) -> return! runWithConn connectionString (cancelShippingInstructionCore id n v) next ctx
     }
 
-
-type SalesCaseSummary =
-    { salesCaseNumber: string
-      divisionCode: int
-      salesDate: string
-      caseType: string
-      status: string }
-
-type ListSalesCasesResponse =
-    { items: SalesCaseSummary[]
-      total: int
-      limit: int
-      offset: int }
-
-let private toSalesCaseSummary (item: SalesCaseListRepository.SalesCaseListItem) : SalesCaseSummary =
-    { salesCaseNumber = formatSalesCaseNumber item.SalesCaseNumber
-      divisionCode = item.DivisionCode
-      salesDate = item.SalesDate.ToString("yyyy-MM-dd")
-      caseType = item.CaseType
-      status = item.Status }
-
-let private tryGetIntQuery (ctx: HttpContext) (key: string) : Result<int option, string> =
-    match ctx.Request.Query.TryGetValue key with
-    | false, _ -> Ok None
-    | true, v ->
-        let s = v.ToString()
-
-        if String.IsNullOrEmpty s then
-            Ok None
-        else
-            match Int32.TryParse s with
-            | true, n -> Ok(Some n)
-            | false, _ -> Error(sprintf "%s must be an integer" key)
-
-let private tryGetStringQuery (ctx: HttpContext) (key: string) : string option =
-    match ctx.Request.Query.TryGetValue key with
-    | false, _ -> None
-    | true, v ->
-        let s = v.ToString()
-        if String.IsNullOrEmpty s then None else Some s
-
-let listSalesCasesHandler (connectionString: string) : HttpHandler =
-    fun next ctx -> task {
-        let limitR = tryGetIntQuery ctx "limit"
-        let offsetR = tryGetIntQuery ctx "offset"
-
-        match limitR, offsetR with
-        | Error msg, _ -> return! badRequest msg next ctx
-        | _, Error msg -> return! badRequest msg next ctx
-        | Ok limitOpt, Ok offsetOpt ->
-            let limit = limitOpt |> Option.defaultValue 50
-            let offset = offsetOpt |> Option.defaultValue 0
-
-            if limit < 1 || limit > 200 then
-                return! badRequest "limit must be between 1 and 200" next ctx
-            elif offset < 0 then
-                return! badRequest "offset must be >= 0" next ctx
-            else
-                let status = tryGetStringQuery ctx "status"
-                let caseType = tryGetStringQuery ctx "caseType"
-
-                use conn = new NpgsqlConnection(connectionString)
-                conn.Open()
-
-                let result =
-                    SalesCaseListRepository.list
-                        conn
-                        { Status = status
-                          CaseType = caseType
-                          Limit = limit
-                          Offset = offset }
-
-                let response: ListSalesCasesResponse =
-                    { items = result.Items |> List.map toSalesCaseSummary |> List.toArray
-                      total = result.Total
-                      limit = result.Limit
-                      offset = result.Offset }
-
-                return! json response next ctx
-    }
 
 // ロット組み合わせの修正。価格/査定登録前の direct・consignment のみ許可（予約は対象外）。
+let private caseLotsEditable (header: SalesCaseRepository.SalesCaseHeader) : bool =
+    match header.CaseType, header.Status with
+    | "direct", "before_appraisal" -> true
+    | "consignment", "before_consignment" -> true
+    | _ -> false
+
+/// 指定案件以外の販売案件に既に割り当てられているか。
+let private isAssignedToAnotherCase (conn: NpgsqlConnection) (n: SalesCaseNumber) (lot: ManufacturedLot) : bool =
+    let lotNumber = (InventoryLot.common (Manufactured lot)).LotNumber
+
+    SalesCaseRepository.findCaseNumbersByLot conn lotNumber
+    |> List.exists (fun c -> c <> n)
+
+let private replaceCaseLotsIfUnassigned
+    (conn: NpgsqlConnection)
+    (n: SalesCaseNumber)
+    (header: SalesCaseRepository.SalesCaseHeader)
+    (v: int)
+    (lots: ManufacturedLot list)
+    : HttpHandler =
+    if lots |> List.exists (isAssignedToAnotherCase conn n) then
+        badRequest "One or more lots are already assigned to another sales case"
+    else
+        let result = SalesCaseRepository.replaceCaseLots conn n lots header.Status v
+        respondCaseChange n header.Status result
+
+let private editCaseLotsCore
+    (id: string)
+    (n: SalesCaseNumber)
+    (v: int)
+    (dto: EditCaseLotsDto)
+    (conn: NpgsqlConnection)
+    : HttpHandler =
+    match SalesCaseRepository.tryFindHeader conn n with
+    | None -> notFound (sprintf "Sales case not found: %s" id)
+    | Some header when not (caseLotsEditable header) ->
+        badRequest "Lots can only be edited for a direct case before appraisal or a consignment case before designation"
+    | Some header ->
+        match fetchManufacturedLots conn dto.lots with
+        | Error e -> badRequest e
+        | Ok lots when List.isEmpty lots -> badRequest "At least one lot is required"
+        | Ok lots -> replaceCaseLotsIfUnassigned conn n header v lots
+
 let private editCaseLotsHandler (connectionString: string) (id: string) : HttpHandler =
     fun next ctx -> task {
         match trySalesCaseNumber id with
@@ -496,51 +505,16 @@ let private editCaseLotsHandler (connectionString: string) (id: string) : HttpHa
 
             match r with
             | Error h -> return! h next ctx
-            | Ok(v, dto) ->
-                use conn = new NpgsqlConnection(connectionString)
-                conn.Open()
-
-                match SalesCaseRepository.tryFindHeader conn n with
-                | None -> return! notFound (sprintf "Sales case not found: %s" id) next ctx
-                | Some header ->
-                    let editable =
-                        match header.CaseType, header.Status with
-                        | "direct", "before_appraisal" -> true
-                        | "consignment", "before_consignment" -> true
-                        | _ -> false
-
-                    if not editable then
-                        return!
-                            badRequest
-                                "Lots can only be edited for a direct case before appraisal or a consignment case before designation"
-                                next
-                                ctx
-                    else
-                        match fetchManufacturedLots conn dto.lots with
-                        | Error e -> return! badRequest e next ctx
-                        | Ok lots when List.isEmpty lots -> return! badRequest "At least one lot is required" next ctx
-                        | Ok lots ->
-                            let assignedElsewhere =
-                                lots
-                                |> List.exists (fun lot ->
-                                    let lotNumber = (InventoryLot.common (Manufactured lot)).LotNumber
-
-                                    SalesCaseRepository.findCaseNumbersByLot conn lotNumber
-                                    |> List.exists (fun c -> c <> n))
-
-                            if assignedElsewhere then
-                                return!
-                                    badRequest "One or more lots are already assigned to another sales case" next ctx
-                            else
-                                let result = SalesCaseRepository.replaceCaseLots conn n lots header.Status v
-                                return! respondCaseChange n header.Status result next ctx
+            | Ok(v, dto) -> return! runWithConn connectionString (editCaseLotsCore id n v dto) next ctx
     }
 
 let routes (connectionString: string) : HttpHandler =
     choose
         [ POST >=> route "/sales-cases" >=> createSalesCaseHandler connectionString
           PUT >=> routef "/sales-cases/%s/lots" (editCaseLotsHandler connectionString)
-          GET >=> route "/sales-cases" >=> listSalesCasesHandler connectionString
+          GET
+          >=> route "/sales-cases"
+          >=> SalesCaseListRoutes.listSalesCasesHandler connectionString
           GET
           >=> routef "/sales-cases/%s" (SalesCaseDetailRoutes.getSalesCaseHandler connectionString)
           DELETE >=> routef "/sales-cases/%s" (deleteSalesCaseHandler connectionString)

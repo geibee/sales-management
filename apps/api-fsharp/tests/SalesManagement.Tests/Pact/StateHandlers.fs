@@ -25,10 +25,7 @@ let private seedManufacturingLot (fixture: ApiFixture) : unit =
     if not resp.IsSuccessStatusCode then
         let respBody = (readBody resp).GetAwaiter().GetResult()
 
-        failwithf
-            "provider state のセットアップに失敗: POST /lots → %d %s"
-            (int resp.StatusCode)
-            respBody
+        failwithf "provider state のセットアップに失敗: POST /lots → %d %s" (int resp.StatusCode) respBody
 
 /// state 名 → セットアップ関数。新しい interaction が state を追加したらここに登録する。
 let stateHandlers: (string * (ApiFixture -> unit)) list =

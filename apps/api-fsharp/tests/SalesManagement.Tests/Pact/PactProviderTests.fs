@@ -34,10 +34,7 @@ type PactLocalProviderTests(fixture: AuthOffFixture) =
         let config = PactVerifierConfig()
         use verifier = new PactVerifier("sales-management", config)
 
-        verifier
-            .WithHttpEndpoint(Uri(sprintf "http://127.0.0.1:%d" fixture.Port))
-            .WithFileSource(pactFile)
-            .Verify()
+        verifier.WithHttpEndpoint(Uri(sprintf "http://127.0.0.1:%d" fixture.Port)).WithFileSource(pactFile).Verify()
 
 /// Broker 経由の検証 (nightly / ci.sh 用)。PACT_BROKER_URL が設定された場合のみ
 /// 実行し、検証結果を Broker へ publish する。マージゲートとしては上の
