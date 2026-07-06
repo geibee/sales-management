@@ -1,0 +1,101 @@
+# push / PR 時の軽量ゲート。scripts/verify.sh を SSoT として再利用する。
+#
+# - scope ジョブが verify.sh のスコープ判定 (VERIFY_DETECT_ONLY=1) を実行し、
+#   backend / frontend ジョブを変更スコープに応じて条件起動する
+# - main への push は「変更なし = 全スコープ」判定になり、常にフル検証される
+#   (ralph-orchestrator の auto_merge → auto_push の受け口)
+# - 重量級検査 (ZAP / Schemathesis / SBOM 等) は nightly.yml → apps/api-fsharp/ci.sh
+name: verify
+
+on:
+  push:
+    branches:
+      - main
+      - "claude/**"
+      - "ralph/**"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  # main は途中コミットも検証したいのでキャンセルしない
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  scope:
+    name: 変更スコープ判定
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.detect.outputs.backend }}
+      frontend: ${{ steps.detect.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # merge-base 計算に main の履歴が必要
+      - name: verify.sh のスコープ判定を実行
+        id: detect
+        env:
+          VERIFY_BASE_REF: origin/main
+          VERIFY_DETECT_ONLY: "1"
+        run: bash scripts/verify.sh
+
+  backend:
+    name: backend verify
+    needs: scope
+    if: needs.scope.outputs.backend == '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      # dotnet test は Testcontainers で Postgres を起動する (runner の Docker を利用)
+      - name: 統合 verify (backend スコープ)
+        env:
+          VERIFY_SCOPE: backend
+        run: bash scripts/verify.sh
+
+  frontend:
+    name: frontend verify
+    needs: scope
+    if: needs.scope.outputs.frontend == '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+      - name: 統合 verify (frontend スコープ)
+        env:
+          VERIFY_SCOPE: frontend
+        run: bash scripts/verify.sh
+
+  # branch protection の required check はこのジョブ 1 つを指定すればよい
+  # (スコープ外でスキップされたジョブは成功扱い、失敗・キャンセルのみ落とす)
+  verify-result:
+    name: verify 結果集約
+    needs: [scope, backend, frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 依存ジョブの結果を判定
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "results: $results"
+          case "$results" in
+            *failure* | *cancelled*) echo "verify 失敗"; exit 1 ;;
+            *) echo "verify 成功 (skipped はスコープ外)" ;;
+          esac

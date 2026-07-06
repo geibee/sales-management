@@ -18,6 +18,7 @@
 # Env:
 #   VERIFY_SCOPE          auto | all | backend | frontend  (default: auto)
 #   VERIFY_BASE_REF       auto 判定の基準 ref               (default: main)
+#   VERIFY_DETECT_ONLY    1 ならスコープ判定だけ行い結果を出力して終了 (CI のジョブ分岐用)
 #   BASELINE_TEST_COUNT   バックエンドテスト pass 数の下限  (ralph orchestrator が設定)
 #   TASK_ID               ログ表示用
 set -euo pipefail
@@ -77,6 +78,18 @@ case "$SCOPE" in
   *) fail "不明な VERIFY_SCOPE: $SCOPE (auto | all | backend | frontend)" ;;
 esac
 
+if [[ "${VERIFY_DETECT_ONLY:-0}" == "1" ]]; then
+  # GitHub Actions のジョブ分岐用: 判定結果だけ出力して終了する
+  log "detect-only: backend=$NEED_BACKEND frontend=$NEED_FRONTEND"
+  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    {
+      echo "backend=$NEED_BACKEND"
+      echo "frontend=$NEED_FRONTEND"
+    } >>"$GITHUB_OUTPUT"
+  fi
+  exit 0
+fi
+
 if [[ $NEED_BACKEND -eq 0 && $NEED_FRONTEND -eq 0 ]]; then
   log "PASS: 検証対象の変更なし (ドキュメントのみ)"
   exit 0
@@ -90,6 +103,8 @@ verify_backend() {
 
   pushd apps/api-fsharp >/dev/null
 
+  # 新規 worktree / CI ランナーではローカルツール (fantomas 等) が未復元
+  dotnet tool restore
   dotnet build src/SalesManagement --warnaserror
   dotnet build tests/SalesManagement.Tests --warnaserror
   dotnet fantomas --check src/ tests/
