@@ -1,0 +1,41 @@
+# 手動起動の自動整形。dispatch したブランチ上で Fantomas を実行し、
+# 差分があれば整形コミットを push する。
+#
+# 用途: ローカルに dotnet が無い環境 (リモートエージェント等) から
+# fantomas --check 違反を解消するとき。GITHUB_TOKEN による push は
+# 他のワークフローをトリガーしないため、整形後の verify は
+# verify.yml を workflow_dispatch で起動すること。
+name: format
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fantomas:
+    name: Fantomas 自動整形
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Fantomas 実行
+        working-directory: apps/api-fsharp
+        run: |
+          dotnet tool restore
+          dotnet fantomas src/ tests/
+      - name: 差分があれば整形コミットを push
+        run: |
+          if git diff --quiet; then
+            echo "整形差分なし"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "style(api): fantomas 自動整形 (format workflow)"
+          git push
