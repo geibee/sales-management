@@ -7,6 +7,8 @@ RESULTS_DIR="./ci-results"
 SARIF_DIR="$RESULTS_DIR/sarif"
 mkdir -p "$RESULTS_DIR" "$SARIF_DIR"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+# ファイル名用 (コロンは GitHub Actions の upload-artifact で無効文字)
+TIMESTAMP_FS="${TIMESTAMP//:/-}"
 
 echo "=== Jaeger 起動チェック ==="
 # --max-time 3 で短期失敗。listen はあるが応答がない (詰まっている) 状態でも 3 秒で抜ける。
@@ -56,12 +58,12 @@ if ! command -v scc >/dev/null 2>&1; then
     echo "scc が見つかりません (インストール: https://github.com/boyter/scc)" >&2
     exit 1
 fi
-scc --by-file --format json src/ > "$RESULTS_DIR/scc_${TIMESTAMP}.json"
+scc --by-file --format json src/ > "$RESULTS_DIR/scc_${TIMESTAMP_FS}.json"
 SCC_MAX=$(python3 -c '
 import json, sys
 langs = json.load(open(sys.argv[1]))
 print(max((f.get("Complexity", 0) for l in langs for f in l.get("Files", [])), default=0))
-' "$RESULTS_DIR/scc_${TIMESTAMP}.json")
+' "$RESULTS_DIR/scc_${TIMESTAMP_FS}.json")
 echo "最大ファイル複雑度: $SCC_MAX"
 python3 scripts/quality-ratchet.py scc_max_file_complexity "$SCC_MAX"
 
@@ -158,6 +160,10 @@ if [ "$ZAP_ENABLED" = "1" ]; then
     # zap-api-scan.py は -c で渡す config を /zap/wrk/ から読むので、
     # mount される RESULTS_DIR にコピーしてから渡す
     cp zap-rules.tsv "$RESULTS_DIR/zap-rules.tsv"
+    # ZAP コンテナは zap ユーザー (UID 1000) で動く。GitHub Actions ランナー等
+    # ホスト UID が一致しない環境では wrk マウントへの書き込みが PermissionError に
+    # なるため、結果ディレクトリを全員書き込み可にしておく (ZAP 公式ドキュメントの推奨)
+    chmod -R a+rwX "$RESULTS_DIR"
     # `-addonuninstall domxss`: DOM XSS addon を起動時に削除する。
     #   - 当 API は JSON のみを返すバックエンド (application/json / problem+json)。
     #     DOM XSS はブラウザが HTML をレンダーする層の問題で、JSON エンドポイント
@@ -310,5 +316,10 @@ grep -E "Dependency extraction complete|fileCount|depCount" "$RESULTS_DIR/renova
 
 echo "=== AGENTS.md 自動更新差分 ==="
 git -C ../.. diff --stat AGENTS.md || true
+
+echo "=== 品質サマリ ==="
+# ログ末尾からも参照できるよう、ラチェット対象 3 指標を再掲して artifact にも残す
+printf '{"timestamp":"%s","coverage_line_rate":%s,"fsharplint_warnings":%s,"scc_max_file_complexity":%s}\n' \
+    "$TIMESTAMP" "$COVERAGE" "$LINT_WARNINGS" "$SCC_MAX" | tee "$RESULTS_DIR/quality-current.json"
 
 echo "=== CI完了 ==="

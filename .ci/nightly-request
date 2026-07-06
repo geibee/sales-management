@@ -3,4 +3,4 @@
 このファイルの内容を変更して push すると .github/workflows/nightly.yml (重量ゲート + backend E2E) が起動する。
 API に actions:write が無い環境からの起動用。下の request 行を更新すること。
 
-request: 2026-07-06 FSharpLint exit 255 対応後の再実行 (ラチェット bootstrap 値採取)
+request: 2026-07-06 ZAP wrk 権限 + artifact コロン修正後の再実行 (3回目)
