@@ -32,9 +32,20 @@ dotnet fantomas --check src/ tests/
 
 echo "=== リンター (SARIF) ==="
 LINT_TXT="$RESULTS_DIR/fsharplint.txt"
+# FSharpLint は警告を検出すると非ゼロ (-1) で終了するため、set -e 下で
+# コマンド置換すると出力を表示する前にスクリプトごと落ちる。終了コードを
+# 明示的に捕捉し、警告数の判断は quality-ratchet に委ねる
+set +e
 LINT_OUTPUT=$(dotnet dotnet-fsharplint lint src/SalesManagement/SalesManagement.fsproj 2>&1)
+LINT_EXIT=$?
+set -e
 echo "$LINT_OUTPUT" | tee "$LINT_TXT"
 LINT_WARNINGS=$(echo "$LINT_OUTPUT" | grep -oE 'Summary: [0-9]+ warnings' | grep -oE '[0-9]+' | head -1 || true)
+if [ -z "$LINT_WARNINGS" ] && [ "$LINT_EXIT" -ne 0 ]; then
+    # Summary 行が無いのに非ゼロ終了 = lint 実行自体の失敗 (fail-closed)
+    echo "FSharpLint が異常終了しました (exit=$LINT_EXIT)" >&2
+    exit 1
+fi
 LINT_WARNINGS=${LINT_WARNINGS:-0}
 printf '{"timestamp":"%s","lint_warnings":%s}\n' "$TIMESTAMP" "$LINT_WARNINGS" >> "$RESULTS_DIR/lint.json"
 python3 scripts/lint-to-sarif.py "$LINT_TXT" ci-results/sarif/fsharplint.sarif
