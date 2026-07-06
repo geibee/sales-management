@@ -119,7 +119,9 @@ let private createLot (client: Net.Http.HttpClient) = task {
     let r = Random()
     let year = 3000 + r.Next(0, 5000)
     let seq = r.Next(1, 9999)
-    let lotId = sprintf "%d-T-%d" year seq
+    // seq はドメインの正規形 (LotNumber.toString の %03d) に合わせてゼロ埋めする。
+    // 埋めないと seq < 100 を引いたときだけ API が返す正規形と食い違う (シード依存の flaky)
+    let lotId = sprintf "%d-T-%03d" year seq
 
     let body =
         createLotBody
