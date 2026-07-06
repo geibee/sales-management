@@ -66,12 +66,14 @@
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^2.1.9",
+    "axe-core": "^4.12.1",
     "jsdom": "^25.0.1",
     "msw": "^2.14.6",
     "openapi-zod-client": "^1.18.3",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "vitest-axe": "^0.1.0"
   }
 }
