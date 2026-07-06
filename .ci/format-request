@@ -1,0 +1,6 @@
+# format-request マーカー
+
+このファイルの内容を変更して push すると .github/workflows/format.yml (Fantomas 自動整形) が起動する。
+API に actions:write が無い環境からの起動用。下の request 行を更新すること。
+
+request: 2026-07-06 run-2 の fantomas --check 違反 7 ファイルの整形

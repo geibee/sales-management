@@ -2,13 +2,24 @@
 # 差分があれば整形コミットを push する。
 #
 # 用途: ローカルに dotnet が無い環境 (リモートエージェント等) から
-# fantomas --check 違反を解消するとき。GITHUB_TOKEN による push は
-# 他のワークフローをトリガーしないため、整形後の verify は
-# verify.yml を workflow_dispatch で起動すること。
+# fantomas --check 違反を解消するとき。workflow_dispatch のほか、
+# `.ci/format-request` の内容を変更して push しても起動できる
+# (API に actions:write 権限が無いエージェント向けの起動経路)。
+#
+# 注意: GITHUB_TOKEN による整形コミットの push は他のワークフローを
+# トリガーしない。整形後の verify はブランチへの次の push (空コミット可)
+# か verify.yml の workflow_dispatch で起動すること。
 name: format
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "claude/**"
+      - "ralph/**"
+    paths:
+      - ".ci/format-request"
 
 permissions:
   contents: write
