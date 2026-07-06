@@ -1,4 +1,6 @@
 # shellcheck shell=bash
+# NEED_BACKEND / NEED_FRONTEND は source 元 (verify.sh / bats) が参照する
+# shellcheck disable=SC2034
 # scope.sh — verify.sh のスコープ判定ロジック。
 #
 # fail-closed の要 (「分類できないパス = 全検証」) をリグレッションから守るため、
