@@ -12,6 +12,15 @@ on:
   schedule:
     - cron: "0 18 * * *" # 03:00 JST
   workflow_dispatch:
+  # workflow_dispatch を叩けない環境 (actions:write の無いエージェント) 向けの起動経路。
+  # format.yml の .ci/format-request と同じパターン
+  push:
+    branches:
+      - main
+      - "claude/**"
+      - "ralph/**"
+    paths:
+      - ".ci/nightly-request"
 
 permissions:
   contents: read
