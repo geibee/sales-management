@@ -5,48 +5,64 @@
     {
       "description": "GET /lots/{lotNumber} で manufacturing 状態の lot を取得",
       "providerStates": [
-        { "name": "lot-1234 が manufacturing 状態で存在する" }
+        { "name": "lot 2026-PACT-001 が manufacturing 状態で存在する" }
       ],
       "request": {
         "method": "GET",
-        "path": "/lots/lot-1234"
+        "path": "/lots/2026-PACT-001"
       },
       "response": {
         "status": 200,
         "headers": { "Content-Type": "application/json" },
         "body": {
-          "lotNumber": "lot-1234",
-          "status": "manufacturing"
+          "lotNumber": "2026-PACT-001",
+          "status": "manufacturing",
+          "version": 1
         },
         "matchingRules": {
-          "$.body.lotNumber": { "match": "type" },
-          "$.body.status": { "match": "regex", "regex": "manufacturing|manufactured|shippingInstructed|shippingCompleted|cancelled|conversion_instructed" }
+          "body": {
+            "$.lotNumber": { "matchers": [{ "match": "type" }] },
+            "$.status": {
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "manufacturing|manufactured|shipping_instructed|shipped|conversion_instructed"
+                }
+              ]
+            },
+            "$.version": { "matchers": [{ "match": "type" }] }
+          }
         }
       }
     },
     {
       "description": "POST /lots/{lotNumber}/complete-manufacturing で manufacturing 完了",
       "providerStates": [
-        { "name": "lot-1234 が manufacturing 状態で存在する" }
+        { "name": "lot 2026-PACT-001 が manufacturing 状態で存在する" }
       ],
       "request": {
         "method": "POST",
-        "path": "/lots/lot-1234/complete-manufacturing",
+        "path": "/lots/2026-PACT-001/complete-manufacturing",
         "headers": { "Content-Type": "application/json" },
         "body": {
-          "manufacturingCompletedDate": "2026-04-27"
+          "date": "2026-04-27",
+          "version": 1
         }
       },
       "response": {
         "status": 200,
         "headers": { "Content-Type": "application/json" },
         "body": {
-          "lotNumber": "lot-1234",
+          "lotNumber": "2026-PACT-001",
           "status": "manufactured"
         },
         "matchingRules": {
-          "$.body.lotNumber": { "match": "type" },
-          "$.body.status": { "match": "regex", "regex": "manufactured" }
+          "body": {
+            "$.lotNumber": { "matchers": [{ "match": "type" }] },
+            "$.status": {
+              "matchers": [{ "match": "regex", "regex": "manufactured" }]
+            }
+          }
         }
       }
     }

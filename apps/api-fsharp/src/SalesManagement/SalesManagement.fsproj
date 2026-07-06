@@ -15,6 +15,7 @@
     <Compile Include="Domain/SalesCaseWorkflows.fs" />
     <Compile Include="Domain/ReservationCaseWorkflows.fs" />
     <Compile Include="Domain/ConsignmentCaseWorkflows.fs" />
+    <Compile Include="Infrastructure/SqlParams.fs" />
     <Compile Include="Infrastructure/LotRepository.fs" />
     <Compile Include="Infrastructure/LotListRepository.fs" />
     <Compile Include="Infrastructure/CodeMasterRepository.fs" />
@@ -46,6 +47,7 @@
     <Compile Include="Api/SalesCaseDtos.fs" />
     <Compile Include="Api/ReservationCaseDtos.fs" />
     <Compile Include="Api/ConsignmentCaseDtos.fs" />
+    <Compile Include="Api/SalesCaseListRoutes.fs" />
     <Compile Include="Api/SalesCaseDetailRoutes.fs" />
     <Compile Include="Api/SalesCaseRoutes.fs" />
     <Compile Include="Api/ReservationCaseRoutes.fs" />

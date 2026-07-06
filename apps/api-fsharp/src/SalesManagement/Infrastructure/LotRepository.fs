@@ -5,11 +5,7 @@ open System.Data
 open Donald
 open Npgsql
 open SalesManagement.Domain.Types
-
-let private dateParam (d: DateOnly option) : SqlType =
-    match d with
-    | Some date -> SqlType.AnsiString(date.ToString("yyyy-MM-dd"))
-    | None -> SqlType.Null
+open SalesManagement.Infrastructure.SqlParams
 
 let private detailParams (lotNumber: LotNumber) (seqNo: int) (detail: LotDetail) : RawDbParams =
     [ "year", SqlType.Int32 lotNumber.Year

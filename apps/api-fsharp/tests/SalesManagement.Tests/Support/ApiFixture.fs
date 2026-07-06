@@ -15,6 +15,7 @@ open Npgsql
 open Testcontainers.PostgreSql
 open Xunit
 open SalesManagement.Hosting
+open SalesManagement.Tests.Support.OpenApiValidation
 open SalesManagement.Tests.Support.StandaloneAppHost
 
 /// 認証 ON 時の HMAC-SHA256 署名鍵。テスト固定値（本番では絶対に使わない）。
@@ -68,8 +69,10 @@ type ApiFixture(opts: ApiFixtureOptions) =
     member _.ConnectionString = connStr
 
     /// `Authentication:Enabled=false` の場合に使う、JWT を持たない素のクライアント。
+    /// 全レスポンスを openapi.yaml と照合する検証ハンドラを常に経由する
+    /// (統合テストのトラフィックが契約適合の検証面を兼ねる。issue #9 Tier1-5)。
     member _.NewClient() : HttpClient =
-        let client = new HttpClient()
+        let client = new HttpClient(new OpenApiValidationHandler(new HttpClientHandler()))
         client.BaseAddress <- Uri(sprintf "http://127.0.0.1:%d" port)
         client.Timeout <- TimeSpan.FromSeconds 60.0
         client

@@ -432,6 +432,22 @@ let completeShippingHandler (connectionString: string) (id: string) : HttpHandle
             return! respondError (bodyParseError ex) next ctx
     }
 
+/// Invariant: a lot referenced by a sales case must not be rolled back
+/// from Manufactured to Manufacturing.
+let private lotReferencedBySalesCaseError (connectionString: string) (lotNumber: LotNumber) : DomainError option =
+    use conn = new NpgsqlConnection(connectionString)
+    conn.Open()
+
+    match SalesCaseRepository.findCaseNumbersByLot conn lotNumber with
+    | [] -> None
+    | cases ->
+        let formatted =
+            cases
+            |> List.map (fun n -> sprintf "%d-%02d-%03d" n.Year n.Month n.Seq)
+            |> String.concat ", "
+
+        Some(InvalidStateTransition(sprintf "LotReferencedBySalesCase: %s" formatted))
+
 let cancelManufacturingCompletionHandler (connectionString: string) (id: string) : HttpHandler =
     fun next ctx -> task {
         try
@@ -443,22 +459,9 @@ let cancelManufacturingCompletionHandler (connectionString: string) (id: string)
                 match parseLotId id with
                 | Error e -> return! respondError e next ctx
                 | Ok lotNumber ->
-                    // Invariant: a lot referenced by a sales case must not be
-                    // rolled back from Manufactured to Manufacturing.
-                    use conn = new NpgsqlConnection(connectionString)
-                    conn.Open()
-
-                    match SalesCaseRepository.findCaseNumbersByLot conn lotNumber with
-                    | [] -> return! runTransition connectionString id v cancelManufacturingTransition next ctx
-                    | cases ->
-                        let formatted =
-                            cases
-                            |> List.map (fun n -> sprintf "%d-%02d-%03d" n.Year n.Month n.Seq)
-                            |> String.concat ", "
-
-                        let err = InvalidStateTransition(sprintf "LotReferencedBySalesCase: %s" formatted)
-
-                        return! respondError err next ctx
+                    match lotReferencedBySalesCaseError connectionString lotNumber with
+                    | None -> return! runTransition connectionString id v cancelManufacturingTransition next ctx
+                    | Some err -> return! respondError err next ctx
         with ex ->
             return! respondError (bodyParseError ex) next ctx
     }

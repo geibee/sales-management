@@ -44,6 +44,38 @@ jobs:
           VERIFY_DETECT_ONLY: "1"
         run: bash scripts/verify.sh
 
+  repo:
+    name: repo 共通 verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks は git 履歴全体を走査 / oasdiff は merge-base の spec が必要
+      - name: oasdiff インストール
+        run: go install github.com/oasdiff/oasdiff@latest && echo "$HOME/go/bin" >>"$GITHUB_PATH"
+      - name: shellcheck / bats / actionlint インストール
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q shellcheck bats
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          sudo install ./actionlint /usr/local/bin/actionlint && rm -f ./actionlint
+          actionlint -version
+      - name: gitleaks インストール
+        env:
+          GITLEAKS_VERSION: "8.24.3"
+        run: |
+          curl -sSfL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo install /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+      - name: 統合 verify (repo スコープ)
+        env:
+          VERIFY_SCOPE: repo
+          VERIFY_BASE_REF: origin/main
+        run: bash scripts/verify.sh
+
   backend:
     name: backend verify
     needs: scope
@@ -107,7 +139,7 @@ jobs:
   # (スコープ外でスキップされたジョブは成功扱い、失敗・キャンセルのみ落とす)
   verify-result:
     name: verify 結果集約
-    needs: [scope, backend, frontend]
+    needs: [scope, repo, backend, frontend]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

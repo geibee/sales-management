@@ -2,13 +2,17 @@ import "@testing-library/jest-dom/vitest";
 import { useAuth } from "@/stores/auth-store";
 import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
+import { assertNoContractViolations, installContractGuard } from "./support/contract-guard";
 import { resetCapturedRequests, server } from "./support/server";
 
 // ---- MSW lifecycle ----
 // `onUnhandledRequest: "error"` で未モック URL を明示的にエラーにする。
 // 通り抜け (silent passthrough) を許すとモック漏れに気付けないため。
+// contract-guard は全モックレスポンスを zod スキーマと照合し、
+// モックの契約ドリフトを該当テストの失敗として顕在化させる。
+installContractGuard(server);
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-afterEach(() => {
+afterEach(async () => {
   cleanup();
   server.resetHandlers();
   resetCapturedRequests();
@@ -16,6 +20,7 @@ afterEach(() => {
   // のロールが漏れないよう毎回リセットする。
   useAuth.getState().clear();
   vi.restoreAllMocks();
+  await assertNoContractViolations();
 });
 afterAll(() => server.close());
 

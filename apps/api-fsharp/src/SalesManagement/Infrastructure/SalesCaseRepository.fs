@@ -7,6 +7,7 @@ open Npgsql
 open SalesManagement.Domain.Types
 open SalesManagement.Domain.SalesCaseTypes
 open SalesManagement.Domain.ReservationCaseTypes
+open SalesManagement.Infrastructure.SqlParams
 
 type SalesCaseHeader =
     { SalesCaseNumber: SalesCaseNumber
@@ -16,26 +17,6 @@ type SalesCaseHeader =
       Status: string
       AppraisalNumber: AppraisalNumber option
       ContractNumber: ContractNumber option }
-
-let private dateParam (d: DateOnly option) : SqlType =
-    match d with
-    | Some date -> SqlType.AnsiString(date.ToString("yyyy-MM-dd"))
-    | None -> SqlType.Null
-
-let private optionString (s: string option) : SqlType =
-    match s with
-    | Some v -> SqlType.String v
-    | None -> SqlType.Null
-
-let private optionInt (i: int option) : SqlType =
-    match i with
-    | Some v -> SqlType.Int32 v
-    | None -> SqlType.Null
-
-let private optionDecimal (d: decimal option) : SqlType =
-    match d with
-    | Some v -> SqlType.Decimal v
-    | None -> SqlType.Null
 
 let private salesCaseKeyParams (n: SalesCaseNumber) : RawDbParams =
     [ "year", SqlType.Int32 n.Year
