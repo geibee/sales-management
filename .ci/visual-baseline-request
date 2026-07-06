@@ -1,0 +1,7 @@
+# visual-baseline-request マーカー
+
+このファイルの内容を変更して push すると .github/workflows/visual-baseline.yml が起動し、
+visual regression の baseline (visual.spec.ts-snapshots/) を CI ランナー上で再生成して bot がコミットする。
+API に actions:write が無い環境からの起動用。下の request 行を更新すること。
+
+request: 2026-07-06 visual.spec.ts 新設に伴う初回 baseline 生成

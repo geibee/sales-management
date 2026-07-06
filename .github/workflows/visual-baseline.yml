@@ -1,0 +1,60 @@
+# visual regression の baseline (visual.spec.ts-snapshots/) を CI ランナー上で
+# 再生成して bot がコミットする。ローカル環境はフォントレンダリングが異なるため、
+# baseline は必ずこのワークフローで生成した CI 版を正とする。
+#
+# 起動: workflow_dispatch、または .ci/visual-baseline-request の内容を変更して push
+# (format.yml と同じ、actions:write の無いエージェント向け経路)。
+# GITHUB_TOKEN による push は他ワークフローをトリガーしない点も format.yml と同様。
+name: visual-baseline
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "claude/**"
+      - "ralph/**"
+    paths:
+      - ".ci/visual-baseline-request"
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    name: baseline 再生成
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+      - name: フロント依存をインストール
+        working-directory: apps/frontend
+        run: pnpm install --frozen-lockfile
+      - name: Playwright ブラウザをインストール
+        working-directory: apps/frontend
+        run: pnpm exec playwright install --with-deps chromium
+      - name: visual baseline を再生成
+        working-directory: apps/frontend
+        env:
+          VISUAL_UPDATE: "1"
+        run: pnpm exec playwright test tests/e2e/visual.spec.ts --update-snapshots
+      - name: 差分があれば baseline をコミットして push
+        run: |
+          snapshots="apps/frontend/tests/e2e/visual.spec.ts-snapshots"
+          if [ -z "$(git status --porcelain "$snapshots")" ]; then
+            echo "baseline 差分なし"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$snapshots"
+          git commit -m "test(frontend): visual regression baseline を CI で再生成 (visual-baseline workflow)"
+          git push
