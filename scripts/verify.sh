@@ -109,8 +109,13 @@ verify_backend() {
   dotnet build tests/SalesManagement.Tests --warnaserror
   dotnet fantomas --check src/ tests/
 
+  command -v python3 >/dev/null 2>&1 \
+    || fail "python3 が見つかりません (fail-closed: カバレッジラチェットに必要)"
+
   local out current baseline
-  out=$(dotnet test tests/SalesManagement.Tests 2>&1) || { echo "$out"; fail "backend テストが失敗しました"; }
+  rm -rf coverage
+  out=$(dotnet test tests/SalesManagement.Tests --collect:"XPlat Code Coverage" --results-directory ./coverage 2>&1) \
+    || { echo "$out"; fail "backend テストが失敗しました"; }
   echo "$out"
 
   # VSTest 形式 "Passed: NN" / MTP 形式 "Total tests: NN" の両方に対応
@@ -120,7 +125,17 @@ verify_backend() {
   [[ -z "$current" ]] && current=0
   baseline="${BASELINE_TEST_COUNT:-0}"
   (( current >= baseline )) || fail "backend テスト数が退行: $current < baseline $baseline"
-  log "backend PASS: tests passed: $current (baseline $baseline)"
+  log "backend tests passed: $current (baseline $baseline)"
+
+  # カバレッジラチェット (coverage-baseline.json から退行したら失敗)。
+  # テスト数ラチェットは「薄いテストで数だけ稼ぐ」ゲーミングに弱いため併用する
+  local cobertura
+  cobertura=$(find coverage -name 'coverage.cobertura.xml' | head -1)
+  [[ -n "$cobertura" ]] \
+    || fail "coverage.cobertura.xml が生成されていません (fail-closed: 計測できないものを緑にしない)"
+  python3 scripts/coverage-ratchet.py "$cobertura"
+
+  log "backend PASS"
 
   popd >/dev/null
 }
