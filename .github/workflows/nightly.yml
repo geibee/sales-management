@@ -1,6 +1,7 @@
 # nightly の重量ゲート。apps/api-fsharp/ci.sh をフル実行する
 # (build / fantomas / FSharpLint / 複雑度 / テスト+カバレッジ / アーキテクチャ適合性 /
 #  gitleaks / Trivy / SBOM / ZAP / Schemathesis / SARIF 集約 / Renovate dry-run)。
+# あわせて e2e ジョブで backend-lifecycle E2E (Playwright + 実 F# API) を無人実行する。
 #
 # - push 時の軽量ゲートは verify.yml → scripts/verify.sh
 # - Pact Broker / Jaeger は runner に無いので ci.sh 側の判定で自動スキップされる
@@ -100,5 +101,86 @@ jobs:
             gh issue comment "$existing" --body "$body"
           else
             gh issue create --title "nightly CI 失敗 ($(date -u +%Y-%m-%d))" \
+              --label ci-nightly --body "$body"
+          fi
+
+  e2e:
+    name: backend-lifecycle E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      # playwright.config.ts の webServer が tools/Migrator → src/SalesManagement を
+      # 起動するため、その接続先 DB を service コンテナで供給する
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: sales_management
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d sales_management"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+
+      - name: フロント依存をインストール
+        working-directory: apps/frontend
+        run: pnpm install --frozen-lockfile
+      - name: Playwright ブラウザをインストール
+        working-directory: apps/frontend
+        run: pnpm exec playwright install --with-deps chromium
+
+      # webServer の `dotnet run` を高速化する (起動タイムアウト内に収めるための事前ビルド)
+      - name: API と Migrator を事前ビルド
+        working-directory: apps/api-fsharp
+        run: |
+          dotnet build src/SalesManagement
+          dotnet build tools/Migrator
+
+      - name: backend-lifecycle E2E 実行 (API+フロントは webServer が自動起動)
+        working-directory: apps/frontend
+        run: pnpm test:e2e:backend
+
+      - name: 失敗時に trace をアップロード
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: apps/frontend/test-results/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: 失敗時に Issue へエスカレーション
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create ci-nightly --color d73a4a \
+            --description "nightly CI (ci.sh) の失敗" --force || true
+          existing=$(gh issue list --label ci-nightly --state open \
+            --json number --jq '.[0].number' || true)
+          body=$(printf '%s\n\n%s' \
+            "nightly E2E (backend-lifecycle) が失敗しました: ${RUN_URL}" \
+            "Playwright trace は run の e2e-results アーティファクトを参照。原因分析は LESSONS.md の運用に従うこと。")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "nightly E2E 失敗 ($(date -u +%Y-%m-%d))" \
               --label ci-nightly --body "$body"
           fi

@@ -138,7 +138,10 @@ verify_frontend() {
   pnpm typecheck
   pnpm lint
   pnpm lint:contracts
-  pnpm test
+  # 生成コードドリフト検査: generated.ts が openapi.yaml と同期しているか
+  pnpm check:contracts-drift
+  # テスト + カバレッジラチェット (coverage-baseline.json から退行したら失敗)
+  pnpm test:coverage
   log "frontend PASS"
 
   popd >/dev/null
