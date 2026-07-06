@@ -115,7 +115,7 @@ let private seedManufacturedLot (client: HttpClient) (year: int) (location: stri
 
     let! createResp = postJson client "/lots" body
     Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
-    let lotId = sprintf "%d-%s-%d" year location seq
+    let lotId = sprintf "%d-%s-%03d" year location seq
 
     let! mfgResp =
         postJson client (sprintf "/lots/%s/complete-manufacturing" lotId) """{"date":"2026-01-10","version":1}"""

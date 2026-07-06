@@ -119,7 +119,8 @@ let private createLot (client: Net.Http.HttpClient) = task {
     let r = Random()
     let year = 3000 + r.Next(0, 5000)
     let seq = r.Next(1, 9999)
-    let lotId = sprintf "%d-T-%d" year seq
+    // LotNumber.toString の正準形式（seq は 3 桁ゼロ埋め）に合わせる
+    let lotId = sprintf "%d-T-%03d" year seq
 
     let body =
         createLotBody
