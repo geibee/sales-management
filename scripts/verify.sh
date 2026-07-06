@@ -213,6 +213,9 @@ verify_frontend() {
   pnpm check:contracts-drift
   # テスト + カバレッジラチェット (coverage-baseline.json から退行したら失敗)
   pnpm test:coverage
+  # 本番ビルド (typecheck では検出できない Vite ビルド破壊 —
+  # 動的 import / asset 解決 / Tailwind 等 — を PR 時点で検出する)
+  pnpm build
   log "frontend PASS"
 
   popd >/dev/null
