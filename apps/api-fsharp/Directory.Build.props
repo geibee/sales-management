@@ -1,0 +1,16 @@
+<Project>
+  <!--
+    ビルド経路 (IDE / 素の dotnet build / CLI フラグ付き) によらず「警告 = エラー」を
+    強制する (issue #9 Tier1-3)。verify.sh / ci.sh の `-warnaserror` は残しているが、
+    ここに置くことでフラグを付け忘れた経路でも同一の強制になる (fail-closed)。
+  -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!--
+      FS0025 (不完全パターンマッチ) / FS0026 (到達しないルール) は既定で警告有効だが、
+      DSL 駆動開発の要 (判別共用体へのケース追加が全 match を強制的に赤にする) なので
+      明示的に指定して off にされない土台を固定する。
+    -->
+    <WarnOn>25;26;$(WarnOn)</WarnOn>
+  </PropertyGroup>
+</Project>
