@@ -31,8 +31,11 @@ test.describe.serial("lot lifecycle", () => {
     await page.getByRole("button", { name: "作成" }).click();
 
     // After create, navigation uses the server-returned lotNumber (string).
-    await expect(page.getByRole("heading", { name: /在庫ロット/ })).toBeVisible();
+    // /lots/new の見出し「在庫ロットを作成」も /在庫ロット/ にマッチするため、
+    // 見出しではなく URL が詳細ページへ変わるのを待ってから path を記録する
+    await page.waitForURL((url) => /^\/lots\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith("/new"));
     lotPath = new URL(page.url()).pathname;
+    await expect(page.getByRole("heading", { name: /在庫ロット/ })).toBeVisible();
 
     // The state-machine activates only the next-allowed action button.
     // Status is "manufacturing" → 製造完了 button is enabled.
