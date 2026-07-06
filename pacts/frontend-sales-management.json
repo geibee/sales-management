@@ -1,57 +1,566 @@
 {
-  "consumer": { "name": "frontend" },
-  "provider": { "name": "sales-management" },
+  "consumer": {
+    "name": "frontend"
+  },
   "interactions": [
     {
       "description": "GET /lots/{lotNumber} で manufacturing 状態の lot を取得",
       "providerStates": [
-        { "name": "lot-1234 が manufacturing 状態で存在する" }
+        {
+          "name": "lot-1234 が manufacturing 状態で存在する"
+        }
       ],
       "request": {
         "method": "GET",
         "path": "/lots/lot-1234"
       },
       "response": {
-        "status": 200,
-        "headers": { "Content-Type": "application/json" },
         "body": {
+          "department": {
+            "code": 10,
+            "name": "名称"
+          },
+          "details": [
+            {
+              "count": 10,
+              "itemCategory": "general",
+              "lengthSpecLower": 1.5,
+              "productCategoryCode": "PC1",
+              "qualityGrade": "A",
+              "quantity": 12.5,
+              "thicknessSpecLower": 0.5,
+              "thicknessSpecUpper": 1.2
+            }
+          ],
+          "division": {
+            "code": 10,
+            "name": "名称"
+          },
+          "inspectionCategory": {
+            "code": 10,
+            "name": "名称"
+          },
           "lotNumber": "lot-1234",
-          "status": "manufacturing"
+          "manufacturingCategory": {
+            "code": 10,
+            "name": "名称"
+          },
+          "processCategory": {
+            "code": 10,
+            "name": "名称"
+          },
+          "section": {
+            "code": 10,
+            "name": "名称"
+          },
+          "status": "manufacturing",
+          "version": 1
+        },
+        "headers": {
+          "Content-Type": "application/json"
         },
         "matchingRules": {
-          "$.body.lotNumber": { "match": "type" },
-          "$.body.status": { "match": "regex", "regex": "manufacturing|manufactured|shippingInstructed|shippingCompleted|cancelled|conversion_instructed" }
-        }
+          "body": {
+            "$.department.code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.department.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.details": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.details[*].count": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.details[*].itemCategory": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "general|premium|custom"
+                }
+              ]
+            },
+            "$.details[*].lengthSpecLower": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "decimal"
+                }
+              ]
+            },
+            "$.details[*].productCategoryCode": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.details[*].qualityGrade": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.details[*].quantity": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "decimal"
+                }
+              ]
+            },
+            "$.details[*].thicknessSpecLower": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "decimal"
+                }
+              ]
+            },
+            "$.details[*].thicknessSpecUpper": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "decimal"
+                }
+              ]
+            },
+            "$.division.code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.division.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.inspectionCategory.code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.inspectionCategory.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.lotNumber": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.manufacturingCategory.code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.manufacturingCategory.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.processCategory.code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.processCategory.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.section.code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.section.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.status": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "manufacturing|manufactured|shipping_instructed|shipped|conversion_instructed"
+                }
+              ]
+            },
+            "$.version": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
       }
     },
     {
       "description": "POST /lots/{lotNumber}/complete-manufacturing で manufacturing 完了",
       "providerStates": [
-        { "name": "lot-1234 が manufacturing 状態で存在する" }
+        {
+          "name": "lot-1234 が manufacturing 状態で存在する"
+        }
       ],
       "request": {
-        "method": "POST",
-        "path": "/lots/lot-1234/complete-manufacturing",
-        "headers": { "Content-Type": "application/json" },
         "body": {
-          "manufacturingCompletedDate": "2026-04-27"
-        }
-      },
-      "response": {
-        "status": 200,
-        "headers": { "Content-Type": "application/json" },
-        "body": {
-          "lotNumber": "lot-1234",
-          "status": "manufactured"
+          "date": "2026-04-27",
+          "version": 1
+        },
+        "headers": {
+          "Content-Type": "application/json"
         },
         "matchingRules": {
-          "$.body.lotNumber": { "match": "type" },
-          "$.body.status": { "match": "regex", "regex": "manufactured" }
-        }
+          "body": {
+            "$.date": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "\\d{4}-\\d{2}-\\d{2}"
+                }
+              ]
+            },
+            "$.version": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/lots/lot-1234/complete-manufacturing"
+      },
+      "response": {
+        "body": {
+          "department": {
+            "code": 10,
+            "name": "名称"
+          },
+          "details": [
+            {
+              "count": 10,
+              "itemCategory": "general",
+              "lengthSpecLower": 1.5,
+              "productCategoryCode": "PC1",
+              "qualityGrade": "A",
+              "quantity": 12.5,
+              "thicknessSpecLower": 0.5,
+              "thicknessSpecUpper": 1.2
+            }
+          ],
+          "division": {
+            "code": 10,
+            "name": "名称"
+          },
+          "inspectionCategory": {
+            "code": 10,
+            "name": "名称"
+          },
+          "lotNumber": "lot-1234",
+          "manufacturingCategory": {
+            "code": 10,
+            "name": "名称"
+          },
+          "processCategory": {
+            "code": 10,
+            "name": "名称"
+          },
+          "section": {
+            "code": 10,
+            "name": "名称"
+          },
+          "status": "manufactured",
+          "version": 2
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$.department.code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.department.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.details": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.details[*].count": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.details[*].itemCategory": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "general|premium|custom"
+                }
+              ]
+            },
+            "$.details[*].lengthSpecLower": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "decimal"
+                }
+              ]
+            },
+            "$.details[*].productCategoryCode": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.details[*].qualityGrade": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.details[*].quantity": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "decimal"
+                }
+              ]
+            },
+            "$.details[*].thicknessSpecLower": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "decimal"
+                }
+              ]
+            },
+            "$.details[*].thicknessSpecUpper": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "decimal"
+                }
+              ]
+            },
+            "$.division.code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.division.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.inspectionCategory.code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.inspectionCategory.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.lotNumber": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.manufacturingCategory.code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.manufacturingCategory.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.processCategory.code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.processCategory.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.section.code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.section.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.status": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "manufacturing|manufactured|shipping_instructed|shipped|conversion_instructed"
+                }
+              ]
+            },
+            "$.version": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
       }
     }
   ],
   "metadata": {
-    "pactSpecification": { "version": "3.0.0" }
+    "pact-js": {
+      "version": "17.0.1"
+    },
+    "pactRust": {
+      "ffi": "0.5.4",
+      "models": "1.3.11"
+    },
+    "pactSpecification": {
+      "version": "3.0.0"
+    }
+  },
+  "provider": {
+    "name": "sales-management"
   }
 }

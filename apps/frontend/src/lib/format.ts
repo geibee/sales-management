@@ -1,5 +1,13 @@
 import type { LotStatus } from "@/contracts";
 
+/**
+ * Record リテラルの安全な参照。API 由来の status に "constructor" 等
+ * Object.prototype のキーが来てもプロトタイプ由来の値を返さない。
+ */
+function lookup<V>(map: Record<string, V>, key: string): V | undefined {
+  return Object.hasOwn(map, key) ? map[key] : undefined;
+}
+
 export const LOT_STATUS_LABEL: Record<LotStatus, string> = {
   manufacturing: "製造中",
   manufactured: "製造完了",
@@ -10,7 +18,7 @@ export const LOT_STATUS_LABEL: Record<LotStatus, string> = {
 
 export function lotStatusLabel(status: string | null | undefined): string {
   if (!status) return "(unknown)";
-  return (LOT_STATUS_LABEL as Record<string, string>)[status] ?? status;
+  return lookup(LOT_STATUS_LABEL as Record<string, string>, status) ?? status;
 }
 
 export const SALES_CASE_STATUS_LABEL: Record<string, string> = {
@@ -45,7 +53,7 @@ export function caseStatusLabel(
       : caseType === "consignment"
         ? CONSIGNMENT_STATUS_LABEL
         : SALES_CASE_STATUS_LABEL;
-  return map[status] ?? status;
+  return lookup(map, status) ?? status;
 }
 
 /**
@@ -64,7 +72,7 @@ export const LOT_STATUS_TONE: Record<string, StatusTone> = {
 
 export function lotStatusTone(status: string | null | undefined): StatusTone {
   if (!status) return "neutral";
-  return LOT_STATUS_TONE[status] ?? "neutral";
+  return lookup(LOT_STATUS_TONE, status) ?? "neutral";
 }
 
 export const CASE_STATUS_TONE: Record<string, StatusTone> = {
@@ -87,7 +95,7 @@ export const CASE_STATUS_TONE: Record<string, StatusTone> = {
 
 export function caseStatusTone(status: string | null | undefined): StatusTone {
   if (!status) return "neutral";
-  return CASE_STATUS_TONE[status] ?? "neutral";
+  return lookup(CASE_STATUS_TONE, status) ?? "neutral";
 }
 
 export const CASE_TYPE_LABEL: Record<string, string> = {
@@ -98,7 +106,7 @@ export const CASE_TYPE_LABEL: Record<string, string> = {
 
 export function caseTypeLabel(caseType: string | null | undefined): string {
   if (!caseType) return "(unknown)";
-  return CASE_TYPE_LABEL[caseType] ?? caseType;
+  return lookup(CASE_TYPE_LABEL, caseType) ?? caseType;
 }
 
 /**

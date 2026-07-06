@@ -71,6 +71,7 @@ apps/api-kotlin/  (将来予定)
 - コミット前の統合ゲートは `scripts/verify.sh`（backend + frontend を変更スコープで自動判定、fail-closed）。ralph-orchestrator のデフォルト verify もこれに委譲する。重量級検査（ZAP / Schemathesis / Pact / SBOM 等）は従来どおり `apps/api-fsharp/ci.sh`
 - GitHub Actions: push / PR の軽量ゲートは `.github/workflows/verify.yml`（`scripts/verify.sh` に委譲）、nightly の重量ゲートは `.github/workflows/nightly.yml`（`ci.sh` フル実行、失敗時は `ci-nightly` ラベルの Issue にエスカレーション）
 - 品質ラチェット: backend は `ci.sh` 内の `scripts/quality-ratchet.py`（行カバレッジ / FSharpLint 警告数 / scc 最大複雑度、基準は `apps/api-fsharp/quality-baseline.json`）、frontend は `scripts/coverage-ratchet.mjs`（基準は `coverage-baseline.json`）。悪化のみ検出する方式。改善時は `RATCHET_UPDATE=1` で基準を引き上げてコミットする
+- `pacts/frontend-sales-management.json` は**手で編集しない**。`apps/frontend/tests/pact/` の Pact コンシューマテスト（実クライアント + 生成 Zod スキーマで実行）が生成する。契約を変えるときはテストを変更し、再生成された pact をコミットする。provider state 名は backend の `Pact/StateHandlers.fs` のキーと一致させる
 
 ## 関連ディレクトリ
 

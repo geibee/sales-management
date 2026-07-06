@@ -13,7 +13,9 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./tests/setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}", "tests/unit/**/*.test.{ts,tsx}"],
+    // tests/pact は Pact コンシューマテスト (pacts/ の生成元)。通常テストと
+    // 一緒に回すことで、契約の変化が pacts/ の git diff として常に現れる
+    include: ["src/**/*.test.{ts,tsx}", "tests/unit/**/*.test.{ts,tsx}", "tests/pact/**/*.test.{ts,tsx}"],
     exclude: ["tests/e2e/**", "node_modules/**", "dist/**"],
     coverage: {
       provider: "v8",
