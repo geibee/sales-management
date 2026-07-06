@@ -1,4 +1,4 @@
-import { schemas, type SalesCasesListResponse } from "@/contracts";
+import { type SalesCasesListResponse, schemas } from "@/contracts";
 import { apiGet } from "@/lib/api-client";
 import useSWR from "swr";
 

@@ -1,4 +1,4 @@
-import { schemas, type CodeMastersResponse } from "@/contracts";
+import { type CodeMastersResponse, schemas } from "@/contracts";
 import { apiGet } from "@/lib/api-client";
 import useSWR from "swr";
 

@@ -1,4 +1,4 @@
-import { schemas, type CreateLotResponse, type LotResponse } from "@/contracts";
+import { type CreateLotResponse, type LotResponse, schemas } from "@/contracts";
 import { ApiError, apiDownload, apiGet, apiSend } from "@/lib/api-client";
 import useSWR, { mutate as globalMutate } from "swr";
 
@@ -77,7 +77,12 @@ export async function cancelManufacturingCompletion(
   version: number,
 ): Promise<LotResponse> {
   return await withConflictRefresh(id, () =>
-    apiSend("POST", `/lots/${id}/cancel-manufacturing-completion`, { version }, schemas.LotResponse),
+    apiSend(
+      "POST",
+      `/lots/${id}/cancel-manufacturing-completion`,
+      { version },
+      schemas.LotResponse,
+    ),
   );
 }
 

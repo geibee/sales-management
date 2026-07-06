@@ -1,4 +1,4 @@
-import { schemas, type SalesCaseDetailResponse } from "@/contracts";
+import { type SalesCaseDetailResponse, schemas } from "@/contracts";
 import { ApiError, apiGet, apiSend } from "@/lib/api-client";
 import useSWR, { mutate as globalMutate } from "swr";
 

@@ -157,4 +157,3 @@ export function ReservationCaseDetailPage({ id }: { id: string }) {
     </div>
   );
 }
-
