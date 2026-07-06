@@ -50,12 +50,33 @@ jobs:
     if: needs.scope.outputs.backend == '1'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      # Batch 系統合テスト (Support/BatchFixture) は Testcontainers ではなく
+      # docker-compose 相当の固定 Postgres (localhost:5432) へ直接接続するため、
+      # service コンテナで供給する。接続情報は BatchFixture / Migrator の
+      # デフォルト接続文字列に合わせる
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: sales_management
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d sales_management"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
-      # dotnet test は Testcontainers で Postgres を起動する (runner の Docker を利用)
+      - name: DB マイグレーション (Batch 系統合テストのスキーマ準備)
+        working-directory: apps/api-fsharp
+        run: dotnet run --project tools/Migrator
+      # それ以外の統合テストは Testcontainers で Postgres を起動する (runner の Docker を利用)
       - name: 統合 verify (backend スコープ)
         env:
           VERIFY_SCOPE: backend
