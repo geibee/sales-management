@@ -10,7 +10,7 @@
  * のショートカットとして alias を提供する。Form-level validators は src/forms/validators.ts。
  */
 import { z } from "zod";
-import { schemas } from "./generated";
+import type { schemas } from "./generated";
 
 export { schemas, api, createApiClient } from "./generated";
 

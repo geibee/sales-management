@@ -13,6 +13,7 @@ let requireManufacturedLot (lot: InventoryLot) : Result<ManufacturedLot, LotForS
     match lot with
     | Manufactured m -> Ok m
     | other -> Error(LotNotManufactured(LotNumber.toString (InventoryLot.common other).LotNumber))
+
 type AppraisalCreationError = CaseNotBeforeAppraisal
 type AppraisalUpdateError = CaseNotAppraised
 type AppraisalDeletionError = CaseNotAppraised

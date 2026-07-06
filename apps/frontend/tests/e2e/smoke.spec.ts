@@ -6,7 +6,7 @@ import { expect, test } from "@playwright/test";
  * no token is set.
  *
  * For full lifecycle tests against the F# backend, see backend-lifecycle.spec.ts
- * (manual run: requires `dotnet run` in another terminal with auth disabled).
+ * (run via `pnpm test:e2e:backend` — the API is auto-started by playwright.config.ts).
  */
 
 test("home page renders and lists every aggregate", async ({ page }) => {

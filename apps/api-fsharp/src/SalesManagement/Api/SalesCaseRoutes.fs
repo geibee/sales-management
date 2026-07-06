@@ -529,7 +529,8 @@ let private editCaseLotsHandler (connectionString: string) (id: string) : HttpHa
                                     |> List.exists (fun c -> c <> n))
 
                             if assignedElsewhere then
-                                return! badRequest "One or more lots are already assigned to another sales case" next ctx
+                                return!
+                                    badRequest "One or more lots are already assigned to another sales case" next ctx
                             else
                                 let result = SalesCaseRepository.replaceCaseLots conn n lots header.Status v
                                 return! respondCaseChange n header.Status result next ctx

@@ -456,8 +456,7 @@ let cancelManufacturingCompletionHandler (connectionString: string) (id: string)
                             |> List.map (fun n -> sprintf "%d-%02d-%03d" n.Year n.Month n.Seq)
                             |> String.concat ", "
 
-                        let err =
-                            InvalidStateTransition(sprintf "LotReferencedBySalesCase: %s" formatted)
+                        let err = InvalidStateTransition(sprintf "LotReferencedBySalesCase: %s" formatted)
 
                         return! respondError err next ctx
         with ex ->
@@ -538,5 +537,7 @@ let routes (connectionString: string) : HttpHandler =
           DELETE
           >=> routef "/lots/%s/instruct-item-conversion" (cancelItemConversionInstructionHandler connectionString)
           GET >=> route "/lots/export" >=> LotCsvExport.exportLotsHandler connectionString
-          GET >=> route "/lots/available" >=> LotListRoutes.availableLotsHandler connectionString
+          GET
+          >=> route "/lots/available"
+          >=> LotListRoutes.availableLotsHandler connectionString
           GET >=> routef "/lots/%s" (getLotHandler connectionString) ]

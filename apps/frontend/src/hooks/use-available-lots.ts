@@ -1,4 +1,4 @@
-import { schemas, type AvailableLotsResponse } from "@/contracts";
+import { type AvailableLotsResponse, schemas } from "@/contracts";
 import { apiGet } from "@/lib/api-client";
 import useSWR from "swr";
 
@@ -17,5 +17,7 @@ export function useAvailableLots(q: AvailableLotsQuery = {}) {
       ? `/lots/available?excludeCase=${encodeURIComponent(q.excludeCase)}`
       : "/lots/available";
 
-  return useSWR<AvailableLotsResponse>(key, (k: string) => apiGet(k, schemas.AvailableLotsResponse));
+  return useSWR<AvailableLotsResponse>(key, (k: string) =>
+    apiGet(k, schemas.AvailableLotsResponse),
+  );
 }

@@ -471,32 +471,29 @@ type AppraisalContractStatefulParamTests(fixture: AuthOffFixture) =
     [<InlineData("1.1", 200)>]
     [<InlineData("0.89", 400)>]
     [<InlineData("1.11", 400)>]
-    member _.``POST /sales-cases/{id}/appraisals: periodAdjustmentRate boundaries``
-        (rate: string, status: int)
-        =
-        task {
-            fixture.Reset()
-            use client = fixture.NewClient()
-            let! caseId, lotId = seedBeforeAppraisal client
+    member _.``POST /sales-cases/{id}/appraisals: periodAdjustmentRate boundaries``(rate: string, status: int) = task {
+        fixture.Reset()
+        use client = fixture.NewClient()
+        let! caseId, lotId = seedBeforeAppraisal client
 
-            let rateValue = Decimal.Parse(rate, Globalization.CultureInfo.InvariantCulture)
+        let rateValue = Decimal.Parse(rate, Globalization.CultureInfo.InvariantCulture)
 
-            let lotAppraisals =
-                JArray
-                    [ JObject
-                          [ "lotNumber", JString lotId
-                            "detailAppraisals",
-                            JArray
-                                [ JObject
-                                      [ "detailIndex", JInt 1
-                                        "baseUnitPrice", JInt 1000
-                                        "periodAdjustmentRate", JDecimal rateValue
-                                        "counterpartyAdjustmentRate", JDecimal 1m ] ] ] ]
+        let lotAppraisals =
+            JArray
+                [ JObject
+                      [ "lotNumber", JString lotId
+                        "detailAppraisals",
+                        JArray
+                            [ JObject
+                                  [ "detailIndex", JInt 1
+                                    "baseUnitPrice", JInt 1000
+                                    "periodAdjustmentRate", JDecimal rateValue
+                                    "counterpartyAdjustmentRate", JDecimal 1m ] ] ] ]
 
-            let body = appraisalBody lotId 1 [ "lotAppraisals", lotAppraisals ] []
-            let! resp = postJson client (sprintf "/sales-cases/%s/appraisals" caseId) body
-            Assert.Equal(enum<HttpStatusCode> status, resp.StatusCode)
-        }
+        let body = appraisalBody lotId 1 [ "lotAppraisals", lotAppraisals ] []
+        let! resp = postJson client (sprintf "/sales-cases/%s/appraisals" caseId) body
+        Assert.Equal(enum<HttpStatusCode> status, resp.StatusCode)
+    }
 
     [<Theory>]
     [<Trait("Category", "Param")>]

@@ -85,6 +85,8 @@
     <PackageReference Include="WireMock.Net" Version="1.6.0" />
     <!-- Pin to non-vulnerable version (transitive via WireMock.Net) -->
     <PackageReference Include="System.Linq.Dynamic.Core" Version="1.6.0.1" />
+    <!-- Pin to non-vulnerable version (transitive via WireMock.Net, GHSA-24c8-4792-22hx は 7.2.0 で修正) -->
+    <PackageReference Include="Scriban.Signed" Version="7.2.5" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

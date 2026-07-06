@@ -1,0 +1,6 @@
+# nightly-request マーカー
+
+このファイルの内容を変更して push すると .github/workflows/nightly.yml (重量ゲート + backend E2E) が起動する。
+API に actions:write が無い環境からの起動用。下の request 行を更新すること。
+
+request: 2026-07-06 e2e CSV テスト修正 (lotPath を URL 遷移待ちで取得) の再検証

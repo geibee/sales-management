@@ -14,13 +14,11 @@ You are a ralph-worker subagent. Your sole job is to complete this single task.
 
 ## 完了条件 (programmatic — すべて通って初めて done)
 
-1〜4 は `apps/api-fsharp/` で実行する (fantomas はローカルツールのため):
+worktree ルートで実行する:
 
-1. `dotnet build src/SalesManagement --warnaserror` 終了コード 0
-2. `dotnet build tests/SalesManagement.Tests --warnaserror` 終了コード 0
-3. `dotnet fantomas --check src/ tests/` 終了コード 0
-4. `dotnet test tests/SalesManagement.Tests` 終了コード 0、かつ pass テスト数 ≥ {{ baseline_test_count }}
-5. `bash {{ verify }}` 終了コード 0 (worktree ルートで実行。タスク固有 verify)
+1. `BASELINE_TEST_COUNT={{ baseline_test_count }} bash scripts/verify.sh` 終了コード 0
+   (統合 verify。変更スコープを自動判定 — backend: `dotnet build --warnaserror` / `fantomas --check` / `dotnet test` pass 数 ≥ {{ baseline_test_count }}、frontend: `pnpm typecheck` / `lint` / `lint:contracts` / `test`。ツールチェーン不足は fail-closed で失敗)
+2. `bash {{ verify }}` 終了コード 0 (タスク固有 verify。デフォルトは scripts/verify.sh へ委譲)
 
 ## タスク固有の指示
 
@@ -31,7 +29,7 @@ You are a ralph-worker subagent. Your sole job is to complete this single task.
 1. 起動直後: `Skill(ralph-task)` を呼んでライフサイクル契約を確認
 2. `git status` (worktree clean のはず) と現在のブランチを確認
 3. タスクに関連する仕様 (`dsl/domain-model.md`、`AGENTS.md` の DSL 解釈ルール・命名規約)、`LESSONS.md` の未消化教訓、編集対象ファイルを Read
-4. 実装 → 上記 5 段検証 → green
+4. 実装 → 上記 2 段検証 → green
 5. `git add <編集ファイル>` + `git commit -m "..."`  (メッセージは日本語、Co-Authored-By なし)
 6. 最終ターン末尾に `<task-status>done</task-status>` を出力して終了
 

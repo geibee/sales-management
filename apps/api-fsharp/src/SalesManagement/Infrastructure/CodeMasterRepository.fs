@@ -56,18 +56,18 @@ let private queryAll (conn: NpgsqlConnection) (sql: string) (mapper: IDataReader
 
 let loadAll (conn: NpgsqlConnection) : CodeMasters =
     { Divisions = queryAll conn "SELECT code, name FROM master_division ORDER BY code" mapCodeName
-      Departments =
-        queryAll conn "SELECT code, name, division_code FROM master_department ORDER BY code" mapDepartment
+      Departments = queryAll conn "SELECT code, name, division_code FROM master_department ORDER BY code" mapDepartment
       Sections = queryAll conn "SELECT code, name, department_code FROM master_section ORDER BY code" mapSection
       ProcessCategories = queryAll conn "SELECT code, name FROM master_process_category ORDER BY code" mapCodeName
-      InspectionCategories =
-        queryAll conn "SELECT code, name FROM master_inspection_category ORDER BY code" mapCodeName
+      InspectionCategories = queryAll conn "SELECT code, name FROM master_inspection_category ORDER BY code" mapCodeName
       ManufacturingCategories =
         queryAll conn "SELECT code, name FROM master_manufacturing_category ORDER BY code" mapCodeName }
 
 let loadNameMaps (conn: NpgsqlConnection) : NameMaps =
     let masters = loadAll conn
-    let flat (xs: CodeName list) = xs |> List.map (fun c -> c.Code, c.Name) |> Map.ofList
+
+    let flat (xs: CodeName list) =
+        xs |> List.map (fun c -> c.Code, c.Name) |> Map.ofList
 
     { Division = masters.Divisions |> flat
       Department = masters.Departments |> List.map (fun d -> d.Code, d.Name) |> Map.ofList

@@ -20,8 +20,11 @@
     "format": "biome format --write src",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage && node scripts/coverage-ratchet.mjs",
     "test:e2e": "playwright test",
+    "test:e2e:backend": "E2E_BACKEND=1 playwright test",
     "gen:api": "openapi-zod-client ../api-fsharp/openapi.yaml -o src/contracts/generated.ts",
+    "check:contracts-drift": "bash scripts/check-contract-drift.sh",
     "lint:contracts": "spectral lint --ruleset ../../.spectral.yaml ../api-fsharp/openapi.yaml"
   },
   "dependencies": {
@@ -62,6 +65,7 @@
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^2.1.9",
     "jsdom": "^25.0.1",
     "msw": "^2.14.6",
     "openapi-zod-client": "^1.18.3",

@@ -49,7 +49,7 @@ component/page test は `Vitest + Testing Library + MSW` を主戦場にし、E2
 | 10b layout shell (Shell/Sidebar/Topbar) | ✅ | — |
 | 6 Router integration | ❌ | `FE-NAV-LOT-001` / `FE-NAV-SALES-001..003` (本物 `routeTree.gen` で navigate 解決) / `FE-NAV-AUTH-001` (実 route 上の Guard fallback) |
 | 7 describeApiError unit | ⚠️ | `tests/unit/api-client.test.ts` に 4 件あるのみ。`FE-ERR-001..010` の全 variant 未網羅 |
-| 8 Evidence / CI | ❌ | JUnit reporter / coverage artifact / MSW request log |
+| 8 Evidence / CI | ⚠️ | coverage 計測+ラチェット / backend E2E 自動化 / 生成コードドリフト検査は導入済み。JUnit reporter / MSW request log が残 |
 | 9 PBT | ❌ | 本書 §PBT で計画化。`fast-check` 未導入 |
 
 凡例: ✅ 全 ID green / ⚠️ 一部 ID 未消化 / ❌ 未着手
@@ -602,7 +602,7 @@ PBT は **Phase 9** の単発ではなく、Phase 3〜5 と並走させる:
 | 5 | PriceCheckPage | `FE-PAGE-PRICE-001..008`、`FE-REQ-PRICE-001..003` | — |
 | 6 | Router Integration | `FE-NAV-LOT-001`、`FE-NAV-SALES-001..003`、`FE-NAV-AUTH-001` | 全件 (要 `renderWithRealRouter`) |
 | 7 | describeApiError unit | `FE-ERR-001..010` 全 variant、ページ重複削除 | `FE-ERR-001/003/004/006..010` |
-| 8 | Evidence / CI | JUnit reporter、coverage artifact、MSW request log 失敗時出力 | 全件 |
+| 8 | Evidence / CI | JUnit reporter、coverage artifact、MSW request log 失敗時出力 | `FE-EVID-UNIT-001`、`FE-EVID-MSW-001` (coverage / backend E2E / contract drift は ✅) |
 | 9a-9f | PBT | 上節「PBT 導入の Phase」参照 | 全件 |
 | 10a | Design primitives | `FE-DESIGN-*` (Pill/Card/Misc/Spark/Flow) green | — |
 | 10b | Layout shell | `FE-LAYOUT-*` (Sidebar/Topbar/Shell) green | active state は Phase 6 で再評価 |
@@ -649,10 +649,11 @@ PBT は **Phase 9** の単発ではなく、Phase 3〜5 と並走させる:
 |---|---|---|---|---|
 | `FE-EVID-UNIT-001` | Vitest component/page/unit | JUnit XML または Vitest report | PR | ❌ |
 | `FE-EVID-MSW-001` | MSW request assertion | 失敗時の request log | PR | ❌ |
-| `FE-EVID-COVERAGE-001` | coverage | coverage report | PR または nightly | ❌ |
+| `FE-EVID-COVERAGE-001` | coverage | `@vitest/coverage-v8` + ラチェット (`coverage-baseline.json` から退行で fail、verify.sh に組込) | PR (verify) | ✅ |
 | `FE-EVID-PBT-001` (新) | fast-check property | seed / counterexample を失敗時に出力 | PR、nightly で `FE_PBT_RUNS=1000` | ❌ |
 | `FE-EVID-E2E-001` | Playwright smoke | HTML report, trace, screenshot | PR | ⚠️ (既存 smoke 1 本) |
-| `FE-EVID-BACKEND-E2E-001` | `E2E_BACKEND=1` | Playwright trace/video/screenshot | manual / nightly | ⚠️ |
+| `FE-EVID-BACKEND-E2E-001` | `pnpm test:e2e:backend` (webServer が Migrator→API→vite を自動起動) | Playwright trace (失敗時 nightly の `e2e-results` artifact) | nightly (`nightly.yml` e2e ジョブ) | ✅ |
+| `FE-EVID-CONTRACT-DRIFT-001` (新) | 生成コードドリフト検査 (`pnpm check:contracts-drift`) | drift 時の diff 出力 (verify.sh に組込) | PR (verify) | ✅ |
 | `FE-EVID-MANUAL-001` | UAT / manual | screenshot, reviewer, date, build SHA | release 前 | n/a |
 
 ## Storybook 後続方針

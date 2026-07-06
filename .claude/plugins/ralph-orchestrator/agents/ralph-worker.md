@@ -17,12 +17,9 @@ The task spec is provided to you via `--append-system-prompt` and includes:
 ## 厳守ルール
 
 1. **編集対象**: `files:` リストに記載されたパスのみ。それ以外 (LESSONS.md / .ralph/* / .github/* 含む) は読み取りのみ
-2. **検証**: 実装完了後、必ず順に実行 (1〜4 は `apps/api-fsharp/` で。fantomas はローカルツールのため):
-   - `dotnet build src/SalesManagement --warnaserror`
-   - `dotnet build tests/SalesManagement.Tests --warnaserror`
-   - `dotnet fantomas --check src/ tests/`
-   - `dotnet test tests/SalesManagement.Tests` (pass 数 ≥ baseline)
-   - `bash <verify_script>` (worktree ルートで実行。system prompt に記載)
+2. **検証**: 実装完了後、worktree ルートで必ず順に実行:
+   - `BASELINE_TEST_COUNT=<baseline> bash scripts/verify.sh` (統合 verify。変更スコープを自動判定 — backend: build --warnaserror / fantomas / test pass 数 ≥ baseline、frontend: typecheck / lint / lint:contracts / test。ツールチェーン不足は fail-closed で失敗)
+   - `bash <verify_script>` (タスク固有 verify。system prompt に記載。デフォルトは scripts/verify.sh へ委譲)
    全部通って初めて完了
 3. **F# 構文/配置**: F# は宣言順依存。`.fsproj` の `<Compile Include>` 順序に注意 (Support 等は先頭)。新規テストは `Support/*` ハーネスを使い `[<Trait("Category", "Integration")>]` を付ける。DSL 解釈ルール・命名規約は `AGENTS.md` を参照
 4. **コミット**: タスク完了時にコミットする (worktree branch にいる)。push しない (orchestrator が main rebase merge する)
@@ -51,6 +48,6 @@ The task spec is provided to you via `--append-system-prompt` and includes:
 1. 起動直後: `git status` で clean を確認、`Skill(ralph-task)` を呼んで契約を再確認
 2. タスクに関連する仕様 (`dsl/domain-model.md` / `AGENTS.md`)、`LESSONS.md` の未消化教訓、`files:` の現状を Read
 3. `prompt_extra` に書かれた具体仕様に厳密に従う
-4. 実装 → `apps/api-fsharp/` で build → fantomas → test の順に検証
-5. verify script 実行
+4. 実装 → worktree ルートで `bash scripts/verify.sh` (統合 verify)
+5. タスク固有 verify script 実行
 6. green ならば commit → `<task-status>done</task-status>` を出力して終了

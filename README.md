@@ -67,6 +67,15 @@ dotnet test
 bash ci.sh        # CI 一式（SARIF を ci-results/ に出力）
 ```
 
+### 統合 verify（コミット前ゲート）
+
+```bash
+bash scripts/verify.sh                   # main との diff から backend / frontend スコープを自動判定
+VERIFY_SCOPE=all bash scripts/verify.sh  # 全スコープ強制
+```
+
+backend は build（--warnaserror）/ Fantomas / dotnet test、frontend は typecheck / Biome / Spectral 契約 lint / Vitest を実行する。必要なツールチェーンが無い場合はスキップせず失敗する（fail-closed）。ralph-orchestrator のデフォルト verify も本スクリプトに委譲する。
+
 ### Stage 1 仕様入力
 
 このリポジトリでは、仕様駆動開発の最小対応として `dsl/domain-model.md` を人間が読む仕様入力にする。専用パーサーやIR生成は前提にしない。
@@ -142,6 +151,16 @@ bash apps/api-fsharp/scripts/seed-dev-data.sh
 - **静的検査**: linter または ast-grep に書く（プロンプトに混ぜない）
 
 詳細・命名規約・DSL 解釈ルールは [`AGENTS.md`](./AGENTS.md) を参照。
+
+## CI ゲート (GitHub Actions)
+
+| Workflow | トリガ | 内容 |
+|---|---|---|
+| [`verify.yml`](./.github/workflows/verify.yml) | `main` / `claude/**` / `ralph/**` への push、`main` への PR | 軽量ゲート。`scripts/verify.sh` のスコープ判定を再利用し、backend / frontend ジョブを変更に応じて条件起動 |
+| [`nightly.yml`](./.github/workflows/nightly.yml) | 毎日 03:00 JST / 手動 | 重量ゲート。`apps/api-fsharp/ci.sh` をフル実行（ZAP / Schemathesis / gitleaks / Trivy / SBOM / Renovate dry-run）。成果物は run の `ci-results` アーティファクト、失敗時は `ci-nightly` ラベルの Issue に自動起票 |
+| [`format.yml`](./.github/workflows/format.yml) | 手動 / `.ci/format-request` 変更の push | 対象ブランチで Fantomas を実行し、差分があれば整形コミットを push（ローカルに dotnet が無い環境向け） |
+
+branch protection の required check には集約ジョブ `verify-result` を 1 つ指定すればよい（スコープ外でスキップされたジョブは成功扱い）。
 
 ## CI 出力
 
