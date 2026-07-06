@@ -1,5 +1,5 @@
 {
-  "coverage_line_rate": null,
-  "fsharplint_warnings": null,
-  "scc_max_file_complexity": null
+  "coverage_line_rate": 0.8677,
+  "fsharplint_warnings": 4,
+  "scc_max_file_complexity": 74
 }
