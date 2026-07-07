@@ -70,6 +70,8 @@ jobs:
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
           sudo install /tmp/gitleaks /usr/local/bin/gitleaks
           gitleaks version
+      - name: ruff / pytest インストール (python ゲートスクリプト検査)
+        run: pip install --quiet ruff pytest
       - name: 統合 verify (repo スコープ)
         env:
           VERIFY_SCOPE: repo

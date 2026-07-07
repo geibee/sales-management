@@ -111,6 +111,17 @@ verify_repo() {
   bats scripts/tests
   log "bats: OK"
 
+  # python 製ゲートスクリプト (ラチェット / SARIF 変換 / LESSONS 更新) の
+  # lint + 単体テスト。ゲート自体のバグ = 全検査の fail-open なので検査する (issue #9 Tier2-17)
+  command -v ruff >/dev/null 2>&1 \
+    || fail "ruff が見つかりません (fail-closed: python ゲートスクリプトの lint なしで合格にできない)"
+  ruff check .
+  log "ruff: OK"
+  command -v pytest >/dev/null 2>&1 \
+    || fail "pytest が見つかりません (fail-closed: python ゲートスクリプトのテストなしで合格にできない)"
+  pytest scripts/tests/python -q
+  log "pytest: OK"
+
   # openapi.yaml の破壊的変更ゲート (oasdiff breaking)。
   # AI ループは契約を「都合よく」変えがちなので、後方互換を壊す spec 変更
   # (必須フィールド追加・enum 削除・型変更等) を PR 時点で機械検出する

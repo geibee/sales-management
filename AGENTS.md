@@ -82,7 +82,7 @@ apps/api-kotlin/  (将来予定)
 - すべての CI ツールの結果は `ci-results/sarif/<tool>.sarif` に出力し、`ci-results/merged.sarif` に統合する
 - 失敗の自己分析は `Stop` フック（`.claude/scripts/sarif-to-lessons.py`）がリポジトリルートの `LESSONS.md`（マーカ間の自動生成領域）に記録する。恒久対応が済んだ教訓は `LESSONS.md` から削除する
 - コミット前の統合ゲートは `scripts/verify.sh`（backend + frontend を変更スコープで自動判定、fail-closed）。ralph-orchestrator のデフォルト verify もこれに委譲する。重量級検査（ZAP / Schemathesis / SBOM 等）は従来どおり `apps/api-fsharp/ci.sh`
-- verify のマージゲート内訳（issue #9 Tier1 で拡充）: backend = build(-warnaserror) / fantomas / FSharpLint / テスト数 + カバレッジラチェット / アーキテクチャテスト / Broker レス Pact 検証 / openapi レスポンス照合（`Support/OpenApiValidation.fs`）、frontend = typecheck / biome / Spectral / 生成コードドリフト / knip（デッドコード検出）/ カバレッジラチェット / MSW 契約ドリフト検査（`tests/support/contract-guard.ts`）/ `pnpm build` / バックエンドレス smoke E2E（`tests/e2e/smoke.spec.ts`）、repo 横断（スコープ不問）= gitleaks / oasdiff 破壊的変更 / shellcheck / actionlint / bats（スコープ判定の単体テスト）
+- verify のマージゲート内訳（issue #9 Tier1 で拡充）: backend = build(-warnaserror) / fantomas / FSharpLint / テスト数 + カバレッジラチェット / アーキテクチャテスト / Broker レス Pact 検証 / openapi レスポンス照合（`Support/OpenApiValidation.fs`）、frontend = typecheck / biome / Spectral / 生成コードドリフト / knip（デッドコード検出）/ カバレッジラチェット / MSW 契約ドリフト検査（`tests/support/contract-guard.ts`）/ `pnpm build` / バックエンドレス smoke E2E（`tests/e2e/smoke.spec.ts`）、repo 横断（スコープ不問）= gitleaks / oasdiff 破壊的変更 / shellcheck / actionlint / bats（スコープ判定の単体テスト）/ ruff + pytest（python ゲートスクリプトの lint と単体テスト、`scripts/tests/python/`）
 - GitHub Actions: push / PR の軽量ゲートは `.github/workflows/verify.yml`（`scripts/verify.sh` に委譲）、nightly の重量ゲートは `.github/workflows/nightly.yml`（`ci.sh` フル実行、失敗時は `ci-nightly` ラベルの Issue にエスカレーション）
 
 ## 関連ディレクトリ

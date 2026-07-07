@@ -14,8 +14,12 @@ import { readFileSync, writeFileSync } from "node:fs";
 const EPSILON = 0.1;
 const METRICS = ["lines", "statements", "branches", "functions"];
 
-const summaryPath = new URL("../coverage/coverage-summary.json", import.meta.url);
-const baselinePath = new URL("../coverage-baseline.json", import.meta.url);
+// 単体テスト (tests/unit/scripts/coverage-ratchet.test.ts) から一時ファイルを
+// 指せるよう、パスは環境変数で差し替え可能にする
+const summaryPath =
+  process.env.COVERAGE_SUMMARY_PATH ?? new URL("../coverage/coverage-summary.json", import.meta.url);
+const baselinePath =
+  process.env.COVERAGE_BASELINE_PATH ?? new URL("../coverage-baseline.json", import.meta.url);
 
 const total = JSON.parse(readFileSync(summaryPath, "utf8")).total;
 const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));

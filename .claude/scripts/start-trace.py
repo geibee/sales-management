@@ -4,7 +4,6 @@
 PostToolUse フックの emit-otel.py がこの trace_id を読み取って OTLP スパンに付与することで、
 1 セッション = 1 trace の単位で Jaeger に表示できる。
 """
-import os
 import pathlib
 import secrets
 
