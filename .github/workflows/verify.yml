@@ -143,6 +143,14 @@ jobs:
         env:
           VERIFY_SCOPE: frontend
         run: bash scripts/verify.sh
+      # FE-EVID-UNIT-001: vitest の JUnit XML (vitest.config.ts が CI=true で出力)
+      - name: テスト結果 (JUnit XML) を artifact 化
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-results
+          path: apps/frontend/test-results/vitest-junit.xml
+          if-no-files-found: ignore
 
   # branch protection の required check はこのジョブ 1 つを指定すればよい
   # (スコープ外でスキップされたジョブは成功扱い、失敗・キャンセルのみ落とす)

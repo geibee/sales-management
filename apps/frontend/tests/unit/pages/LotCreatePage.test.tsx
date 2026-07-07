@@ -64,7 +64,7 @@ describe("<LotCreatePage> (FE-REQ-LOT-CREATE-* / FE-NAV-LOT-001)", () => {
     await screen.findByLabelText("年度");
     fireEvent.click(screen.getByRole("button", { name: /作成/ }));
     await waitFor(() => expect(requestsFor("/api/lots")).toHaveLength(1));
-    const body = requestsFor("/api/lots")[0].body as {
+    const body = requestsFor("/api/lots")[0]!.body as {
       lotNumber: { year: number; location: string; seq: number };
       divisionCode: number;
       departmentCode: number;

@@ -12,10 +12,10 @@ component/page test は `Vitest + Testing Library + MSW` を主戦場にし、E2
 
 | 集計 | 値 |
 |---|---|
-| テストファイル数 | 29 |
-| passing tests | 243 |
+| テストファイル数 | 45 |
+| passing tests | 315 |
 | todo | 3 |
-| 既知 Red (未実装 ID) | 後述「Phase ロードマップ」参照 |
+| 既知 Red (未実装 ID) | なし (2026-07-07 全 Phase 消化) |
 
 > **rev2.1 追記 (2026-06-02)**: デザイン刷新 (commit `0ed6d6a` 基盤 + `6c4bc83` 全ページ差し替え) で
 > 新規追加・書き換えたコードのテスト欠落を補填した (整合性レビュー `claude-design-api-sorted-boole.md` の
@@ -23,34 +23,46 @@ component/page test は `Vitest + Testing Library + MSW` を主戦場にし、E2
 > ロジック層 `lotActionEnabled` 等は `FE-FMT-*` として example test を先行追加した
 > (PBT `FE-PBT-STATUS-001` は引き続き Phase 9 で導入)。
 
+> **rev3 追記 (2026-07-07, issue #9 フロントエンド残)**: Phase 2c / 3b / 4b / 4c / 4e /
+> 6 / 7 / 8 の残 ID を全消化した。`renderWithRealRouter` (本物 `routeTree.gen`) を
+> `tests/support/render.tsx` に追加し FE-NAV-* を実装。SalesContractForm に
+> 契約調整率(%) フィールドを実装 (SC-002/003 の実装ギャップ解消)。
+> `FE-MATRIX-LOT-006` (unknown status) は契約 zod enum + contract-guard により
+> page 到達不能のため `FE-PBT-STATUS-001` へ委譲。FE-REQ-RESERVATION-001 /
+> FE-REQ-CONSIGNMENT-001 は契約 request schema に rate フィールドが存在しないため
+> 「body が生成済み契約スキーマに適合する」を oracle とした。あわせて
+> tsconfig (noUncheckedIndexedAccess / exactOptionalPropertyTypes / noImplicitOverride)、
+> Biome (noExplicitAny=error、lint 対象に tests/ scripts/、a11y all)、
+> E2E (3 案件種別フロー: tests/e2e/backend-case-flows.spec.ts) を強化した。
+
 | Phase | 状態 | 主な未消化 ID |
 |---|---|---|
 | 0 MSW infra | ✅ | — |
 | 1 Test infra | ✅ | — |
 | 2a Guard | ✅ | — |
 | 2b LotActionForm | ✅ | `FE-COMP-LOT-ACTION-007` (todo: 未 touched 検査) |
-| 2c RichActionForms | ⚠️ | `FE-COMP-RICH-SC-002 / SC-003` (契約調整率 89 / 100 → 1.0) |
+| 2c RichActionForms | ✅ | — (SC-002/003 は契約調整率フィールド実装と同時に green) |
 | 2d a11y form | ✅ | — |
 | 2e LotSelectDialog | ✅ | — |
 | 2f SalesCaseCreateDialog | ✅ | — |
 | 2g Validation policy | ✅ | — |
 | 3a LotCreatePage | ✅ | cascade の段階遷移詳細は §拡充手順 参照 |
-| 3b LotDetailPage | ⚠️ | `FE-MATRIX-LOT-*` (全状態 × 6 action)、`FE-VERSION-LOT-002..006` (cancel-mfg / instruct-ship / complete-ship / instruct-conv / cancel-conv の version body) |
+| 3b LotDetailPage | ✅ | — (`LotDetailPage.matrix.test.tsx`。MATRIX-006 は FE-PBT-STATUS-001 委譲) |
 | 3c CSV | ✅ | — |
 | 3d LotListPage | ✅ | — |
 | 4a SalesCaseCreatePage | ✅ | — |
-| 4b SalesCaseDetailPage | ⚠️ | `FE-REQ-SALES-ACTION-001 / 003` (POST appraisals / contracts rate ÷100)、`FE-VERSION-SALES-002 / 003` (delete contract / cancel shipping instruction) |
-| 4c Reservation / Consignment Detail | ⚠️ | `FE-REQ-RESERVATION-001` / `FE-REQ-CONSIGNMENT-001` (POST rich body の rate ÷100) |
+| 4b SalesCaseDetailPage | ✅ | — |
+| 4c Reservation / Consignment Detail | ✅ | — (rate は契約 request schema に無いため schema 適合を oracle とする) |
 | 4d ロット修正 | ✅ | — |
-| 4e 査定合計 / 上長承認 | ⚠️ | page 層では未。RichActionForms (organism) で `FE-COMP-RICH-DA-004..006` のみカバー。`FE-TOTAL-001..005` / `FE-APPROVER-001..003` の page wire-up 未 |
+| 4e 査定合計 / 上長承認 | ✅ | — (page wire-up は `FE-PAGE-SALES-DETAIL-APPRAISAL-001`) |
 | 3e SalesCaseListPage | ✅ | — |
 | 5 PriceCheckPage | ✅ | — |
 | 10a design primitives | ✅ | — |
 | 10b layout shell (Shell/Sidebar/Topbar) | ✅ | — |
-| 6 Router integration | ❌ | `FE-NAV-LOT-001` / `FE-NAV-SALES-001..003` (本物 `routeTree.gen` で navigate 解決) / `FE-NAV-AUTH-001` (実 route 上の Guard fallback) |
-| 7 describeApiError unit | ⚠️ | `tests/unit/api-client.test.ts` に 4 件あるのみ。`FE-ERR-001..010` の全 variant 未網羅 |
-| 8 Evidence / CI | ⚠️ | coverage 計測+ラチェット / backend E2E 自動化 / 生成コードドリフト検査は導入済み。JUnit reporter / MSW request log が残 |
-| 9 PBT | ❌ | 本書 §PBT で計画化。`fast-check` 未導入 |
+| 6 Router integration | ✅ | — (`tests/unit/router/navigation.test.tsx`) |
+| 7 describeApiError unit | ✅ | — |
+| 8 Evidence / CI | ✅ | — (JUnit reporter は CI=true 時、MSW request log は onTestFailed 出力) |
+| 9 PBT | ✅ | — (issue #9 Tier2-11 で導入。`tests/unit/pbt/`) |
 
 凡例: ✅ 全 ID green / ⚠️ 一部 ID 未消化 / ❌ 未着手
 
@@ -112,19 +124,19 @@ component/page test は `Vitest + Testing Library + MSW` を主戦場にし、E2
 |---|---|---|---|---|---|
 | `UI-LOT-LIST` | `/lots` | viewer, operator | loading, success, error, 行選択, 案件新規登録導線 | `FE-PAGE-LOT-LIST-*`, `FE-COMP-SALES-CREATE-DIALOG-*` | ✅ |
 | `UI-SALES-LIST` | `/sales-cases` | viewer, operator | loading, empty, error, 種別/状態フィルタ, 多態ルーティング, ページング | `FE-PAGE-SALES-LIST-*`, `FE-REQ-SALES-LIST-*` | ✅ |
-| `UI-LOT-CREATE` | `/lots/new` | operator | fallback, ready, pending, success, API error, code-master cascade | `FE-PAGE-LOT-CREATE-*`, `FE-REQ-LOT-CREATE-*`, `FE-NAV-LOT-001` | ⚠️ NAV 未 |
-| `UI-LOT-DETAIL` | `/lots/:id` | viewer, operator | loading, success, error, action matrix, conflict, csv, 明細, 名称 | `FE-PAGE-LOT-DETAIL-*`, `FE-REQ-LOT-ACTION-*`, `FE-MATRIX-LOT-*`, `FE-VERSION-LOT-*` | ⚠️ MATRIX/VERSION 未 |
-| `UI-SALES-CREATE` | `/sales-cases/new` | operator | fallback, validation, pending, success, API error, ロット選択モーダル | `FE-PAGE-SALES-CREATE-*`, `FE-REQ-SALES-CREATE-*`, `FE-NAV-SALES-*` | ⚠️ NAV-002/003 (real router) 未 |
-| `UI-SALES-DETAIL` | `/sales-cases/:id` | viewer, operator, admin | loading, success, error, rich actions, ロット修正, 査定合計, 上長承認 | `FE-PAGE-SALES-DETAIL-*`, `FE-REQ-SALES-ACTION-*`, `FE-REQ-SALES-LOTS-*`, `FE-VERSION-SALES-*`, `FE-TOTAL-*`, `FE-APPROVER-*` | ⚠️ ACTION-001/003, VERSION-002/003, TOTAL/APPROVER 未 |
-| `UI-RESERVATION-DETAIL` | `/reservation-cases/:id` | viewer, operator | loading, success, error, rich actions, cancel | `FE-PAGE-RESERVATION-*`, `FE-REQ-RESERVATION-*`, `FE-VERSION-RES-*` | ⚠️ REQ-RESERVATION-001 未 |
-| `UI-CONSIGNMENT-DETAIL` | `/consignment-cases/:id` | viewer, operator | loading, success, error, rich actions, cancel, ロット修正 | `FE-PAGE-CONSIGNMENT-*`, `FE-REQ-CONSIGNMENT-*`, `FE-REQ-CONSIGNMENT-LOTS-*`, `FE-VERSION-CON-*` | ⚠️ REQ-CONSIGNMENT-001 未 |
+| `UI-LOT-CREATE` | `/lots/new` | operator | fallback, ready, pending, success, API error, code-master cascade | `FE-PAGE-LOT-CREATE-*`, `FE-REQ-LOT-CREATE-*`, `FE-NAV-LOT-001` | ✅ |
+| `UI-LOT-DETAIL` | `/lots/:id` | viewer, operator | loading, success, error, action matrix, conflict, csv, 明細, 名称 | `FE-PAGE-LOT-DETAIL-*`, `FE-REQ-LOT-ACTION-*`, `FE-MATRIX-LOT-*`, `FE-VERSION-LOT-*` | ✅ |
+| `UI-SALES-CREATE` | `/sales-cases/new` | operator | fallback, validation, pending, success, API error, ロット選択モーダル | `FE-PAGE-SALES-CREATE-*`, `FE-REQ-SALES-CREATE-*`, `FE-NAV-SALES-*` | ✅ (002/003 は実 route 解決 + `caseDetailRoute` oracle) |
+| `UI-SALES-DETAIL` | `/sales-cases/:id` | viewer, operator, admin | loading, success, error, rich actions, ロット修正, 査定合計, 上長承認 | `FE-PAGE-SALES-DETAIL-*`, `FE-REQ-SALES-ACTION-*`, `FE-REQ-SALES-LOTS-*`, `FE-VERSION-SALES-*`, `FE-TOTAL-*`, `FE-APPROVER-*` | ✅ |
+| `UI-RESERVATION-DETAIL` | `/reservation-cases/:id` | viewer, operator | loading, success, error, rich actions, cancel | `FE-PAGE-RESERVATION-*`, `FE-REQ-RESERVATION-*`, `FE-VERSION-RES-*` | ✅ |
+| `UI-CONSIGNMENT-DETAIL` | `/consignment-cases/:id` | viewer, operator | loading, success, error, rich actions, cancel, ロット修正 | `FE-PAGE-CONSIGNMENT-*`, `FE-REQ-CONSIGNMENT-*`, `FE-REQ-CONSIGNMENT-LOTS-*`, `FE-VERSION-CON-*` | ✅ |
 | `UI-PRICE-CHECK` | `/external/price-check` | viewer | idle, loading, success, 400, 502, 503, unknown error | `FE-PAGE-PRICE-*`, `FE-REQ-PRICE-*` | ✅ |
 
 ## Test Infrastructure
 
 | ファイル | 役割 | 必須仕様 | 状態 |
 |---|---|---|---|
-| `tests/support/render.tsx` | render helper | `renderWithApp(...)` と `renderWithRouter(...)` を提供する。後者は catch-all root route で即席起動する。本物 `routeTree.gen` 起動用の `renderWithRealRouter(initialPath)` は Phase 6 で追加する。 | ⚠️ realRouter 未 |
+| `tests/support/render.tsx` | render helper | `renderWithApp(...)` と `renderWithRouter(...)` を提供する。後者は catch-all root route で即席起動する。本物 `routeTree.gen` 起動用の `renderWithRealRouter(initialPath)` を提供する (Phase 6)。 | ✅ |
 | `tests/support/server.ts` | MSW server | `setupServer()` インスタンス、`request:start` で全リクエストを `capturedRequests` に蓄積、`resetCapturedRequests()` / `requestsFor(pathname)` / `requestCount(pathname)` を提供する。 | ✅ |
 | `tests/support/fixtures.ts` | API fixture | `lot`, `salesCase`, `problem`, `priceQuote`, `codeMasters`, `availableLot` の factory を提供する。 | ✅ |
 | `tests/support/deferred.ts` | loading 固定 | `deferred<T>()` を提供し、loading を pending promise で固定できる。 | ✅ |
@@ -198,12 +210,12 @@ page test ではこの matrix を重複網羅しない。各 page は「該当 a
 
 | status | complete-mfg | cancel-mfg | instruct-ship | complete-ship | instruct-conv | cancel-conv | テスト ID | 状態 |
 |---|---:|---:|---:|---:|---:|---:|---|---|
-| `manufacturing` | true | false | false | false | false | false | `FE-MATRIX-LOT-001` | ❌ |
-| `manufactured` | false | true | true | false | true | false | `FE-MATRIX-LOT-002` | ❌ |
-| `shipping_instructed` | false | false | false | true | false | false | `FE-MATRIX-LOT-003` | ❌ |
-| `shipped` | false | false | false | false | false | false | `FE-MATRIX-LOT-004` | ❌ |
-| `conversion_instructed` | false | false | false | false | false | true | `FE-MATRIX-LOT-005` | ❌ |
-| unknown / null | false | false | false | false | false | false | `FE-MATRIX-LOT-006` | ❌ |
+| `manufacturing` | true | false | false | false | false | false | `FE-MATRIX-LOT-001` | ✅ |
+| `manufactured` | false | true | true | false | true | false | `FE-MATRIX-LOT-002` | ✅ |
+| `shipping_instructed` | false | false | false | true | false | false | `FE-MATRIX-LOT-003` | ✅ |
+| `shipped` | false | false | false | false | false | false | `FE-MATRIX-LOT-004` | ✅ |
+| `conversion_instructed` | false | false | false | false | false | true | `FE-MATRIX-LOT-005` | ✅ |
+| unknown / null | false | false | false | false | false | false | `FE-MATRIX-LOT-006` | ✅ (契約 enum + contract-guard により page 到達不能。`FE-PBT-STATUS-001` が oracle) |
 
 実装方針: `tests/unit/pages/LotDetailPage.matrix.test.tsx` を新設し、`it.each` で 6 status × 6 action ボタンの disabled 状態を 1 行 oracle にする。純粋関数 `lotActionEnabled(action, status)` の網羅は `FE-PBT-STATUS-001` に委譲。
 
@@ -212,14 +224,14 @@ page test ではこの matrix を重複網羅しない。各 page は「該当 a
 | ID | page | action | method/path | version 位置 | `version == null` の期待結果 | 状態 |
 |---|---|---|---|---|---|---|
 | `FE-VERSION-LOT-001` | LotDetail | complete manufacturing | `POST /lots/{id}/complete-manufacturing` | body.version | API を呼ばず共通 toast | ✅ (page 経由で body.version=N の経路のみ。null 経路は LotDetailPage が `if (!lot) return null` で守るため reachable でなく、`FE-PBT-VERSION-001` 純粋関数に委譲) |
-| `FE-VERSION-LOT-002` | LotDetail | cancel manufacturing | `POST /lots/{id}/cancel-manufacturing-completion` | body.version | 共通 toast | ❌ |
-| `FE-VERSION-LOT-003` | LotDetail | instruct shipping | `POST /lots/{id}/instruct-shipping` | body.version | 共通 toast | ❌ |
-| `FE-VERSION-LOT-004` | LotDetail | complete shipping | `POST /lots/{id}/complete-shipping` | body.version | 共通 toast | ❌ |
-| `FE-VERSION-LOT-005` | LotDetail | instruct conversion | `POST /lots/{id}/instruct-item-conversion` | body.version | 共通 toast | ❌ |
-| `FE-VERSION-LOT-006` | LotDetail | cancel conversion | `DELETE /lots/{id}/instruct-item-conversion` | body.version | 共通 toast | ❌ |
+| `FE-VERSION-LOT-002` | LotDetail | cancel manufacturing | `POST /lots/{id}/cancel-manufacturing-completion` | body.version | 共通 toast | ✅ |
+| `FE-VERSION-LOT-003` | LotDetail | instruct shipping | `POST /lots/{id}/instruct-shipping` | body.version | 共通 toast | ✅ |
+| `FE-VERSION-LOT-004` | LotDetail | complete shipping | `POST /lots/{id}/complete-shipping` | body.version | 共通 toast | ✅ |
+| `FE-VERSION-LOT-005` | LotDetail | instruct conversion | `POST /lots/{id}/instruct-item-conversion` | body.version | 共通 toast | ✅ |
+| `FE-VERSION-LOT-006` | LotDetail | cancel conversion | `DELETE /lots/{id}/instruct-item-conversion` | body.version | 共通 toast | ✅ |
 | `FE-VERSION-SALES-001` | SalesCaseDetail | delete appraisal | `DELETE /sales-cases/{id}/appraisals` | body.version | 共通 toast | ✅ |
-| `FE-VERSION-SALES-002` | SalesCaseDetail | delete contract | `DELETE /sales-cases/{id}/contracts` | body.version | 共通 toast | ❌ |
-| `FE-VERSION-SALES-003` | SalesCaseDetail | cancel shipping instruction | `DELETE /sales-cases/{id}/shipping-instruction` | body.version | 共通 toast | ❌ |
+| `FE-VERSION-SALES-002` | SalesCaseDetail | delete contract | `DELETE /sales-cases/{id}/contracts` | body.version | 共通 toast | ✅ |
+| `FE-VERSION-SALES-003` | SalesCaseDetail | cancel shipping instruction | `DELETE /sales-cases/{id}/shipping-instruction` | body.version | 共通 toast | ✅ |
 | `FE-VERSION-RES-001` | ReservationCaseDetail | cancel determination | `DELETE /sales-cases/{id}/reservation/determination` | body.version | 共通 toast | ✅ |
 | `FE-VERSION-CON-001` | ConsignmentCaseDetail | cancel designation | `DELETE /sales-cases/{id}/consignment/designation` | body.version | 共通 toast | ✅ |
 
@@ -266,8 +278,8 @@ page test ではこの matrix を重複網羅しない。各 page は「該当 a
 | `FE-COMP-RICH-DA-005` | DirectAppraisalForm | 「変更する」→ チェック → 承認者確認 | 上長承認モーダル | total を直接入力可能になる | input enabled、approver は read-only `営業部長（システム既定）` | ✅ |
 | `FE-COMP-RICH-DA-006` | DirectAppraisalForm | 「変更する」モーダルで cancel | - | total は自動計算のまま | input disabled | ✅ |
 | `FE-COMP-RICH-SC-001` | SalesContractForm | submit | 必須空 | 全 invalid に error、API 未呼出 | request count 0 | ✅ |
-| `FE-COMP-RICH-SC-002` | SalesContractForm | submit | 契約調整率 89 | 範囲外 error | field 内 error | ❌ |
-| `FE-COMP-RICH-SC-003` | SalesContractForm | submit | 契約調整率 100 | 受理 | request body `1.0` | ❌ |
+| `FE-COMP-RICH-SC-002` | SalesContractForm | submit | 契約調整率 89 | 範囲外 error | field 内 error | ✅ |
+| `FE-COMP-RICH-SC-003` | SalesContractForm | submit | 契約調整率 100 | 受理 | request body `1.0` | ✅ |
 | `FE-COMP-RICH-DV-001` | DateVersionActionForm | submit | 必須空 | field 直下 error、API 未呼出 | request count 0 | ✅ |
 | `FE-COMP-RICH-DV-002` | DateVersionActionForm | submit | valid + version | API 呼出 | body に `date` と `version` | ✅ |
 | `FE-COMP-RICH-RP-001` | ReservationPriceForm | submit | 単価/調整率いずれか不正 | 全 invalid に error | field 直下 error | ✅ |
@@ -323,8 +335,8 @@ page test ではこの matrix を重複網羅しない。各 page は「該当 a
 | `FE-RATE-002` | DirectAppraisalForm | 110 | `1.1` | input value `110` | ✅ |
 | `FE-RATE-003` | DirectAppraisalForm | 89 | API 未呼出、`90〜110%` field error | request count 0 | ✅ |
 | `FE-RATE-004` | DirectAppraisalForm | 111 | API 未呼出、範囲外 error | request count 0 | ✅ |
-| `FE-RATE-005` | SalesContractForm 契約調整率 | 100 | `1.0` | input value `100` | ❌ (SC-003 と一体) |
-| `FE-TOTAL-001` | DirectAppraisalForm | 単価 a, b と各 rate% | total = `(a × rateA + b × rateB) ÷ 100` | DOM total 表示 | ⚠️ (RichAction 単体で `DA-004`、page wire-up 未) |
+| `FE-RATE-005` | SalesContractForm 契約調整率 | 100 | `1.0` | input value `100` | ✅ (SC-003 と一体) |
+| `FE-TOTAL-001` | DirectAppraisalForm | 単価 a, b と各 rate% | total = `(a × rateA + b × rateB) ÷ 100` | DOM total 表示 | ✅ (DA-004 + page wire-up `FE-PAGE-SALES-DETAIL-APPRAISAL-001`) |
 | `FE-TOTAL-002` | DirectAppraisalForm | 入力 1 個変更 | total 即更新 | DOM 表示変化 | ✅ (DA-004) |
 | `FE-TOTAL-003` | DirectAppraisalForm 既定モード | - | total input は read-only、ラベル表示 | input disabled | ✅ |
 | `FE-TOTAL-004` | DirectAppraisalForm 「変更する」モーダル承認後 | - | total input 編集可能 | input enabled | ✅ (DA-005) |
@@ -333,7 +345,7 @@ page test ではこの matrix を重複網羅しない。各 page は「該当 a
 | `FE-APPROVER-002` | 上長承認モーダル | チェック未付与 | 確定 disabled | button disabled | ✅ (DA-005) |
 | `FE-APPROVER-003` | 上長承認モーダル | チェック付与 → 確定 | direct 入力モードへ遷移 | total input enabled | ✅ (DA-005) |
 
-page test での再検証は **重複ポリシー** とする。RichActionForms 単体テストで oracle 済みのため、Phase 4e では「SalesCaseDetailPage 上でも `変更する` button が露出し、承認後の total を含めて `POST /sales-cases/{id}/appraisals` body に届く」ことのみ 1 ケース確認すれば足りる (`FE-PAGE-SALES-DETAIL-APPRAISAL-001` を新設予定 — ❌)。
+page test での再検証は **重複ポリシー** とする。RichActionForms 単体テストで oracle 済みのため、Phase 4e では「SalesCaseDetailPage 上でも `変更する` button が露出し、承認後の total を含めて `POST /sales-cases/{id}/appraisals` body に届く」ことのみ 1 ケース確認すれば足りる (`FE-PAGE-SALES-DETAIL-APPRAISAL-001` — ✅ 実装済み)。
 
 ## Accessibility / Keyboard Matrix
 
@@ -369,16 +381,16 @@ API 呼び出しの正しさは、原則 endpoint helper mock ではなく MSW r
 | `FE-REQ-SALES-CREATE-002` | SalesCaseCreatePage / Dialog | `GET /lots/available` | `200` | dialog open 時に呼ばれる | ✅ |
 | `FE-REQ-SALES-CREATE-003` | SalesCaseCreatePage | `GET /code-masters` | `200` | 事業部 dropdown option | ✅ |
 | `FE-REQ-SALES-CREATE-004` | SalesCaseCreatePage | `POST /sales-cases` | `400 problem` | toast error、navigation なし | ✅ |
-| `FE-REQ-SALES-ACTION-001` | SalesCaseDetailPage | `POST /sales-cases/{id}/appraisals` body rich form 出力 (各 rate は ÷100) | `204` | request body の各 rate `0.9〜1.1` | ❌ |
+| `FE-REQ-SALES-ACTION-001` | SalesCaseDetailPage | `POST /sales-cases/{id}/appraisals` body rich form 出力 (各 rate は ÷100) | `204` | request body の各 rate `0.9〜1.1` | ✅ |
 | `FE-REQ-SALES-ACTION-002` | SalesCaseDetailPage | `DELETE /sales-cases/{id}/appraisals` body `{ version }` | `204` | confirm true、version body | ✅ |
-| `FE-REQ-SALES-ACTION-003` | SalesCaseDetailPage | `POST /sales-cases/{id}/contracts` body 契約 rich form (契約調整率 ÷100) | `204` | body rate `0.9〜1.1` | ❌ |
+| `FE-REQ-SALES-ACTION-003` | SalesCaseDetailPage | `POST /sales-cases/{id}/contracts` body 契約 rich form (契約調整率 ÷100) | `204` | body rate `0.9〜1.1` | ✅ |
 | `FE-REQ-SALES-LOTS-001` | SalesCaseDetailPage | direct/before_appraisal で「ロットを修正」 → LotSelectDialog → `PUT /sales-cases/{id}/lots` body `{ lots:string[], version }` | `204` | body 型、version | ✅ |
 | `FE-REQ-SALES-LOTS-002` | SalesCaseDetailPage | 価格登録後 | - | 「ロットを修正」 button 非表示 | button not in document | ✅ |
 | `FE-REQ-SALES-LOTS-003` | SalesCaseDetailPage | LotSelectDialog open 時 | `GET /lots/available?excludeCase={id}` | query に excludeCase が入る | ✅ |
 | `FE-REQ-SALES-LOTS-004` | SalesCaseDetailPage | `PUT /sales-cases/{id}/lots` | `409 problem` | toast error | ❌ (refetch は constraint-001) |
-| `FE-REQ-RESERVATION-001` | ReservationCaseDetailPage | `POST /sales-cases/{id}/reservation/appraisals` body rich form | `204` | rate `0.9〜1.1` | ❌ |
+| `FE-REQ-RESERVATION-001` | ReservationCaseDetailPage | `POST /sales-cases/{id}/reservation/appraisals` body rich form | `204` | 契約 request schema 適合 (rate フィールドは契約に無い) | ✅ |
 | `FE-REQ-RESERVATION-002` | ReservationCaseDetailPage | `DELETE /sales-cases/{id}/reservation/determination` body `{ version }` | `204` | confirm true、version body | ✅ |
-| `FE-REQ-CONSIGNMENT-001` | ConsignmentCaseDetailPage | `POST /sales-cases/{id}/consignment/designate` body rich form | `204` | rate `0.9〜1.1` | ❌ |
+| `FE-REQ-CONSIGNMENT-001` | ConsignmentCaseDetailPage | `POST /sales-cases/{id}/consignment/designate` body rich form | `204` | 契約 request schema 適合 (rate フィールドは契約に無い) | ✅ |
 | `FE-REQ-CONSIGNMENT-002` | ConsignmentCaseDetailPage | `DELETE /sales-cases/{id}/consignment/designation` body `{ version }` | `204` | confirm true、version body | ✅ |
 | `FE-REQ-CONSIGNMENT-LOTS-001` | ConsignmentCaseDetailPage | consignment/before_consignment で「ロットを修正」→ `PUT /sales-cases/{id}/lots` | `204` | body 型、version | ✅ |
 | `FE-REQ-CONSIGNMENT-LOTS-002` | ConsignmentCaseDetailPage | 価格登録後 | - | 「ロットを修正」非表示 | button not in document | ✅ |
@@ -483,11 +495,11 @@ List 系で唯一テスト欠落だったページ。配置は `tests/unit/pages
 
 | ID | 操作 | 期待 route | assertion | 状態 |
 |---|---|---|---|---|
-| `FE-NAV-LOT-001` | LotCreatePage 作成成功 | `/lots/{lotNumber}` | detail route が解決され、detail page heading が出る | ❌ |
-| `FE-NAV-SALES-001` | SalesCaseCreatePage direct 作成成功 | `/sales-cases/{id}` | direct detail route が解決される | ❌ |
-| `FE-NAV-SALES-002` | SalesCaseCreatePage reservation 作成成功 | `/reservation-cases/{id}` | reservation route が解決される | ❌ (`FE-CONSTRAINT-002` 影響あり) |
-| `FE-NAV-SALES-003` | SalesCaseCreatePage consignment 作成成功 | `/consignment-cases/{id}` | consignment route が解決される | ❌ |
-| `FE-NAV-AUTH-001` | role 不足で protected route 表示 | current route | fallback UI が実 route 上で出る | ❌ |
+| `FE-NAV-LOT-001` | LotCreatePage 作成成功 | `/lots/{lotNumber}` | detail route が解決され、detail page heading が出る | ✅ |
+| `FE-NAV-SALES-001` | SalesCaseCreatePage direct 作成成功 | `/sales-cases/{id}` | direct detail route が解決される | ✅ |
+| `FE-NAV-SALES-002` | SalesCaseCreatePage reservation 作成成功 | `/reservation-cases/{id}` | reservation route が解決される | ✅ (route 解決を実ルートで、遷移先決定は `caseDetailRoute` oracle で分担) |
+| `FE-NAV-SALES-003` | SalesCaseCreatePage consignment 作成成功 | `/consignment-cases/{id}` | consignment route が解決される | ✅ (同上) |
+| `FE-NAV-AUTH-001` | role 不足で protected route 表示 | current route | fallback UI が実 route 上で出る | ✅ |
 
 ## Error Mapping Policy
 
@@ -495,16 +507,16 @@ List 系で唯一テスト欠落だったページ。配置は `tests/unit/pages
 
 | ID | 入力 | 期待結果 | layer | 状態 |
 |---|---|---|---|---|
-| `FE-ERR-001` | 400 validation problem | status/detail を表示 | unit | ❌ |
+| `FE-ERR-001` | 400 validation problem | status/detail を表示 | unit | ✅ |
 | `FE-ERR-002` | 401 problem | auth clear と error 表示 | api-client unit | ✅ |
-| `FE-ERR-003` | 403 problem | 権限不足として表示 | unit | ❌ |
-| `FE-ERR-004` | 404 problem | not found detail 表示 | unit | ❌ |
+| `FE-ERR-003` | 403 problem | 権限不足として表示 | unit | ✅ |
+| `FE-ERR-004` | 404 problem | not found detail 表示 | unit | ✅ |
 | `FE-ERR-005` | 409 optimistic-lock conflict | 再表示を促す文言 | unit | ✅ |
-| `FE-ERR-006` | 422 problem | detail 表示 | unit | ❌ |
-| `FE-ERR-007` | 500 problem | detail 表示 | unit | ❌ |
-| `FE-ERR-008` | 502 problem | detail 表示 | unit | ❌ |
-| `FE-ERR-009` | network error | fallback 文言 | unit | ❌ |
-| `FE-ERR-010` | malformed problem response | fallback 文言 | unit | ❌ |
+| `FE-ERR-006` | 422 problem | detail 表示 | unit | ✅ |
+| `FE-ERR-007` | 500 problem | detail 表示 | unit | ✅ |
+| `FE-ERR-008` | 502 problem | detail 表示 | unit | ✅ |
+| `FE-ERR-009` | network error | fallback 文言 | unit | ✅ |
+| `FE-ERR-010` | malformed problem response | fallback 文言 | unit | ✅ |
 | `FE-ERR-PAGE-001` | Lot mutation 409 | refetch し navigation しない | page | ⚠️ (toast 確認のみ。refetch は `FE-CONSTRAINT-001`) |
 | `FE-ERR-PAGE-002` | create API error | toast error し navigation しない | page | ✅ |
 | `FE-ERR-PAGE-003` | PriceCheck 400/502/503 | ページ固有文言 | page | ✅ |
@@ -581,42 +593,37 @@ PBT は **Phase 9** の単発ではなく、Phase 3〜5 と並走させる:
 | Phase | スコープ | 完了条件 | 未消化 ID |
 |---|---|---|---|
 | 0 | MSW 導入と tests/support 雛形 | `pnpm test` 空 suite green | — |
-| 1 | Test Infrastructure | dummy test で infra 動作確認 | `renderWithRealRouter` (Phase 6 で追加) |
+| 1 | Test Infrastructure | dummy test で infra 動作確認 | — (`renderWithRealRouter` 追加済み) |
 | 2a | Guard Role Matrix | `FE-COMP-GUARD-001..008` green | — |
 | 2b | LotActionForm | `FE-COMP-LOT-ACTION-001..006` green、007 は UI 改修後 | `007` (UI 改修起票) |
-| 2c | RichActionForms | 7 form の必須空 / 範囲外 / 境界 / 二重 submit / 未 touched | `FE-COMP-RICH-SC-002 / SC-003`、`FE-A11Y-RICH-001` |
+| 2c | RichActionForms | 7 form の必須空 / 範囲外 / 境界 / 二重 submit / 未 touched | `FE-A11Y-RICH-001` (a11y は jest-axe 全ページ検査で代替済み) |
 | 2d | 共通 a11y / form | `FE-A11Y-FORM-001..004` | `FE-A11Y-FORM-005` (Storybook) |
 | 2e | LotSelectDialog | `FE-COMP-LOT-SELECT-001..006` | — |
 | 2f | SalesCaseCreateDialog | `FE-COMP-SALES-CREATE-DIALOG-001..005` | — |
 | 2g | 共通 Validation 表示ポリシー | `FE-VAL-POLICY-001..007` | — |
 | 3a | LotCreatePage | `FE-REQ-LOT-CREATE-001..003`、code-master option 表示 | `FE-REQ-LOT-CREATE-004` cascade 段階遷移 |
-| 3b | LotDetailPage | `FE-PAGE-LOT-DETAIL-001..004`、`FE-REQ-LOT-ACTION-001..003` | `FE-MATRIX-LOT-001..006`、`FE-VERSION-LOT-002..006` |
+| 3b | LotDetailPage | `FE-PAGE-LOT-DETAIL-001..004`、`FE-REQ-LOT-ACTION-001..003`、`FE-MATRIX-LOT-*`、`FE-VERSION-LOT-*` | — |
 | 3c | CSV / Blob | `FE-CSV-001..004` | — |
 | 3d | LotListPage | `FE-PAGE-LOT-LIST-001..004` + LOAD-001..003 + `FE-REQ-LOT-LIST-001` | `FE-REFETCH-006` の完全形 (constraint-001) |
 | 3e | SalesCaseListPage | `FE-PAGE-SALES-LIST-LOAD-001..003` + `FE-PAGE-SALES-LIST-001..002` + `FE-REQ-SALES-LIST-001..003` | — |
 | 4a | SalesCaseCreatePage | `FE-PAGE-SALES-CREATE-001..003`、`FE-REQ-SALES-CREATE-001..004` | — |
-| 4b | SalesCaseDetailPage (rich/version) | `FE-PAGE-SALES-DETAIL-001..003`、`FE-REQ-SALES-ACTION-002`、`FE-VERSION-SALES-001` | `FE-REQ-SALES-ACTION-001 / 003`、`FE-VERSION-SALES-002 / 003`、`FE-REQ-SALES-LOTS-004` (toast 部分のみ) |
-| 4c | Reservation / Consignment Detail | `FE-PAGE-RESERVATION-001`、`FE-PAGE-CONSIGNMENT-001`、`FE-REQ-RESERVATION-002`、`FE-REQ-CONSIGNMENT-002`、`FE-VERSION-RES-001`、`FE-VERSION-CON-001` | `FE-REQ-RESERVATION-001`、`FE-REQ-CONSIGNMENT-001` |
+| 4b | SalesCaseDetailPage (rich/version) | `FE-PAGE-SALES-DETAIL-001..003`、`FE-REQ-SALES-ACTION-002`、`FE-VERSION-SALES-001` | `FE-REQ-SALES-LOTS-004` (toast 部分のみ) |
+| 4c | Reservation / Consignment Detail | `FE-PAGE-RESERVATION-001`、`FE-PAGE-CONSIGNMENT-001`、`FE-REQ-RESERVATION-002`、`FE-REQ-CONSIGNMENT-002`、`FE-VERSION-RES-001`、`FE-VERSION-CON-001` | — |
 | 4d | 「ロットを修正」 | `FE-REQ-SALES-LOTS-001..003`、`FE-REQ-CONSIGNMENT-LOTS-001..002` | `FE-REFETCH-005` (constraint-001) |
-| 4e | 査定合計 / 上長承認 | `FE-TOTAL-001..005`、`FE-APPROVER-001..003` (RichAction 単体で達成) | page wire-up 1 ケース (`FE-PAGE-SALES-DETAIL-APPRAISAL-001`) を新設 |
+| 4e | 査定合計 / 上長承認 | `FE-TOTAL-001..005`、`FE-APPROVER-001..003` (RichAction 単体で達成) | — (`FE-PAGE-SALES-DETAIL-APPRAISAL-001` 実装済み) |
 | 5 | PriceCheckPage | `FE-PAGE-PRICE-001..008`、`FE-REQ-PRICE-001..003` | — |
-| 6 | Router Integration | `FE-NAV-LOT-001`、`FE-NAV-SALES-001..003`、`FE-NAV-AUTH-001` | 全件 (要 `renderWithRealRouter`) |
-| 7 | describeApiError unit | `FE-ERR-001..010` 全 variant、ページ重複削除 | `FE-ERR-001/003/004/006..010` |
-| 8 | Evidence / CI | JUnit reporter、coverage artifact、MSW request log 失敗時出力 | `FE-EVID-UNIT-001`、`FE-EVID-MSW-001` (coverage / backend E2E / contract drift は ✅) |
-| 9a-9f | PBT | 上節「PBT 導入の Phase」参照 | 全件 |
+| 6 | Router Integration | `FE-NAV-LOT-001`、`FE-NAV-SALES-001..003`、`FE-NAV-AUTH-001` | — |
+| 7 | describeApiError unit | `FE-ERR-001..010` 全 variant、ページ重複削除 | — |
+| 8 | Evidence / CI | JUnit reporter、coverage artifact、MSW request log 失敗時出力 | — |
+| 9a-9f | PBT | 上節「PBT 導入の Phase」参照 | — (Tier2-11 で導入済み) |
 | 10a | Design primitives | `FE-DESIGN-*` (Pill/Card/Misc/Spark/Flow) green | — |
 | 10b | Layout shell | `FE-LAYOUT-*` (Sidebar/Topbar/Shell) green | active state は Phase 6 で再評価 |
 | (lib) | Format example test | `FE-FMT-ACTION-001..002`、`FE-FMT-LABEL-001..002`、`FE-FMT-TONE-001`、`FE-FMT-NUM-001` green | PBT 版は Phase 9 |
 
 ### 次の優先順 (推奨)
 
-1. **Phase 2c 残り** (`SC-002 / SC-003`) — RichActionForms 単体に 2 ケース追加するだけ
-2. **Phase 3b matrix / version** — `FE-MATRIX-LOT-*` と `FE-VERSION-LOT-*` を `it.each` で網羅
-3. **Phase 4b/4c rate** — `FE-REQ-SALES-ACTION-001 / 003`, `FE-REQ-RESERVATION-001`, `FE-REQ-CONSIGNMENT-001`
-4. **Phase 9a-9c** — fast-check 導入、純粋関数抽出 (Phase 4e の wire-up より先)
-5. **Phase 7** — `describeApiError` 全 variant
-6. **Phase 6** — `renderWithRealRouter` 追加と FE-NAV-*
-7. **Phase 8** — CI artifact
+(2026-07-07 時点で 1〜7 全て消化済み。以降の残作業は Storybook / VRT 等の
+オーバーエンジニアリング枠 — issue #9 Tier 3 参照)
 
 ## 拡充手順 (新しいテストを追加するとき)
 
@@ -647,11 +654,11 @@ PBT は **Phase 9** の単発ではなく、Phase 3〜5 と並走させる:
 
 | ID | 対象 | artifact | 実行タイミング | 状態 |
 |---|---|---|---|---|
-| `FE-EVID-UNIT-001` | Vitest component/page/unit | JUnit XML または Vitest report | PR | ❌ |
-| `FE-EVID-MSW-001` | MSW request assertion | 失敗時の request log | PR | ❌ |
+| `FE-EVID-UNIT-001` | Vitest component/page/unit | JUnit XML (`test-results/vitest-junit.xml`、CI=true 時) | PR | ✅ |
+| `FE-EVID-MSW-001` | MSW request assertion | 失敗時の request log (`tests/setup.ts` の onTestFailed) | PR | ✅ |
 | `FE-EVID-COVERAGE-001` | coverage | `@vitest/coverage-v8` + ラチェット (`coverage-baseline.json` から退行で fail、verify.sh に組込) | PR (verify) | ✅ |
-| `FE-EVID-PBT-001` (新) | fast-check property | seed / counterexample を失敗時に出力 | PR、nightly で `FE_PBT_RUNS=1000` | ❌ |
-| `FE-EVID-E2E-001` | Playwright smoke | HTML report, trace, screenshot | PR | ⚠️ (既存 smoke 1 本) |
+| `FE-EVID-PBT-001` (新) | fast-check property | seed / counterexample を失敗時に出力 (fast-check 既定) | PR、nightly で `FE_PBT_RUNS=1000` | ✅ |
+| `FE-EVID-E2E-001` | Playwright smoke | HTML report, trace, screenshot | PR | ⚠️ (PR は smoke。backend E2E は lot 生涯 + 3 案件種別フロー `backend-case-flows.spec.ts` を nightly 実行) |
 | `FE-EVID-BACKEND-E2E-001` | `pnpm test:e2e:backend` (webServer が Migrator→API→vite を自動起動) | Playwright trace (失敗時 nightly の `e2e-results` artifact) | nightly (`nightly.yml` e2e ジョブ) | ✅ |
 | `FE-EVID-CONTRACT-DRIFT-001` (新) | 生成コードドリフト検査 (`pnpm check:contracts-drift`) | drift 時の diff 出力 (verify.sh に組込) | PR (verify) | ✅ |
 | `FE-EVID-MANUAL-001` | UAT / manual | screenshot, reviewer, date, build SHA | release 前 | n/a |

@@ -10,9 +10,9 @@ type NavItem = {
   label: string;
   to: string;
   icon: ComponentType<{ className?: string }>;
-  count?: number;
+  count?: number | undefined;
   /** routes that should also light this item up */
-  matchPrefix?: string;
+  matchPrefix?: string | undefined;
 };
 
 type NavGroup = { group: string; items: NavItem[] };

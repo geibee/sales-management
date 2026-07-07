@@ -24,6 +24,7 @@ import {
   RATE_DISPLAY_DEFAULT,
   RATE_DISPLAY_MAX,
   RATE_DISPLAY_MIN,
+  apiToDisplayRate,
   computeEstimatedTotal as computeEstimatedTotalRows,
   displayToApiRate,
 } from "@/lib/rate";
@@ -56,8 +57,8 @@ type BaseFormProps = {
   title: string;
   buttonLabel: string;
   version: number;
-  disabled?: boolean;
-  disabledReason?: string;
+  disabled?: boolean | undefined;
+  disabledReason?: string | undefined;
   onSubmit: SubmitBody;
 };
 
@@ -236,6 +237,9 @@ export function SalesContractForm({
   const customerNumber = data.contract?.customerNumber ?? "C-001";
   const taxExcludedContractAmount = data.contract?.taxExcludedContractAmount ?? 10000;
   const consumptionTax = data.contract?.consumptionTax ?? 1000;
+  const contractRateApi = data.contract?.contractAdjustmentRate;
+  const contractAdjustmentRate =
+    typeof contractRateApi === "number" ? apiToDisplayRate(contractRateApi) : RATE_DISPLAY_DEFAULT;
 
   const { action, isPending, errors, onBlur } = useRichAction(title, disabled, onSubmit, (r) => ({
     contractDate: r.requiredString("contractDate", "契約日"),
@@ -252,6 +256,7 @@ export function SalesContractForm({
     usage: r.optionalString("usage"),
     paymentDeferralAmount: r.optionalInt("paymentDeferralAmount", "支払猶予額"),
     taxExcludedContractAmount: r.requiredInt("taxExcludedContractAmount", "税抜契約額", { min: 0 }),
+    contractAdjustmentRate: r.requiredRate("contractAdjustmentRate", "契約調整率"),
     consumptionTax: r.requiredInt("consumptionTax", "消費税", { min: 0 }),
     taxExcludedPaymentAmount: r.requiredInt("taxExcludedPaymentAmount", "税抜支払額", { min: 0 }),
     paymentConsumptionTax: r.requiredInt("paymentConsumptionTax", "支払消費税", { min: 0 }),
@@ -310,6 +315,15 @@ export function SalesContractForm({
           label="税抜契約額"
           defaultValue={taxExcludedContractAmount}
           min={0}
+          errors={errors}
+        />
+        <NumberField
+          name="contractAdjustmentRate"
+          label="契約調整率(%)"
+          defaultValue={contractAdjustmentRate}
+          min={RATE_DISPLAY_MIN}
+          max={RATE_DISPLAY_MAX}
+          step="1"
           errors={errors}
         />
         <NumberField
@@ -630,10 +644,10 @@ function ActionCard({
   action: (payload: FormData) => void;
   isPending: boolean;
   buttonLabel: string;
-  disabled?: boolean;
-  disabledReason?: string;
-  onBlur?: (event: FocusEvent<HTMLFormElement>) => void;
-  onChange?: (event: ChangeEvent<HTMLFormElement>) => void;
+  disabled?: boolean | undefined;
+  disabledReason?: string | undefined;
+  onBlur?: ((event: FocusEvent<HTMLFormElement>) => void) | undefined;
+  onChange?: ((event: ChangeEvent<HTMLFormElement>) => void) | undefined;
   children: ReactNode;
 }) {
   return (

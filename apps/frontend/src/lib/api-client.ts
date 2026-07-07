@@ -55,7 +55,7 @@ export async function apiSend<T = void>(
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: { "content-type": "application/json", ...authHeaders() },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   return handle(res, path, schema);
 }

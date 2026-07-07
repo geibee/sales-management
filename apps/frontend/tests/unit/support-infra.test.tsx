@@ -46,8 +46,8 @@ describe("tests/support 基盤", () => {
     });
     const calls = requestsFor("/api/lots/L-1/complete-manufacturing");
     expect(calls).toHaveLength(1);
-    expect(calls[0].method).toBe("POST");
-    expect(calls[0].body).toEqual({ date: "2026-05-01", version: 1 });
+    expect(calls[0]!.method).toBe("POST");
+    expect(calls[0]!.body).toEqual({ date: "2026-05-01", version: 1 });
     expect(requestCount("/api/lots/L-1/complete-manufacturing")).toBe(1);
   });
 

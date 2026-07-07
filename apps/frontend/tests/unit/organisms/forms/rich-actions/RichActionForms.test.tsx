@@ -88,7 +88,7 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
     fill("取引先調整率(%)", 110);
     submitForm("登録");
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    const body = onSubmit.mock.calls[0][0] as unknown as {
+    const body = onSubmit.mock.calls[0]![0] as unknown as {
       lotAppraisals: Array<{
         detailAppraisals: Array<{
           periodAdjustmentRate: number;
@@ -96,8 +96,8 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
         }>;
       }>;
     };
-    expect(body.lotAppraisals[0].detailAppraisals[0].periodAdjustmentRate).toBeCloseTo(0.9, 5);
-    expect(body.lotAppraisals[0].detailAppraisals[0].counterpartyAdjustmentRate).toBeCloseTo(
+    expect(body.lotAppraisals[0]!.detailAppraisals[0]!.periodAdjustmentRate).toBeCloseTo(0.9, 5);
+    expect(body.lotAppraisals[0]!.detailAppraisals[0]!.counterpartyAdjustmentRate).toBeCloseTo(
       1.1,
       5,
     );
@@ -112,9 +112,9 @@ describe("DirectAppraisalForm (FE-COMP-RICH-DA-*)", () => {
     expect(screen.getByText(/2,000/)).toBeInTheDocument();
     // 1ロット目の基準単価を 2000、期中rateを110% に変える → 2000 * 1.1 * 1.0 = 2200、+ 2ロット目 1000 = 3200
     const baseUnit = screen.getAllByLabelText("基準単価");
-    fireEvent.change(baseUnit[0], { target: { value: "2000" } });
+    fireEvent.change(baseUnit[0]!, { target: { value: "2000" } });
     const periodRate = screen.getAllByLabelText("期中調整率(%)");
-    fireEvent.change(periodRate[0], { target: { value: "110" } });
+    fireEvent.change(periodRate[0]!, { target: { value: "110" } });
     await waitFor(() => expect(screen.getByText(/3,200/)).toBeInTheDocument());
   });
 
@@ -173,6 +173,30 @@ describe("SalesContractForm (FE-COMP-RICH-SC-*)", () => {
     expect(alerts.length).toBeGreaterThanOrEqual(1);
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it("FE-COMP-RICH-SC-002: 契約調整率 89 (範囲外) → field エラー、API 未呼出", async () => {
+    const onSubmit = vi.fn();
+    const data = makeDirectSalesCase();
+    renderWithApp(
+      <SalesContractForm data={data} title="契約" buttonLabel="登録" onSubmit={onSubmit} />,
+    );
+    fill("契約調整率(%)", 89);
+    submitForm("登録");
+    expect(await screen.findByText(/契約調整率は90以上/)).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("FE-COMP-RICH-SC-003: 契約調整率 100 → API 受理、body は ÷100 換算で 1.0", async () => {
+    const onSubmit = vi.fn<(body: Record<string, unknown>) => Promise<void>>(async () => {});
+    const data = makeDirectSalesCase();
+    renderWithApp(
+      <SalesContractForm data={data} title="契約" buttonLabel="登録" onSubmit={onSubmit} />,
+    );
+    fill("契約調整率(%)", 100);
+    submitForm("登録");
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0]![0].contractAdjustmentRate).toBeCloseTo(1.0, 5);
+  });
 });
 
 // ---------- DateVersionActionForm ----------
@@ -209,7 +233,7 @@ describe("DateVersionActionForm (FE-COMP-RICH-DV-*)", () => {
     );
     submitForm("登録");
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0][0]).toMatchObject({ date: "2026-05-01", version: 3 });
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ date: "2026-05-01", version: 3 });
   });
 });
 

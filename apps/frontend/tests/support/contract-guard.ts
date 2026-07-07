@@ -49,7 +49,9 @@ function templateMatches(template: string, pathname: string): boolean {
 function findEndpoint(method: string, pathname: string): EndpointDef | undefined {
   const candidates = endpoints
     .filter((e) => e.method === method)
-    .filter((e) => templateMatches(`${BASE}${e.path}`, pathname) || templateMatches(e.path, pathname));
+    .filter(
+      (e) => templateMatches(`${BASE}${e.path}`, pathname) || templateMatches(e.path, pathname),
+    );
   if (candidates.length <= 1) return candidates[0];
   const literalCount = (template: string) =>
     template.split("/").filter((seg) => seg && !seg.startsWith(":")).length;

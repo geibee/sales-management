@@ -6,8 +6,9 @@
  * - DELETE /sales-cases/{id}/reservation/determination で body に version
  * - 409 → toast.error
  */
+import { schemas } from "@/contracts";
 import { ReservationCaseDetailPage } from "@/pages/reservation-cases/ReservationCaseDetailPage";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
@@ -66,9 +67,43 @@ describe("<ReservationCaseDetailPage> (FE-PAGE-RESERVATION-* / FE-REQ-RESERVATIO
     await waitFor(() =>
       expect(requestsFor(`/api/sales-cases/${ID}/reservation/determination`)).toHaveLength(1),
     );
-    expect(requestsFor(`/api/sales-cases/${ID}/reservation/determination`)[0].body).toEqual({
+    expect(requestsFor(`/api/sales-cases/${ID}/reservation/determination`)[0]!.body).toEqual({
       version: 7,
     });
+  });
+
+  it("FE-REQ-RESERVATION-001: 予約価格 登録 → POST body が契約 request schema に適合 (rate フィールドは契約に無いため対象外)", async () => {
+    authDisabled();
+    server.use(
+      http.get(`/api/sales-cases/${ID}`, () =>
+        HttpResponse.json(
+          makeReservationSalesCase({
+            salesCaseNumber: ID,
+            caseType: "reservation",
+            status: "before_reservation",
+            lots: ["2026-A-1"],
+            version: 3,
+          }),
+        ),
+      ),
+      http.post(`/api/sales-cases/${ID}/reservation/appraisals`, () =>
+        HttpResponse.json({ status: "reserved", version: 4 }),
+      ),
+    );
+    renderWithRouter(<ReservationCaseDetailPage id={ID} />);
+    const card = (await screen.findByText("予約価格 登録")).closest(
+      '[data-slot="card"]',
+    )! as HTMLElement;
+    fireEvent.change(within(card).getByLabelText("予約金額"), { target: { value: "25000" } });
+    fireEvent.click(within(card).getByRole("button", { name: "登録" }));
+    await waitFor(() =>
+      expect(requestsFor(`/api/sales-cases/${ID}/reservation/appraisals`)).toHaveLength(1),
+    );
+    const body = schemas.createReservationPrice_Body.parse(
+      requestsFor(`/api/sales-cases/${ID}/reservation/appraisals`)[0]!.body,
+    );
+    expect(body.reservedAmount).toBe(25000);
+    expect(body.version).toBe(3);
   });
 
   it("FE-ERR-PAGE-001: 確定取消 409 → toast.error、page は残る", async () => {

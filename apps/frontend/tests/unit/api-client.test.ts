@@ -32,11 +32,11 @@ describe("api-client", () => {
       .mockResolvedValue(new Response(JSON.stringify({ id: "x", value: 1 }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await apiGet("/test", TestSchema);
-    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    const headers = fetchMock.mock.calls[0]![1]!.headers as Record<string, string>;
     expect(headers.authorization).toBe("Bearer dummy-token");
   });
 
-  it("clears auth on 401", async () => {
+  it("FE-ERR-002: clears auth on 401", async () => {
     useAuth.getState().setToken("expired-token");
     vi.stubGlobal(
       "fetch",
@@ -77,7 +77,7 @@ describe("api-client", () => {
       date: "2026-04-28",
       version: 1,
     });
-    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
     expect(init.method).toBe("POST");
     expect(init.body).toBe(JSON.stringify({ date: "2026-04-28", version: 1 }));
     expect((init.headers as Record<string, string>)["content-type"]).toBe("application/json");
@@ -92,7 +92,7 @@ describe("api-client", () => {
     expect(describeApiError(err)).toBe("400: 状態が不正です");
   });
 
-  it("describeApiError emits friendly text for 409 optimistic-lock conflict", () => {
+  it("FE-ERR-005: describeApiError emits friendly text for 409 optimistic-lock conflict", () => {
     const err = new ApiError(
       409,
       {
@@ -118,5 +118,44 @@ describe("api-client", () => {
       "/lots",
     );
     expect(describeApiError(err)).toBe("409: Lot L-1 already exists");
+  });
+});
+
+/**
+ * Phase 7 — `describeApiError` の全 variant oracle (FE-ERR-001..010)。
+ * FE-ERR-002 (401) / FE-ERR-005 (409 optimistic-lock) は上の describe が担う。
+ */
+describe("describeApiError 全 variant (FE-ERR-*)", () => {
+  it.each([
+    ["FE-ERR-001", 400, "validation failed: salesDate is required"],
+    ["FE-ERR-003", 403, "権限がありません"],
+    ["FE-ERR-004", 404, "Lot 2026-A-9 not found"],
+    ["FE-ERR-006", 422, "unprocessable content"],
+    ["FE-ERR-007", 500, "internal failure"],
+    ["FE-ERR-008", 502, "upstream unavailable"],
+  ] as const)("%s: %i problem+json → `status: detail` を表示", (_id, status, detail) => {
+    const err = new ApiError(status, { type: "about:blank", title: "T", status, detail }, "/x");
+    expect(describeApiError(err)).toBe(`${status}: ${detail}`);
+  });
+
+  it("FE-ERR-001b: detail 欠落の problem は title を表示", () => {
+    const err = new ApiError(400, { type: "about:blank", title: "Bad Request", status: 400 }, "/x");
+    expect(describeApiError(err)).toBe("400: Bad Request");
+  });
+
+  it("FE-ERR-009: network error (fetch reject) → Error message を fallback 表示", () => {
+    expect(describeApiError(new TypeError("Failed to fetch"))).toBe("Failed to fetch");
+  });
+
+  it("FE-ERR-009b: 非 Error 値も String() で fallback 表示", () => {
+    expect(describeApiError("boom")).toBe("boom");
+  });
+
+  it("FE-ERR-010: malformed problem body (JSON でない / 空) → `API {status} {path}` fallback", () => {
+    expect(describeApiError(new ApiError(500, null, "/lots"))).toBe("API 500 /lots");
+    expect(describeApiError(new ApiError(502, "not-json", "/lots"))).toBe("API 502 /lots");
+    expect(describeApiError(new ApiError(400, { unexpected: true }, "/lots"))).toBe(
+      "API 400 /lots",
+    );
   });
 });

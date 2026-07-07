@@ -54,7 +54,7 @@ describe("<PriceCheckPage> (FE-PAGE-PRICE-* / FE-REQ-PRICE-*)", () => {
     expect(screen.getByText("x")).toBeInTheDocument();
     const reqs = requestsFor("/api/external/price-check");
     expect(reqs).toHaveLength(1);
-    expect(reqs[0].search).toContain("lotId=2026-A-001");
+    expect(reqs[0]!.search).toContain("lotId=2026-A-001");
   });
 
   it("FE-PAGE-PRICE-004: adjustmentRate=null → `(未設定)` 表示", async () => {

@@ -108,12 +108,12 @@ describe("<LotDetailPage> (FE-PAGE-LOT-DETAIL-* / FE-REQ-LOT-ACTION-*)", () => {
     );
     renderWithRouter(<LotDetailPage id={ID} />);
     const dateInputs = await screen.findAllByLabelText("日付");
-    fireEvent.change(dateInputs[0], { target: { value: "2026-04-28" } });
+    fireEvent.change(dateInputs[0]!, { target: { value: "2026-04-28" } });
     fireEvent.click(screen.getByRole("button", { name: "製造完了を登録" }));
     await waitFor(() =>
       expect(requestsFor(`/api/lots/${ID}/complete-manufacturing`)).toHaveLength(1),
     );
-    const body = requestsFor(`/api/lots/${ID}/complete-manufacturing`)[0].body as {
+    const body = requestsFor(`/api/lots/${ID}/complete-manufacturing`)[0]!.body as {
       date: string;
       version: number;
     };
@@ -138,7 +138,7 @@ describe("<LotDetailPage> (FE-PAGE-LOT-DETAIL-* / FE-REQ-LOT-ACTION-*)", () => {
     );
     renderWithRouter(<LotDetailPage id={ID} />);
     const dateInputs = await screen.findAllByLabelText("日付");
-    fireEvent.change(dateInputs[0], { target: { value: "2026-04-28" } });
+    fireEvent.change(dateInputs[0]!, { target: { value: "2026-04-28" } });
     fireEvent.click(screen.getByRole("button", { name: "製造完了を登録" }));
     await waitFor(() => expect(toastError).toHaveBeenCalled());
     // page は遷移せず detail 画面が残る

@@ -31,7 +31,7 @@ function jsonResponse(body: unknown, status = 200): Response {
   const noBody = status === 204 || status === 205 || status === 304;
   return new Response(noBody ? null : JSON.stringify(body), {
     status,
-    headers: noBody ? undefined : { "content-type": "application/json" },
+    ...(noBody ? {} : { headers: { "content-type": "application/json" } }),
   });
 }
 
@@ -77,15 +77,16 @@ describe("Frontend ↔ backend contract", () => {
     });
 
     it("cancelReservationConfirmation DELETEs /sales-cases/{id}/reservation/determination", async () => {
-      const seen: Array<{ url: string; method?: string; body?: string }> = [];
+      const seen: Array<{ url: string; method?: string | undefined; body?: string | undefined }> =
+        [];
       mockFetchWith((url, init) => {
         seen.push({ url, method: init?.method, body: init?.body as string | undefined });
         return jsonResponse(null, 204);
       });
       await cancelReservationConfirmation("S-1", 3);
-      expect(seen[0].url).toMatch(/\/sales-cases\/S-1\/reservation\/determination$/);
-      expect(seen[0].method).toBe("DELETE");
-      expect(seen[0].body && JSON.parse(seen[0].body)).toEqual({ version: 3 });
+      expect(seen[0]!.url).toMatch(/\/sales-cases\/S-1\/reservation\/determination$/);
+      expect(seen[0]!.method).toBe("DELETE");
+      expect(seen[0]!.body && JSON.parse(seen[0]!.body)).toEqual({ version: 3 });
     });
 
     it("deliverReservation posts to /sales-cases/{id}/reservation/delivery", async () => {
@@ -110,15 +111,16 @@ describe("Frontend ↔ backend contract", () => {
     });
 
     it("cancelDesignation DELETEs /sales-cases/{id}/consignment/designation", async () => {
-      const seen: Array<{ url: string; method?: string; body?: string }> = [];
+      const seen: Array<{ url: string; method?: string | undefined; body?: string | undefined }> =
+        [];
       mockFetchWith((url, init) => {
         seen.push({ url, method: init?.method, body: init?.body as string | undefined });
         return jsonResponse(null, 204);
       });
       await cancelDesignation("S-2", 5);
-      expect(seen[0].url).toMatch(/\/sales-cases\/S-2\/consignment\/designation$/);
-      expect(seen[0].method).toBe("DELETE");
-      expect(seen[0].body && JSON.parse(seen[0].body)).toEqual({ version: 5 });
+      expect(seen[0]!.url).toMatch(/\/sales-cases\/S-2\/consignment\/designation$/);
+      expect(seen[0]!.method).toBe("DELETE");
+      expect(seen[0]!.body && JSON.parse(seen[0]!.body)).toEqual({ version: 5 });
     });
 
     it("recordConsignmentResult posts to /sales-cases/{id}/consignment/result", async () => {

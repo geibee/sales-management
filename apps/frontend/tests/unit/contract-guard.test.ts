@@ -2,7 +2,7 @@
  * contract-guard (MSW ↔ zod ドリフト検査) 自体の動作検証。
  * ゲートを検証するゲート — ガードが壊れて fail-open になるリグレッションを防ぐ。
  */
-import { HttpResponse, http } from "msw";
+import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { assertNoContractViolations } from "../support/contract-guard";
 import { server } from "../support/server";

@@ -1,9 +1,9 @@
 import "@testing-library/jest-dom/vitest";
 import { useAuth } from "@/stores/auth-store";
 import { cleanup } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, onTestFailed, vi } from "vitest";
 import { assertNoContractViolations, installContractGuard } from "./support/contract-guard";
-import { resetCapturedRequests, server } from "./support/server";
+import { capturedRequests, resetCapturedRequests, server } from "./support/server";
 
 // ---- MSW lifecycle ----
 // `onUnhandledRequest: "error"` で未モック URL を明示的にエラーにする。
@@ -23,6 +23,21 @@ afterEach(async () => {
   await assertNoContractViolations();
 });
 afterAll(() => server.close());
+
+// ---- FE-EVID-MSW-001: 失敗時の MSW request log ----
+// request assertion が失敗したとき「実際に何が飛んだか」を見えるようにする。
+// 成功時は無出力 (ログノイズを増やさない)。
+beforeEach(() => {
+  onTestFailed(() => {
+    if (capturedRequests.length === 0) return;
+    const lines = capturedRequests.map(
+      (r) => `  ${r.method} ${r.pathname}${r.search} body=${JSON.stringify(r.body)}`,
+    );
+    console.error(
+      `[msw] このテスト中に捕捉したリクエスト (${lines.length} 件):\n${lines.join("\n")}`,
+    );
+  });
+});
 
 // ---- window.matchMedia ----
 // jsdom は matchMedia を実装していない。sonner (Toaster) と next-themes が

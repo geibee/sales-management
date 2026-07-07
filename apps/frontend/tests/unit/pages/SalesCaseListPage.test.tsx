@@ -50,7 +50,7 @@ function mockCases(items: ReturnType<typeof makeCaseSummary>[], total?: number) 
 /** 直近の GET /sales-cases の URLSearchParams を返す。 */
 function lastQuery(): URLSearchParams {
   const reqs = requestsFor("/api/sales-cases");
-  return new URL(reqs[reqs.length - 1].url).searchParams;
+  return new URL(reqs[reqs.length - 1]!.url).searchParams;
 }
 
 describe("<SalesCaseListPage>", () => {

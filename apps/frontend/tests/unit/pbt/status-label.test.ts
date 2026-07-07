@@ -26,9 +26,7 @@ describe("lib/format status labels (PBT)", () => {
   it(
     "FE-PBT-FORMAT-001: 未知 lot status は入力値を fallback 表示",
     () => {
-      const unknownArb = fc
-        .string({ minLength: 1 })
-        .filter((s) => !KNOWN_LOT.includes(s));
+      const unknownArb = fc.string({ minLength: 1 }).filter((s) => !KNOWN_LOT.includes(s));
       fc.assert(
         fc.property(unknownArb, (status) => {
           expect(lotStatusLabel(status)).toBe(status);
@@ -42,9 +40,7 @@ describe("lib/format status labels (PBT)", () => {
   it(
     "FE-PBT-FORMAT-001: 未知 case status は caseType によらず入力値を fallback 表示",
     () => {
-      const unknownArb = fc
-        .string({ minLength: 1 })
-        .filter((s) => !KNOWN_CASE.includes(s));
+      const unknownArb = fc.string({ minLength: 1 }).filter((s) => !KNOWN_CASE.includes(s));
       const caseTypeArb = fc.constantFrom("direct", "reservation", "consignment", "other", null);
       fc.assert(
         fc.property(caseTypeArb, unknownArb, (caseType, status) => {

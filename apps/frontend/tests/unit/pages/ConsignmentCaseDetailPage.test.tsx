@@ -7,11 +7,16 @@
  * - before_consignment では「ロットを修正」が出る → PUT /lots
  * - 委託指定済後は「ロットを修正」が消える
  */
+import { schemas } from "@/contracts";
 import { ConsignmentCaseDetailPage } from "@/pages/consignment-cases/ConsignmentCaseDetailPage";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
-import { makeAvailableLot, makeAvailableLotsResponse, makeConsignmentSalesCase } from "../../support/fixtures";
+import {
+  makeAvailableLot,
+  makeAvailableLotsResponse,
+  makeConsignmentSalesCase,
+} from "../../support/fixtures";
 import { renderWithRouter } from "../../support/render";
 import { requestsFor, server } from "../../support/server";
 
@@ -66,9 +71,44 @@ describe("<ConsignmentCaseDetailPage> (FE-PAGE-CONSIGNMENT-* / FE-REQ-CONSIGNMEN
     await waitFor(() =>
       expect(requestsFor(`/api/sales-cases/${ID}/consignment/designation`)).toHaveLength(1),
     );
-    expect(requestsFor(`/api/sales-cases/${ID}/consignment/designation`)[0].body).toEqual({
+    expect(requestsFor(`/api/sales-cases/${ID}/consignment/designation`)[0]!.body).toEqual({
       version: 11,
     });
+  });
+
+  it("FE-REQ-CONSIGNMENT-001: 委託指定 → POST body が契約 request schema に適合 (rate フィールドは契約に無いため対象外)", async () => {
+    authDisabled();
+    server.use(
+      http.get(`/api/sales-cases/${ID}`, () =>
+        HttpResponse.json(
+          makeConsignmentSalesCase({
+            salesCaseNumber: ID,
+            caseType: "consignment",
+            status: "before_consignment",
+            lots: ["2026-A-1"],
+            version: 2,
+          }),
+        ),
+      ),
+      http.post(`/api/sales-cases/${ID}/consignment/designate`, () =>
+        HttpResponse.json({ status: "consignment_designated", version: 3 }),
+      ),
+    );
+    renderWithRouter(<ConsignmentCaseDetailPage id={ID} />);
+    // 「委託指定」text は StatusFlow の step label と衝突するため、
+    // form 固有の「委託先名」input から card を特定する
+    const nameInput = await screen.findByLabelText("委託先名");
+    const card = nameInput.closest('[data-slot="card"]')! as HTMLElement;
+    fireEvent.change(nameInput, { target: { value: "委託先B" } });
+    fireEvent.click(within(card).getByRole("button", { name: "登録" }));
+    await waitFor(() =>
+      expect(requestsFor(`/api/sales-cases/${ID}/consignment/designate`)).toHaveLength(1),
+    );
+    const body = schemas.designateConsignment_Body.parse(
+      requestsFor(`/api/sales-cases/${ID}/consignment/designate`)[0]!.body,
+    );
+    expect(body.consignorName).toBe("委託先B");
+    expect(body.version).toBe(2);
   });
 
   it("FE-REQ-CONSIGNMENT-LOTS-001: before_consignment → 「ロットを修正」→ PUT body lots+version", async () => {
@@ -98,13 +138,13 @@ describe("<ConsignmentCaseDetailPage> (FE-PAGE-CONSIGNMENT-* / FE-REQ-CONSIGNMEN
     renderWithRouter(<ConsignmentCaseDetailPage id={ID} />);
     fireEvent.click(await screen.findByRole("button", { name: /ロットを修正/ }));
     const dialog = await screen.findByRole("dialog");
-    expect(requestsFor("/api/lots/available")[0].search).toContain(`excludeCase=${ID}`);
+    expect(requestsFor("/api/lots/available")[0]!.search).toContain(`excludeCase=${ID}`);
     fireEvent.click(
       await within(dialog).findByRole("checkbox", { name: "ロット 2026-A-2 を選択" }),
     );
     fireEvent.click(within(dialog).getByRole("button", { name: "更新" }));
     await waitFor(() => expect(requestsFor(`/api/sales-cases/${ID}/lots`)).toHaveLength(1));
-    const body = requestsFor(`/api/sales-cases/${ID}/lots`)[0].body as {
+    const body = requestsFor(`/api/sales-cases/${ID}/lots`)[0]!.body as {
       lots: unknown;
       version: unknown;
     };

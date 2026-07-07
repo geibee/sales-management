@@ -17,7 +17,8 @@ const METRICS = ["lines", "statements", "branches", "functions"];
 // 単体テスト (tests/unit/scripts/coverage-ratchet.test.ts) から一時ファイルを
 // 指せるよう、パスは環境変数で差し替え可能にする
 const summaryPath =
-  process.env.COVERAGE_SUMMARY_PATH ?? new URL("../coverage/coverage-summary.json", import.meta.url);
+  process.env.COVERAGE_SUMMARY_PATH ??
+  new URL("../coverage/coverage-summary.json", import.meta.url);
 const baselinePath =
   process.env.COVERAGE_BASELINE_PATH ?? new URL("../coverage-baseline.json", import.meta.url);
 
@@ -32,7 +33,9 @@ for (const metric of METRICS) {
   const floor = baseline[metric];
   const delta = (current - floor).toFixed(2);
   if (current < floor - EPSILON) {
-    console.error(`[coverage-ratchet] FAIL ${metric}: ${current}% < baseline ${floor}% (${delta}pt)`);
+    console.error(
+      `[coverage-ratchet] FAIL ${metric}: ${current}% < baseline ${floor}% (${delta}pt)`,
+    );
     failed = true;
   } else {
     console.log(`[coverage-ratchet] OK   ${metric}: ${current}% (baseline ${floor}%, ${delta}pt)`);
@@ -52,8 +55,12 @@ if (improved) {
   if (process.env.RATCHET_UPDATE === "1") {
     const next = Object.fromEntries(METRICS.map((m) => [m, total[m].pct]));
     writeFileSync(baselinePath, `${JSON.stringify(next, null, 2)}\n`);
-    console.log("[coverage-ratchet] baseline を現在値へ引き上げました。coverage-baseline.json をコミットしてください。");
+    console.log(
+      "[coverage-ratchet] baseline を現在値へ引き上げました。coverage-baseline.json をコミットしてください。",
+    );
   } else {
-    console.log("[coverage-ratchet] baseline より改善しています。RATCHET_UPDATE=1 で引き上げられます。");
+    console.log(
+      "[coverage-ratchet] baseline より改善しています。RATCHET_UPDATE=1 で引き上げられます。",
+    );
   }
 }
