@@ -1,0 +1,7 @@
+# ast-grep 設定 (issue #9 Tier2-18)。
+# TypeScript/TSX の禁止パターンを .ast-grep/rules/ に置き、verify の
+# frontend ゲートで `ast-grep scan` を実行する (error 検出で非零終了)。
+# F# は ast-grep に文法サポートが無いため、同種のルールは
+# apps/api-fsharp/tests/.../Architecture/SourceRuleTests.fs が担う。
+ruleDirs:
+  - .ast-grep/rules

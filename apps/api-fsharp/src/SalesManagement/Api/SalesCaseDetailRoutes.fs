@@ -1,12 +1,14 @@
 module SalesManagement.Api.SalesCaseDetailRoutes
 
+// 販売案件詳細 (GET /sales-cases/{id})。SQL は Infrastructure 層
+// (SalesCaseDetailRepository) に置き、本モジュールはレスポンス整形のみ担う
+// (Api 層の SQL 禁止は Architecture/SourceRuleTests が強制。issue #9 Tier2-18)。
+
 open System
 open System.Collections.Generic
-open System.Data
 open System.Text.Json
 open System.Text.Json.Serialization
 open Microsoft.AspNetCore.Http
-open Donald
 open Giraffe
 open Npgsql
 open SalesManagement.Domain.Types
@@ -32,132 +34,31 @@ let private writeDetailJson (payload: obj) : HttpHandler =
 let private formatLotNumber (lot: LotNumber) : string =
     sprintf "%d-%s-%03d" lot.Year lot.Location lot.Seq
 
-let private mapLotKey (rd: IDataReader) : LotNumber =
-    { Year = rd.GetInt32(rd.GetOrdinal "lot_number_year")
-      Location = rd.GetString(rd.GetOrdinal "lot_number_location")
-      Seq = rd.GetInt32(rd.GetOrdinal "lot_number_seq") }
-
-let private salesCaseKeyParams (n: SalesCaseNumber) : RawDbParams =
-    [ "year", SqlType.Int32 n.Year
-      "month", SqlType.Int32 n.Month
-      "seq", SqlType.Int32 n.Seq ]
-
-let private loadLotIdStrings (conn: NpgsqlConnection) (n: SalesCaseNumber) : string list =
-    conn
-    |> Db.newCommand
-        """
-        SELECT lot_number_year, lot_number_location, lot_number_seq
-          FROM sales_case_lot
-         WHERE sales_case_number_year = @year
-           AND sales_case_number_month = @month
-           AND sales_case_number_seq = @seq
-         ORDER BY lot_number_year, lot_number_location, lot_number_seq
-        """
-    |> Db.setParams (salesCaseKeyParams n)
-    |> Db.setCommandBehavior CommandBehavior.Default
-    |> Db.query mapLotKey
-    |> List.map formatLotNumber
-
-type private DetailHeader =
-    { CaseType: string
-      Status: string
-      DivisionCode: int
-      SalesDate: DateOnly
-      Version: int
-      ShippingInstructionDate: DateOnly option
-      ShippingCompletedDate: DateOnly option }
-
-let private mapDetailHeader (rd: IDataReader) : DetailHeader =
-    let optDate (col: string) =
-        let idx = rd.GetOrdinal col
-
-        if rd.IsDBNull idx then
-            None
-        else
-            Some(DateOnly.FromDateTime(rd.GetDateTime idx))
-
-    { CaseType = rd.GetString(rd.GetOrdinal "case_type")
-      Status = rd.GetString(rd.GetOrdinal "status")
-      DivisionCode = rd.GetInt32(rd.GetOrdinal "division_code")
-      SalesDate = DateOnly.FromDateTime(rd.GetDateTime(rd.GetOrdinal "sales_date"))
-      Version = rd.GetInt32(rd.GetOrdinal "version")
-      ShippingInstructionDate = optDate "shipping_instruction_date"
-      ShippingCompletedDate = optDate "shipping_completed_date" }
-
-let private tryLoadDetailHeader (conn: NpgsqlConnection) (n: SalesCaseNumber) : DetailHeader option =
-    conn
-    |> Db.newCommand
-        """
-        SELECT case_type, status, division_code, sales_date, version,
-               shipping_instruction_date, shipping_completed_date
-          FROM sales_case
-         WHERE sales_case_number_year = @year
-           AND sales_case_number_month = @month
-           AND sales_case_number_seq = @seq
-        """
-    |> Db.setParams (salesCaseKeyParams n)
-    |> Db.setCommandBehavior CommandBehavior.Default
-    |> Db.querySingle mapDetailHeader
-
 let private isoDate (d: DateOnly) : string = d.ToString("yyyy-MM-dd")
 
 let private loadDirectAppraisal (conn: NpgsqlConnection) (n: SalesCaseNumber) : obj =
-    let rows =
-        conn
-        |> Db.newCommand
-            """
-            SELECT appraisal_type, appraisal_date, delivery_date, sales_market,
-                   tax_excluded_estimated_total
-              FROM appraisal
-             WHERE sales_case_number_year = @year
-               AND sales_case_number_month = @month
-               AND sales_case_number_seq = @seq
-            """
-        |> Db.setParams (salesCaseKeyParams n)
-        |> Db.setCommandBehavior CommandBehavior.Default
-        |> Db.query (fun rd ->
-            let dict = Dictionary<string, obj>()
-            dict.["type"] <- rd.GetString(rd.GetOrdinal "appraisal_type")
-            dict.["appraisalDate"] <- isoDate (DateOnly.FromDateTime(rd.GetDateTime(rd.GetOrdinal "appraisal_date")))
-            dict.["deliveryDate"] <- isoDate (DateOnly.FromDateTime(rd.GetDateTime(rd.GetOrdinal "delivery_date")))
-            dict.["salesMarket"] <- rd.GetString(rd.GetOrdinal "sales_market")
-            dict.["taxExcludedEstimatedTotal"] <- box (rd.GetInt32(rd.GetOrdinal "tax_excluded_estimated_total"))
-            dict)
-
-    match rows with
-    | [] -> null
-    | head :: _ -> head :> obj
+    match SalesCaseDetailRepository.tryFindDirectAppraisal conn n with
+    | None -> null
+    | Some row ->
+        let dict = Dictionary<string, obj>()
+        dict.["type"] <- row.AppraisalType
+        dict.["appraisalDate"] <- isoDate row.AppraisalDate
+        dict.["deliveryDate"] <- isoDate row.DeliveryDate
+        dict.["salesMarket"] <- row.SalesMarket
+        dict.["taxExcludedEstimatedTotal"] <- box row.TaxExcludedEstimatedTotal
+        dict :> obj
 
 let private loadDirectContract (conn: NpgsqlConnection) (n: SalesCaseNumber) : obj =
-    let rows =
-        conn
-        |> Db.newCommand
-            """
-            SELECT c.contract_date, c.person, c.customer_number,
-                   c.tax_excluded_contract_amount, c.consumption_tax
-              FROM contract c
-              JOIN appraisal a
-                ON a.appraisal_number_year = c.appraisal_number_year
-               AND a.appraisal_number_month = c.appraisal_number_month
-               AND a.appraisal_number_seq = c.appraisal_number_seq
-             WHERE a.sales_case_number_year = @year
-               AND a.sales_case_number_month = @month
-               AND a.sales_case_number_seq = @seq
-            """
-        |> Db.setParams (salesCaseKeyParams n)
-        |> Db.setCommandBehavior CommandBehavior.Default
-        |> Db.query (fun rd ->
-            let dict = Dictionary<string, obj>()
-            dict.["contractDate"] <- isoDate (DateOnly.FromDateTime(rd.GetDateTime(rd.GetOrdinal "contract_date")))
-            dict.["person"] <- rd.GetString(rd.GetOrdinal "person")
-            dict.["customerNumber"] <- rd.GetString(rd.GetOrdinal "customer_number")
-            dict.["taxExcludedContractAmount"] <- box (rd.GetInt32(rd.GetOrdinal "tax_excluded_contract_amount"))
-            dict.["consumptionTax"] <- box (rd.GetInt32(rd.GetOrdinal "consumption_tax"))
-            dict)
-
-    match rows with
-    | [] -> null
-    | head :: _ -> head :> obj
+    match SalesCaseDetailRepository.tryFindDirectContract conn n with
+    | None -> null
+    | Some row ->
+        let dict = Dictionary<string, obj>()
+        dict.["contractDate"] <- isoDate row.ContractDate
+        dict.["person"] <- row.Person
+        dict.["customerNumber"] <- row.CustomerNumber
+        dict.["taxExcludedContractAmount"] <- box row.TaxExcludedContractAmount
+        dict.["consumptionTax"] <- box row.ConsumptionTax
+        dict :> obj
 
 let private loadReservationPriceForDetail (conn: NpgsqlConnection) (n: SalesCaseNumber) : obj * obj * obj =
     match ReservationPriceRepository.tryFindByCase conn n with
@@ -198,32 +99,18 @@ let private loadConsignor (conn: NpgsqlConnection) (n: SalesCaseNumber) : obj =
         dict :> obj
 
 let private loadConsignmentResult (conn: NpgsqlConnection) (n: SalesCaseNumber) : obj =
-    let rows =
-        conn
-        |> Db.newCommand
-            """
-            SELECT result_date, result_amount
-              FROM consignment_result
-             WHERE sales_case_number_year = @year
-               AND sales_case_number_month = @month
-               AND sales_case_number_seq = @seq
-            """
-        |> Db.setParams (salesCaseKeyParams n)
-        |> Db.setCommandBehavior CommandBehavior.Default
-        |> Db.query (fun rd ->
-            let dict = Dictionary<string, obj>()
-            dict.["resultDate"] <- isoDate (DateOnly.FromDateTime(rd.GetDateTime(rd.GetOrdinal "result_date")))
-            dict.["resultAmount"] <- box (rd.GetInt32(rd.GetOrdinal "result_amount"))
-            dict)
-
-    match rows with
-    | [] -> null
-    | head :: _ -> head :> obj
+    match SalesCaseDetailRepository.tryFindConsignmentResult conn n with
+    | None -> null
+    | Some row ->
+        let dict = Dictionary<string, obj>()
+        dict.["resultDate"] <- isoDate row.ResultDate
+        dict.["resultAmount"] <- box row.ResultAmount
+        dict :> obj
 
 let private addDirectFields
     (conn: NpgsqlConnection)
     (n: SalesCaseNumber)
-    (header: DetailHeader)
+    (header: SalesCaseDetailRepository.DetailHeader)
     (dict: Dictionary<string, obj>)
     : unit =
     dict.["appraisal"] <- loadDirectAppraisal conn n
@@ -245,12 +132,7 @@ let private addDirectFields
             inner.["completionDate"] <- isoDate d
             inner :> obj
 
-let private addReservationFields
-    (conn: NpgsqlConnection)
-    (n: SalesCaseNumber)
-    (_header: DetailHeader)
-    (dict: Dictionary<string, obj>)
-    : unit =
+let private addReservationFields (conn: NpgsqlConnection) (n: SalesCaseNumber) (dict: Dictionary<string, obj>) : unit =
     let appraisal, determination, delivery = loadReservationPriceForDetail conn n
     dict.["reservationPrice"] <- appraisal
     dict.["determination"] <- determination
@@ -263,20 +145,26 @@ let private addConsignmentFields (conn: NpgsqlConnection) (n: SalesCaseNumber) (
 let private buildDetailResponse
     (conn: NpgsqlConnection)
     (n: SalesCaseNumber)
-    (header: DetailHeader)
+    (header: SalesCaseDetailRepository.DetailHeader)
     : Dictionary<string, obj> =
     let dict = Dictionary<string, obj>()
     dict.["salesCaseNumber"] <- formatSalesCaseNumber n
     dict.["caseType"] <- header.CaseType
     dict.["status"] <- header.Status
-    dict.["lots"] <- (loadLotIdStrings conn n |> List.toArray :> obj)
+
+    dict.["lots"] <-
+        (SalesCaseDetailRepository.listLotNumbers conn n
+         |> List.map formatLotNumber
+         |> List.toArray
+        :> obj)
+
     dict.["divisionCode"] <- box header.DivisionCode
     dict.["salesDate"] <- isoDate header.SalesDate
     dict.["version"] <- box header.Version
 
     match header.CaseType with
     | "direct" -> addDirectFields conn n header dict
-    | "reservation" -> addReservationFields conn n header dict
+    | "reservation" -> addReservationFields conn n dict
     | "consignment" -> addConsignmentFields conn n dict
     | _ -> ()
 
@@ -290,7 +178,7 @@ let getSalesCaseHandler (connectionString: string) (id: string) : HttpHandler =
             use conn = new NpgsqlConnection(connectionString)
             conn.Open()
 
-            match tryLoadDetailHeader conn n with
+            match SalesCaseDetailRepository.tryFindHeader conn n with
             | None -> return! notFound (sprintf "Sales case not found: %s" id) next ctx
             | Some header ->
                 let payload = buildDetailResponse conn n header

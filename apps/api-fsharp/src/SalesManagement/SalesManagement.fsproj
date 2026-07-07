@@ -24,6 +24,7 @@
     <Compile Include="Infrastructure/AppraisalRepository.fs" />
     <Compile Include="Infrastructure/ReservationPriceRepository.fs" />
     <Compile Include="Infrastructure/ConsignmentRepository.fs" />
+    <Compile Include="Infrastructure/SalesCaseDetailRepository.fs" />
     <Compile Include="Infrastructure/ExternalPricingClient.fs" />
     <Compile Include="Infrastructure/OutboxRepository.fs" />
     <Compile Include="Infrastructure/OutboxProcessor.fs" />

@@ -25,6 +25,7 @@
     <Compile Include="SalesCaseStateMachinePropertyTests.fs" />
     <Compile Include="SalesCasePropertyTests.fs" />
     <Compile Include="Architecture/ArchitectureTests.fs" />
+    <Compile Include="Architecture/SourceRuleTests.fs" />
     <Compile Include="Pact/StateHandlers.fs" />
     <Compile Include="Pact/PactProviderTests.fs" />
     <Compile Include="IntegrationTests/ConfigurationTests.fs" />

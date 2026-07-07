@@ -240,6 +240,13 @@ verify_frontend() {
   command -v pnpm >/dev/null 2>&1 \
     || fail "pnpm が見つかりません (fail-closed: frontend 変更は pnpm なしで合格にできない)"
 
+  # TypeScript の禁止パターン検査 (.ast-grep/rules/。issue #9 Tier2-18)。
+  # F# 側の同種ルールは Architecture/SourceRuleTests.fs (backend ゲート) が担う
+  command -v ast-grep >/dev/null 2>&1 \
+    || fail "ast-grep が見つかりません (fail-closed: 禁止パターン検査なしで合格にできない)"
+  ast-grep scan
+  log "ast-grep: OK"
+
   pushd apps/frontend >/dev/null
 
   # 新規 worktree では node_modules が無いので毎回実行する (lockfile 一致なら高速)

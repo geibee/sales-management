@@ -132,6 +132,8 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: apps/frontend/pnpm-lock.yaml
+      - name: ast-grep をインストール (禁止パターン検査)
+        run: npm install -g @ast-grep/cli
       - name: Playwright chromium をインストール (smoke E2E 用)
         working-directory: apps/frontend
         run: |

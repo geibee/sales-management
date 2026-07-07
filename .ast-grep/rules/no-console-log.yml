@@ -1,0 +1,23 @@
+# console.log/debug は本番コードで禁止 (デバッグ残骸の混入防止)。
+# エラー通知は toast / describeApiError 経由、開発時ログは console.error / warn を使う。
+id: no-console-log
+language: typescript
+severity: error
+message: console.log/debug は本番コード (apps/frontend/src) で禁止。デバッグ残骸はコミット前に削除する
+files:
+  - apps/frontend/src/**
+rule:
+  any:
+    - pattern: console.log($$$ARGS)
+    - pattern: console.debug($$$ARGS)
+---
+id: no-console-log-tsx
+language: tsx
+severity: error
+message: console.log/debug は本番コード (apps/frontend/src) で禁止。デバッグ残骸はコミット前に削除する
+files:
+  - apps/frontend/src/**
+rule:
+  any:
+    - pattern: console.log($$$ARGS)
+    - pattern: console.debug($$$ARGS)

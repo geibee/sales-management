@@ -1,0 +1,26 @@
+# テストでの時間 sleep 禁止 (フレークの温床。issue #9 §9「揺れ=失敗」の方針)。
+# `setTimeout(r, 0)` によるマイクロタスク flush は決定的なので許容し、
+# 1ms 以上の実時間待ちのみ禁止する。待つ必要があるなら waitFor / findBy* を使う。
+id: no-sleep-in-tests
+language: typescript
+severity: error
+message: テストでの実時間 sleep (setTimeout >= 1ms) は禁止。waitFor / findBy* で条件を待つ
+files:
+  - apps/frontend/tests/**
+rule:
+  pattern: setTimeout($FN, $DELAY)
+constraints:
+  DELAY:
+    regex: ^[1-9][0-9]*$
+---
+id: no-sleep-in-tests-tsx
+language: tsx
+severity: error
+message: テストでの実時間 sleep (setTimeout >= 1ms) は禁止。waitFor / findBy* で条件を待つ
+files:
+  - apps/frontend/tests/**
+rule:
+  pattern: setTimeout($FN, $DELAY)
+constraints:
+  DELAY:
+    regex: ^[1-9][0-9]*$
