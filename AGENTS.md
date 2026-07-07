@@ -133,7 +133,7 @@ worker 用のライフサイクル契約は `.claude/plugins/ralph-orchestrator/
 
 # API Fuzz (Schemathesis)
 
-`apps/api-fsharp/ci.sh` は ZAP 直後に Schemathesis を回し、`openapi.yaml` から property-based の入力を生成して `http://localhost:5000` を叩く。固定 seed `42` / `-n 200` / `--request-timeout 2.0` で反復可能。`SCHEMATHESIS_ENABLED=0` で全体スキップ可能（高速モード）。事前状態を要するエンドポイント（`POST /sales-cases/{id}/contracts` など appraised 必須のもの、ロット状態遷移、reservation/consignment 多段フロー）は `apps/api-fsharp/schemathesis-hooks.py` の `before_load_schema` フックで raw schema から物理的に除外している。出力は `ci-results/schemathesis-junit.xml` / `ci-results/sarif/schemathesis.sarif` / `ci-results/schemathesis.tar.gz` の 3 点。`scripts/junit-to-sarif.py` が JUnit XML を SARIF v2.1.0 に変換し、`merged.sarif` にも統合される。発見は当面 `warning` レベル扱いで CI を落とさない（信号品質が安定したら `error` に昇格する）。
+`apps/api-fsharp/ci.sh` は ZAP 直後に Schemathesis を回し、`openapi.yaml` から property-based の入力を生成して `http://localhost:5000` を叩く。固定 seed `42` / `-n 200` / `--request-timeout 2.0` で反復可能。`SCHEMATHESIS_ENABLED=0` で全体スキップ可能（高速モード）。事前状態を要するエンドポイント（`POST /sales-cases/{id}/contracts` など appraised 必須のもの、ロット状態遷移、reservation/consignment 多段フロー）は `apps/api-fsharp/schemathesis-hooks.py` の `before_load_schema` フックで raw schema から物理的に除外している。出力は `ci-results/schemathesis-junit.xml` / `ci-results/sarif/schemathesis.sarif` / `ci-results/schemathesis.tar.gz` の 3 点。`scripts/junit-to-sarif.py` が JUnit XML を SARIF v2.1.0 に変換し、`merged.sarif` にも統合される。既知検出のトリアージ完了に伴い **error に昇格済み**（issue #9 Tier2-15）: 検出があると nightly が失敗する。fuzz 用アプリはレート制限を無効化して起動し、`before_load_schema` フックで root `security` を除去する（認可の全数検証は決定的な `AuthorizationMatrixTests` が担う）。`unsupported_method`（405 全数対応）のみ §5 HTTP セマンティクス対応まで除外。
 
 # 失敗から学んだこと
 

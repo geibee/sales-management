@@ -63,34 +63,56 @@ type private ListQuery =
       Limit: int
       Offset: int }
 
+/// openapi.yaml の LotStatus enum と対。未知の値は 400 で拒否する
+/// (無視して全件返すと「絞り込めたつもり」の fail-open になる)。
+let private knownLotStatuses =
+    Set.ofList
+        [ "manufacturing"
+          "manufactured"
+          "shipping_instructed"
+          "shipped"
+          "conversion_instructed" ]
+
 let private parseListQuery (ctx: HttpContext) : Result<ListQuery, DomainError> =
-    let limitR = tryGetIntQuery ctx "limit"
-    let offsetR = tryGetIntQuery ctx "offset"
+    match QueryGuard.tryFindInvalidQuery [ "status"; "limit"; "offset" ] ctx with
+    | Some err -> Error err
+    | None ->
 
-    match limitR, offsetR with
-    | Error msg, _ -> Error(ValidationFailed [ { Field = "limit"; Message = msg } ])
-    | _, Error msg -> Error(ValidationFailed [ { Field = "offset"; Message = msg } ])
-    | Ok limitOpt, Ok offsetOpt ->
-        let limit = limitOpt |> Option.defaultValue 50
-        let offset = offsetOpt |> Option.defaultValue 0
+        let limitR = tryGetIntQuery ctx "limit"
+        let offsetR = tryGetIntQuery ctx "offset"
 
-        if limit < 1 || limit > 200 then
-            Error(
-                ValidationFailed
-                    [ { Field = "limit"
-                        Message = "limit must be between 1 and 200" } ]
-            )
-        elif offset < 0 then
-            Error(
-                ValidationFailed
-                    [ { Field = "offset"
-                        Message = "offset must be >= 0" } ]
-            )
-        else
-            Ok
-                { Status = tryGetStringQuery ctx "status"
-                  Limit = limit
-                  Offset = offset }
+        match limitR, offsetR with
+        | Error msg, _ -> Error(ValidationFailed [ { Field = "limit"; Message = msg } ])
+        | _, Error msg -> Error(ValidationFailed [ { Field = "offset"; Message = msg } ])
+        | Ok limitOpt, Ok offsetOpt ->
+            let limit = limitOpt |> Option.defaultValue 50
+            let offset = offsetOpt |> Option.defaultValue 0
+
+            if limit < 1 || limit > 200 then
+                Error(
+                    ValidationFailed
+                        [ { Field = "limit"
+                            Message = "limit must be between 1 and 200" } ]
+                )
+            elif offset < 0 then
+                Error(
+                    ValidationFailed
+                        [ { Field = "offset"
+                            Message = "offset must be >= 0" } ]
+                )
+            else
+                match tryGetStringQuery ctx "status" with
+                | Some status when not (knownLotStatuses.Contains status) ->
+                    Error(
+                        ValidationFailed
+                            [ { Field = "status"
+                                Message = "status must be one of: " + String.Join(", ", knownLotStatuses) } ]
+                    )
+                | status ->
+                    Ok
+                        { Status = status
+                          Limit = limit
+                          Offset = offset }
 
 let listLotsHandler (connectionString: string) : HttpHandler =
     fun next ctx -> task {
@@ -129,31 +151,35 @@ let private tryParseCaseNumber (s: string) : (int * int * int) option =
 
 let availableLotsHandler (connectionString: string) : HttpHandler =
     fun next ctx -> task {
-        let excludeRaw = tryGetStringQuery ctx "excludeCase"
+        match QueryGuard.tryFindInvalidQuery [ "excludeCase" ] ctx with
+        | Some err -> return! toResponse "Lot" err next ctx
+        | None ->
 
-        match excludeRaw with
-        | Some s when (tryParseCaseNumber s).IsNone ->
-            let err =
-                ValidationFailed
-                    [ { Field = "excludeCase"
-                        Message = "excludeCase must be a valid sales case number (year-month-seq)" } ]
+            let excludeRaw = tryGetStringQuery ctx "excludeCase"
 
-            return! toResponse "Lot" err next ctx
-        | _ ->
-            let exclude = excludeRaw |> Option.bind tryParseCaseNumber
-            use conn = new NpgsqlConnection(connectionString)
-            conn.Open()
+            match excludeRaw with
+            | Some s when (tryParseCaseNumber s).IsNone ->
+                let err =
+                    ValidationFailed
+                        [ { Field = "excludeCase"
+                            Message = "excludeCase must be a valid sales case number (year-month-seq)" } ]
 
-            let summaries =
-                LotListRepository.listAvailable conn exclude
-                |> List.map toLotSummary
-                |> List.toArray
+                return! toResponse "Lot" err next ctx
+            | _ ->
+                let exclude = excludeRaw |> Option.bind tryParseCaseNumber
+                use conn = new NpgsqlConnection(connectionString)
+                conn.Open()
 
-            let response: AvailableLotsResponse =
-                { items = summaries
-                  total = summaries.Length }
+                let summaries =
+                    LotListRepository.listAvailable conn exclude
+                    |> List.map toLotSummary
+                    |> List.toArray
 
-            return! json response next ctx
+                let response: AvailableLotsResponse =
+                    { items = summaries
+                      total = summaries.Length }
+
+                return! json response next ctx
     }
 
 let routes (connectionString: string) : HttpHandler =

@@ -128,10 +128,27 @@ verify_repo() {
     local base_spec
     base_spec=$(mktemp --suffix=.yaml)
     git show "$spec_base:$spec" >"$base_spec"
-    oasdiff breaking --fail-on ERR "$base_spec" "$spec" \
-      || { rm -f "$base_spec"; fail "openapi.yaml に破壊的変更が含まれます (oasdiff breaking)"; }
+
+    if oasdiff breaking --fail-on ERR "$base_spec" "$spec"; then
+      log "oasdiff: 破壊的変更なし"
+    else
+      # 意図した破壊的変更 (実装に合わせた契約の厳格化等) は、承認ファイルに
+      # 現行 openapi.yaml の blob ハッシュを記録してコミットすることで通す。
+      # spec をさらに変更するとハッシュが合わなくなるため fail-closed のまま。
+      # 承認の履歴は git log (このファイルの変更) で追跡できる
+      local approved current_hash
+      approved=$(cat apps/api-fsharp/.openapi-breaking-approved 2>/dev/null || true)
+      current_hash=$(git hash-object "$spec")
+
+      if [[ "$approved" == "$current_hash" ]]; then
+        log "oasdiff: 破壊的変更を検出したが .openapi-breaking-approved と一致 (承認済み)"
+      else
+        rm -f "$base_spec"
+        fail "openapi.yaml に破壊的変更が含まれます (oasdiff breaking)。意図した変更なら apps/api-fsharp/.openapi-breaking-approved に $current_hash を記録してレビューを受けてください"
+      fi
+    fi
+
     rm -f "$base_spec"
-    log "oasdiff: 破壊的変更なし"
   fi
 
   log "repo PASS"

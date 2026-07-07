@@ -79,19 +79,24 @@ let private resolveAppraisedAppraisalNumber
         | None -> Error(badRequest "Appraisal not present")
         | Some appraisalNumber -> Ok appraisalNumber
 
-let private lookupManufacturedLot (conn: NpgsqlConnection) (id: string) : Result<ManufacturedLot, string> =
+let private lookupManufacturedLot (conn: NpgsqlConnection) (id: string) : Result<ManufacturedLot, HttpHandler> =
     match LotNumber.tryParse id with
-    | None -> Error(sprintf "Invalid lot number %s" id)
+    | None -> Error(badRequest (sprintf "Invalid lot number %s" id))
     | Some lotNumber ->
         match LotRepository.load conn lotNumber with
-        | Error e -> Error e
-        | Ok None -> Error(sprintf "Lot %s not found" (LotNumber.toString lotNumber))
+        | Error e -> Error(badRequest e)
+        | Ok None ->
+            // 参照先リソースの不存在は 400 でなく 404 (openapi.yaml の 404 と対)
+            Error(notFound (sprintf "Lot %s not found" (LotNumber.toString lotNumber)))
         | Ok(Some lot) ->
             match requireManufacturedLot lot with
             | Ok m -> Ok m
-            | Error(LotNotManufactured id) -> Error(sprintf "Lot %s is not in manufactured state" id)
+            | Error(LotNotManufactured id) -> Error(badRequest (sprintf "Lot %s is not in manufactured state" id))
 
-let private fetchManufacturedLots (conn: NpgsqlConnection) (lotIds: string[]) : Result<ManufacturedLot list, string> =
+let private fetchManufacturedLots
+    (conn: NpgsqlConnection)
+    (lotIds: string[])
+    : Result<ManufacturedLot list, HttpHandler> =
     let lookups = lotIds |> Array.toList |> List.map (lookupManufacturedLot conn)
 
     let folded =
@@ -128,7 +133,7 @@ let private createSalesCaseCore
     (conn: NpgsqlConnection)
     : HttpHandler =
     match fetchManufacturedLots conn dto.lots with
-    | Error e -> badRequest e
+    | Error h -> h
     | Ok lots when lots |> List.exists (isAssignedToAnyCase conn) ->
         badRequest "One or more lots are already assigned to a sales case"
     | Ok lots ->
@@ -150,17 +155,37 @@ let private createSalesCaseCore
                   status = initialStatus
                   version = 1 }
 
-let private createSalesCaseHandler (connectionString: string) : HttpHandler =
-    fun next ctx -> task {
+let private bindCreateSalesCase (ctx: HttpContext) : Threading.Tasks.Task<Result<CreateSalesCaseDto, string>> = task {
+    try
         let! dto = ctx.BindJsonAsync<CreateSalesCaseDto>()
 
-        match parseDate dto.salesDate with
-        | None -> return! badRequest "salesDate must be ISO date" next ctx
-        | Some salesDate ->
-            match resolveCaseType dto.caseType with
-            | Error e -> return! badRequest e next ctx
-            | Ok(caseType, initialStatus) ->
-                return! runWithConn connectionString (createSalesCaseCore caseType initialStatus salesDate dto) next ctx
+        if isNull (box dto) then
+            return Error "request body is required"
+        elif isNull (box dto.lots) then
+            return Error "lots is required"
+        else
+            return Ok dto
+    with ex ->
+        // 型不一致 (caseType: {} 等) の bind 失敗は 400 (500 にしない。Schemathesis 検出)
+        return Error(sprintf "Invalid body: %s" ex.Message)
+}
+
+let private createSalesCaseHandler (connectionString: string) : HttpHandler =
+    fun next ctx -> task {
+        let! bound = bindCreateSalesCase ctx
+
+        match bound with
+        | Error message -> return! badRequest message next ctx
+        | Ok dto ->
+
+            match parseDate dto.salesDate with
+            | None -> return! badRequest "salesDate must be ISO date" next ctx
+            | Some salesDate ->
+                match resolveCaseType dto.caseType with
+                | Error e -> return! badRequest e next ctx
+                | Ok(caseType, initialStatus) ->
+                    return!
+                        runWithConn connectionString (createSalesCaseCore caseType initialStatus salesDate dto) next ctx
     }
 
 let private deleteSalesCaseHandler (connectionString: string) (id: string) : HttpHandler =
@@ -492,7 +517,7 @@ let private editCaseLotsCore
         badRequest "Lots can only be edited for a direct case before appraisal or a consignment case before designation"
     | Some header ->
         match fetchManufacturedLots conn dto.lots with
-        | Error e -> badRequest e
+        | Error h -> h
         | Ok lots when List.isEmpty lots -> badRequest "At least one lot is required"
         | Ok lots -> replaceCaseLotsIfUnassigned conn n header v lots
 

@@ -48,7 +48,22 @@ rules:
       function: falsy
     severity: warn
 
+  # リクエストボディの application/json は example を持つこと。
+  # Schemathesis の explicit example フェーズ (正常系の決定的再生) を常に有効化し、
+  # 「No examples in schema」skip を恒久的に防ぐ (issue #9 Tier2-15)。
+  request-body-needs-example:
+    description: 'リクエストボディの application/json には example を書く (Schemathesis の explicit example フェーズを常に有効化する)。'
+    message: '{{path}} の requestBody に example がない。'
+    given: "$.paths[*][*].requestBody.content['application/json']"
+    then:
+      field: example
+      function: truthy
+    severity: error
+
   # ---- 既存ルールの調整 ----
+
+  # example がスキーマに適合しない場合は error (既定 warn から昇格)
+  oas3-valid-media-example: error
 
   # 説明 description の必須化は厳しすぎるため warn に降格。
   operation-description: warn

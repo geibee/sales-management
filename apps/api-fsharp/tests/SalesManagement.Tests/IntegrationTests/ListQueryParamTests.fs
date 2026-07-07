@@ -23,8 +23,8 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
         yield case "/lots?limit=1" 200 ""
         yield case "/lots?limit=50" 200 ""
         yield case "/lots?limit=200" 200 ""
-        // 空文字 → 既定値 50 にフォールバック
-        yield case "/lots?limit=" 200 ""
+        // 空文字 → 「指定したのに効かない」を防ぐため 400 (issue #9 Tier2-15)
+        yield case "/lots?limit=" 400 "validation-error"
         // 範囲外
         yield case "/lots?limit=0" 400 "validation-error"
         yield case "/lots?limit=201" 400 "validation-error"
@@ -52,8 +52,8 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
         yield case "/lots?offset=0" 200 ""
         yield case "/lots?offset=10" 200 ""
         yield case "/lots?offset=99999" 200 ""
-        // 空文字 → 既定値
-        yield case "/lots?offset=" 200 ""
+        // 空文字 → 400 (同上)
+        yield case "/lots?offset=" 400 "validation-error"
         // 範囲外
         yield case "/lots?offset=-1" 400 "validation-error"
         // 型違反
@@ -82,7 +82,7 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
         yield case "/lots?limit=200&offset=0&status=completed" 200 ""
         yield case "/lots?status=manufacturing" 200 ""
         yield case "/lots?status=anything-goes" 200 ""
-        yield case "/lots?status=" 200 ""
+        yield case "/lots?status=" 400 "validation-error"
         // 一方のパラメータが不正なら全体が 400
         yield case "/lots?limit=300&offset=0" 400 "validation-error"
         yield case "/lots?limit=10&offset=-5" 400 "validation-error"
@@ -136,7 +136,7 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
         yield case "/sales-cases?limit=1" 200 ""
         yield case "/sales-cases?limit=50" 200 ""
         yield case "/sales-cases?limit=200" 200 ""
-        yield case "/sales-cases?limit=" 200 ""
+        yield case "/sales-cases?limit=" 400 "validation-error"
         yield case "/sales-cases?limit=0" 400 "bad-request"
         yield case "/sales-cases?limit=201" 400 "bad-request"
         yield case "/sales-cases?limit=-1" 400 "bad-request"
@@ -162,7 +162,7 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
         yield case "/sales-cases?offset=0" 200 ""
         yield case "/sales-cases?offset=10" 200 ""
         yield case "/sales-cases?offset=99999" 200 ""
-        yield case "/sales-cases?offset=" 200 ""
+        yield case "/sales-cases?offset=" 400 "validation-error"
         yield case "/sales-cases?offset=-1" 400 "bad-request"
         yield case "/sales-cases?offset=abc" 400 "bad-request"
         yield case "/sales-cases?offset=1.5" 400 "bad-request"
@@ -191,8 +191,8 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
         yield case "/sales-cases?caseType=consignment" 200 ""
         yield case "/sales-cases?caseType=anything-goes" 200 ""
         yield case "/sales-cases?status=anything&caseType=anything" 200 ""
-        yield case "/sales-cases?status=" 200 ""
-        yield case "/sales-cases?caseType=" 200 ""
+        yield case "/sales-cases?status=" 400 "validation-error"
+        yield case "/sales-cases?caseType=" 400 "validation-error"
         // 不正パラメータ
         yield case "/sales-cases?limit=300&offset=0" 400 "bad-request"
         yield case "/sales-cases?limit=10&offset=-5" 400 "bad-request"

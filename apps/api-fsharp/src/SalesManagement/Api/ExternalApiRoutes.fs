@@ -67,50 +67,53 @@ type PriceCheckResponse =
       adjustmentRate: System.Nullable<decimal>
       source: string }
 
+let private toPriceCheckResponse (q: PriceQuote) : PriceCheckResponse =
+    { basePrice = q.BasePrice
+      adjustmentRate =
+        match q.AdjustmentRate with
+        | Some v -> System.Nullable v
+        | None -> System.Nullable()
+      source = q.Source |> Option.defaultValue "" }
+
 let priceCheckHandler () : HttpHandler =
     fun next ctx -> task {
-        let lotIdRaw =
-            match ctx.Request.Query.TryGetValue("lotId") with
-            | true, values when values.Count > 0 -> values.[0]
-            | _ -> ""
+        match QueryGuard.tryFindInvalidQuery [ "lotId" ] ctx with
+        | Some err -> return! SalesManagement.Api.ProblemDetails.toResponse "ExternalPricing" err next ctx
+        | None ->
 
-        if System.String.IsNullOrEmpty lotIdRaw then
-            return!
-                writeJson
-                    400
-                    { Type = "bad-request"
-                      Title = "Bad Request"
-                      Status = 400
-                      Detail = "lotId is required" }
-                    next
-                    ctx
-        elif Option.isNone (LotNumber.tryParse lotIdRaw) then
-            return!
-                writeJson
-                    400
-                    { Type = "bad-request"
-                      Title = "Bad Request"
-                      Status = 400
-                      Detail = sprintf "Invalid lotId format: '%s'" lotIdRaw }
-                    next
-                    ctx
-        else
-            let client = ctx.RequestServices.GetRequiredService<IExternalPricingClient>()
+            let lotIdRaw =
+                match ctx.Request.Query.TryGetValue("lotId") with
+                | true, values when values.Count > 0 -> values.[0]
+                | _ -> ""
 
-            let! result = client.FetchPriceAsync(lotIdRaw)
+            if System.String.IsNullOrEmpty lotIdRaw then
+                return!
+                    writeJson
+                        400
+                        { Type = "bad-request"
+                          Title = "Bad Request"
+                          Status = 400
+                          Detail = "lotId is required" }
+                        next
+                        ctx
+            elif Option.isNone (LotNumber.tryParse lotIdRaw) then
+                return!
+                    writeJson
+                        400
+                        { Type = "bad-request"
+                          Title = "Bad Request"
+                          Status = 400
+                          Detail = sprintf "Invalid lotId format: '%s'" lotIdRaw }
+                        next
+                        ctx
+            else
+                let client = ctx.RequestServices.GetRequiredService<IExternalPricingClient>()
 
-            match result with
-            | Error err -> return! respondError err next ctx
-            | Ok q ->
-                let body: PriceCheckResponse =
-                    { basePrice = q.BasePrice
-                      adjustmentRate =
-                        match q.AdjustmentRate with
-                        | Some v -> System.Nullable v
-                        | None -> System.Nullable()
-                      source = q.Source |> Option.defaultValue "" }
+                let! result = client.FetchPriceAsync(lotIdRaw)
 
-                return! json body next ctx
+                match result with
+                | Error err -> return! respondError err next ctx
+                | Ok q -> return! json (toPriceCheckResponse q) next ctx
     }
 
 let routes () : HttpHandler =

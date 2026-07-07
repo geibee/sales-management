@@ -53,40 +53,51 @@ let private tryGetStringQuery (ctx: HttpContext) (key: string) : string option =
 
 let listSalesCasesHandler (connectionString: string) : HttpHandler =
     fun next ctx -> task {
-        let limitR = tryGetIntQuery ctx "limit"
-        let offsetR = tryGetIntQuery ctx "offset"
+        match QueryGuard.tryFindInvalidQuery [ "status"; "caseType"; "limit"; "offset" ] ctx with
+        | Some err -> return! toResponse "SalesCase" err next ctx
+        | None ->
 
-        match limitR, offsetR with
-        | Error msg, _ -> return! badRequest msg next ctx
-        | _, Error msg -> return! badRequest msg next ctx
-        | Ok limitOpt, Ok offsetOpt ->
-            let limit = limitOpt |> Option.defaultValue 50
-            let offset = offsetOpt |> Option.defaultValue 0
+            let limitR = tryGetIntQuery ctx "limit"
+            let offsetR = tryGetIntQuery ctx "offset"
 
-            if limit < 1 || limit > 200 then
-                return! badRequest "limit must be between 1 and 200" next ctx
-            elif offset < 0 then
-                return! badRequest "offset must be >= 0" next ctx
-            else
-                let status = tryGetStringQuery ctx "status"
-                let caseType = tryGetStringQuery ctx "caseType"
+            match limitR, offsetR with
+            | Error msg, _ -> return! badRequest msg next ctx
+            | _, Error msg -> return! badRequest msg next ctx
+            | Ok limitOpt, Ok offsetOpt ->
+                let limit = limitOpt |> Option.defaultValue 50
+                let offset = offsetOpt |> Option.defaultValue 0
 
-                use conn = new NpgsqlConnection(connectionString)
-                conn.Open()
+                if limit < 1 || limit > 200 then
+                    return! badRequest "limit must be between 1 and 200" next ctx
+                elif offset < 0 then
+                    return! badRequest "offset must be >= 0" next ctx
+                elif
+                    (match tryGetStringQuery ctx "caseType" with
+                     | Some c -> not (List.contains c [ "direct"; "reservation"; "consignment" ])
+                     | None -> false)
+                then
+                    // openapi.yaml の enum と対。未知の値を無視して全件返す fail-open を防ぐ
+                    return! badRequest "caseType must be one of: direct, reservation, consignment" next ctx
+                else
+                    let status = tryGetStringQuery ctx "status"
+                    let caseType = tryGetStringQuery ctx "caseType"
 
-                let result =
-                    SalesCaseListRepository.list
-                        conn
-                        { Status = status
-                          CaseType = caseType
-                          Limit = limit
-                          Offset = offset }
+                    use conn = new NpgsqlConnection(connectionString)
+                    conn.Open()
 
-                let response: ListSalesCasesResponse =
-                    { items = result.Items |> List.map toSalesCaseSummary |> List.toArray
-                      total = result.Total
-                      limit = result.Limit
-                      offset = result.Offset }
+                    let result =
+                        SalesCaseListRepository.list
+                            conn
+                            { Status = status
+                              CaseType = caseType
+                              Limit = limit
+                              Offset = offset }
 
-                return! json response next ctx
+                    let response: ListSalesCasesResponse =
+                        { items = result.Items |> List.map toSalesCaseSummary |> List.toArray
+                          total = result.Total
+                          limit = result.Limit
+                          offset = result.Offset }
+
+                    return! json response next ctx
     }

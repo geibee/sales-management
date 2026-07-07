@@ -28,6 +28,7 @@
     <Compile Include="Infrastructure/OutboxRepository.fs" />
     <Compile Include="Infrastructure/OutboxProcessor.fs" />
     <Compile Include="Api/ProblemDetails.fs" />
+    <Compile Include="Api/QueryGuard.fs" />
     <Compile Include="Api/LotDtos.fs" />
     <Compile Include="Api/CodeMasterDtos.fs" />
     <Compile Include="Api/Auth.fs" />

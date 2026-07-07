@@ -61,6 +61,14 @@ jobs:
         with:
           node-version: 24 # Renovate dry-run (npx renovate) 用
 
+      - name: WireMock を起動 (price-check の外部 API スタブ。無いと fuzz が 502 で不安定)
+        working-directory: apps/api-fsharp
+        run: |
+          docker compose up -d wiremock
+          for i in $(seq 1 30); do
+            curl -sf --max-time 2 http://localhost:8181/__admin/health >/dev/null 2>&1 && break
+            sleep 1
+          done
       - name: dotnet ローカルツールを復元 (fantomas / fsharplint / CycloneDX)
         working-directory: apps/api-fsharp
         run: dotnet tool restore
