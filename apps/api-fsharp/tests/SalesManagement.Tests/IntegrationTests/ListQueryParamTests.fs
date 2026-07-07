@@ -73,15 +73,17 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
 
     // ───────────────────────────────────────────────────────────────
     // GET /lots — limit/offset/status 組合せ
-    // status は free-form でリポジトリ側に渡るだけ → 任意文字列で 200
+    // status は openapi.yaml の LotStatus enum で検証され、未知の値は 400
+    // (無視して全件返す fail-open を防ぐ。issue #9 Tier2-15)
     // ───────────────────────────────────────────────────────────────
     static member LotsComboCases: obj[] seq = seq {
         yield case "/lots" 200 ""
         yield case "/lots?limit=10&offset=0" 200 ""
         yield case "/lots?limit=10&offset=0&status=manufacturing" 200 ""
-        yield case "/lots?limit=200&offset=0&status=completed" 200 ""
+        yield case "/lots?limit=200&offset=0&status=shipped" 200 ""
         yield case "/lots?status=manufacturing" 200 ""
-        yield case "/lots?status=anything-goes" 200 ""
+        yield case "/lots?status=anything-goes" 400 "validation-error"
+        yield case "/lots?status=completed" 400 "validation-error"
         yield case "/lots?status=" 400 "validation-error"
         // 一方のパラメータが不正なら全体が 400
         yield case "/lots?limit=300&offset=0" 400 "validation-error"
@@ -101,17 +103,19 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
     }
 
     // ───────────────────────────────────────────────────────────────
-    // GET /lots — 未知キーは無視 / 重複指定はパース失敗で 400
+    // GET /lots — 未知キーは 400 / 重複指定はパース失敗で 400
+    // 未知キーは QueryGuard が拒否する (タイポで絞り込みが効かない
+    // fail-open を防ぐ。issue #9 Tier2-15)。
     // ASP.NET の StringValues は同名キーをカンマ結合するため
     // "?limit=10&limit=20" は "10,20" として Int32.TryParse 失敗 → 400
     // ───────────────────────────────────────────────────────────────
     static member LotsKeyHandlingCases: obj[] seq = seq {
-        // 未知キーは無視され 200 を返す
-        yield case "/lots?sort=createdAt" 200 ""
-        yield case "/lots?filter=foo" 200 ""
-        yield case "/lots?unknown=bar" 200 ""
-        yield case "/lots?sort=createdAt&filter=foo&unknown=bar" 200 ""
-        yield case "/lots?limit=10&sort=desc&offset=0" 200 ""
+        // 未知キーは QueryGuard で 400
+        yield case "/lots?sort=createdAt" 400 "validation-error"
+        yield case "/lots?filter=foo" 400 "validation-error"
+        yield case "/lots?unknown=bar" 400 "validation-error"
+        yield case "/lots?sort=createdAt&filter=foo&unknown=bar" 400 "validation-error"
+        yield case "/lots?limit=10&sort=desc&offset=0" 400 "validation-error"
         // 重複キーはカンマ結合により int パース失敗 → 400
         yield case "/lots?limit=10&limit=20" 400 "validation-error"
         yield case "/lots?offset=0&offset=10" 400 "validation-error"
@@ -180,7 +184,9 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
 
     // ───────────────────────────────────────────────────────────────
     // GET /sales-cases — limit/offset/status/caseType 組合せ
-    // status, caseType は free-form (リポジトリ側で SQL filter)
+    // caseType は enum (direct/reservation/consignment) で検証され
+    // 未知の値は 400 (issue #9 Tier2-15)。status は free-form
+    // (リポジトリ側で SQL filter)
     // ───────────────────────────────────────────────────────────────
     static member SalesCasesComboCases: obj[] seq = seq {
         yield case "/sales-cases" 200 ""
@@ -189,8 +195,8 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
         yield case "/sales-cases?caseType=direct" 200 ""
         yield case "/sales-cases?caseType=reservation" 200 ""
         yield case "/sales-cases?caseType=consignment" 200 ""
-        yield case "/sales-cases?caseType=anything-goes" 200 ""
-        yield case "/sales-cases?status=anything&caseType=anything" 200 ""
+        yield case "/sales-cases?caseType=anything-goes" 400 "bad-request"
+        yield case "/sales-cases?status=anything&caseType=anything" 400 "bad-request"
         yield case "/sales-cases?status=" 400 "validation-error"
         yield case "/sales-cases?caseType=" 400 "validation-error"
         // 不正パラメータ
@@ -211,14 +217,15 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
     }
 
     // ───────────────────────────────────────────────────────────────
-    // GET /sales-cases — 未知キーは無視 / 重複指定は 400
+    // GET /sales-cases — 未知キーは QueryGuard で 400 / 重複指定は 400
+    // (issue #9 Tier2-15)
     // ───────────────────────────────────────────────────────────────
     static member SalesCasesKeyHandlingCases: obj[] seq = seq {
-        yield case "/sales-cases?sort=createdAt" 200 ""
-        yield case "/sales-cases?filter=foo" 200 ""
-        yield case "/sales-cases?unknown=bar" 200 ""
-        yield case "/sales-cases?sort=createdAt&filter=foo&unknown=bar" 200 ""
-        yield case "/sales-cases?limit=10&sort=desc&offset=0" 200 ""
+        yield case "/sales-cases?sort=createdAt" 400 "validation-error"
+        yield case "/sales-cases?filter=foo" 400 "validation-error"
+        yield case "/sales-cases?unknown=bar" 400 "validation-error"
+        yield case "/sales-cases?sort=createdAt&filter=foo&unknown=bar" 400 "validation-error"
+        yield case "/sales-cases?limit=10&sort=desc&offset=0" 400 "validation-error"
         yield case "/sales-cases?limit=10&limit=20" 400 "bad-request"
         yield case "/sales-cases?offset=0&offset=10" 400 "bad-request"
         yield case "/sales-cases?limit=10&limit=10" 400 "bad-request"

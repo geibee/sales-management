@@ -238,11 +238,17 @@ verify_frontend() {
   pnpm lint:contracts
   # 生成コードドリフト検査: generated.ts が openapi.yaml と同期しているか
   pnpm check:contracts-drift
+  # デッドコード検出 (未使用 export / 未使用依存 / 未参照ファイル。issue #9 Tier2-16)
+  pnpm knip
   # テスト + カバレッジラチェット (coverage-baseline.json から退行したら失敗)
   pnpm test:coverage
   # 本番ビルド (typecheck では検出できない Vite ビルド破壊 —
   # 動的 import / asset 解決 / Tailwind 等 — を PR 時点で検出する)
   pnpm build
+  # バックエンドレス smoke E2E (MSW モックでの主要導線。issue #9 Tier2-16)。
+  # chromium 未導入環境では fail-closed にせずスキップすると素通りになるため、
+  # playwright 実行自体に失敗解決を委ねる (ブラウザ欠如はエラーで落ちる)
+  pnpm test:e2e:smoke
   log "frontend PASS"
 
   popd >/dev/null

@@ -130,6 +130,11 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: apps/frontend/pnpm-lock.yaml
+      - name: Playwright chromium をインストール (smoke E2E 用)
+        working-directory: apps/frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
       - name: 統合 verify (frontend スコープ)
         env:
           VERIFY_SCOPE: frontend

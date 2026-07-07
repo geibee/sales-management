@@ -127,7 +127,9 @@ export function SalesCaseListPage() {
                 <th>種別</th>
                 <th>状態</th>
                 <th>販売日</th>
-                <th style={{ width: 36 }} />
+                <th style={{ width: 36 }}>
+                  <span className="sr-only">詳細</span>
+                </th>
               </tr>
             </thead>
             <tbody>
