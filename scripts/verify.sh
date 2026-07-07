@@ -194,6 +194,13 @@ verify_backend() {
     || fail "coverage.cobertura.xml が生成されていません (fail-closed: 計測できないものを緑にしない)"
   python3 scripts/coverage-ratchet.py "$cobertura"
 
+  # 契約カバレッジラチェット (統合テストが 2xx で到達した operationId の記録と
+  # openapi.yaml の全 operation を突合し、未到達 operation の増加 = 新規 API の
+  # テスト追加漏れを検出する)
+  [[ -f coverage/operation-coverage.json ]] \
+    || fail "operation-coverage.json が生成されていません (fail-closed: 契約カバレッジを検証できない)"
+  python3 scripts/operation-coverage-ratchet.py coverage/operation-coverage.json
+
   log "backend PASS"
 
   popd >/dev/null

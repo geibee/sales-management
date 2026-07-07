@@ -28,6 +28,7 @@
     <Compile Include="IntegrationTests/ConfigurationTests.fs" />
     <Compile Include="IntegrationTests/LotErrorHandlingTests.fs" />
     <Compile Include="IntegrationTests/JwtAuthenticationTests.fs" />
+    <Compile Include="IntegrationTests/AuthorizationMatrixTests.fs" />
     <Compile Include="IntegrationTests/HealthAndOpenApiTests.fs" />
     <Compile Include="IntegrationTests/LotLifecycleTests.fs" />
     <Compile Include="IntegrationTests/ExternalPricingTests.fs" />

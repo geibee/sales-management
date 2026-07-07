@@ -43,6 +43,42 @@ let private document: Lazy<OpenApiDocument> =
 
          doc)
 
+/// 認可マトリクス等、spec 由来でテストケースを列挙するテストに公開する。
+let specDocument () : OpenApiDocument = document.Value
+
+// ---------------------------------------------------------------- operation カバレッジ記録
+
+/// 統合テストが 2xx で到達した operationId の記録先。verify.sh の
+/// scripts/operation-coverage-ratchet.py が「テスト未到達 operation」を
+/// baseline と比較する契約カバレッジラチェットの入力になる (issue #9 Tier2-12)。
+let private coverageFilePath =
+    match Environment.GetEnvironmentVariable "OPERATION_COVERAGE_FILE" with
+    | null
+    | "" ->
+        let baseDir = AppContext.BaseDirectory
+
+        Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "coverage", "operation-coverage.json"))
+    | v -> Path.GetFullPath v
+
+let private coverageLock = obj ()
+let private coveredOperations = System.Collections.Generic.HashSet<string>()
+
+/// 新規 operationId の到達を記録し、記録ファイルを書き直す。
+/// xunit コレクションは直列実行だが、念のため lock で保護する。
+let private recordOperationHit (operationId: string) : unit =
+    if not (String.IsNullOrEmpty operationId) then
+        lock coverageLock (fun () ->
+            if coveredOperations.Add operationId then
+                Directory.CreateDirectory(Path.GetDirectoryName coverageFilePath) |> ignore
+
+                let json =
+                    coveredOperations
+                    |> Seq.sort
+                    |> Seq.map (sprintf "\"%s\"")
+                    |> String.concat ", "
+
+                File.WriteAllText(coverageFilePath, sprintf "[%s]" json))
+
 // ---------------------------------------------------------------- $ref 解決
 
 let private resolveSchema (doc: OpenApiDocument) (schema: OpenApiSchema) : OpenApiSchema =
@@ -243,6 +279,9 @@ let private validateResponse
         match tryFindOperation doc request.Method path with
         | None -> () // spec 外の path / method は対象外 (dev 用エンドポイント等)
         | Some(template, operation) ->
+            if int response.StatusCode >= 200 && int response.StatusCode < 300 then
+                recordOperationHit operation.OperationId
+
             let statusKey = string (int response.StatusCode)
 
             match operation.Responses.TryGetValue statusKey with
