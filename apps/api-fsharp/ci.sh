@@ -111,8 +111,10 @@ NEED_APP=0
 [ $PACT_ENABLED -eq 1 ] && NEED_APP=1
 
 if [ $NEED_APP -eq 1 ]; then
-    echo "=== アプリ起動 (Pact / ZAP 用) ==="
-    dotnet run --project src/SalesManagement --no-build &
+    echo "=== アプリ起動 (Pact / ZAP / Schemathesis 用) ==="
+    # fuzz は大量リクエストを送るため、レート制限を実質無効化する
+    # (429 はフレークの温床で、error 昇格した Schemathesis ゲートを不安定にする)
+    dotnet run --project src/SalesManagement --no-build -- --RateLimit:PermitLimit=1000000 &
     APP_PID=$!
 
     for _ in {1..30}; do
@@ -191,6 +193,7 @@ if [ "$SCHEMATHESIS_ENABLED" = "1" ]; then
         run /app/openapi.yaml \
             --url http://localhost:5000 \
             --checks all \
+            --exclude-checks unsupported_method \
             -n 200 \
             --seed 42 \
             --request-timeout 2.0 \
@@ -201,7 +204,7 @@ if [ "$SCHEMATHESIS_ENABLED" = "1" ]; then
             --report-junit-path /app/ci-results/schemathesis-junit.xml
     SCHEMATHESIS_EXIT=$?
     set -e
-    echo "Schemathesis exit=$SCHEMATHESIS_EXIT (informational; SARIF が canonical)"
+    echo "Schemathesis exit=$SCHEMATHESIS_EXIT"
 else
     echo "=== API Fuzz (Schemathesis) — SKIPPED (SCHEMATHESIS_ENABLED=0) ==="
     SCHEMATHESIS_EXIT=0
@@ -278,6 +281,15 @@ PY
 if [ $ZAP_EXIT -ne 0 ]; then
     echo "DAST: 脆弱性が検出されました (exit=$ZAP_EXIT)"
     echo "レポート: $RESULTS_DIR/zap-report.html"
+    exit 1
+fi
+
+# Schemathesis は既知検出のトリアージ完了に伴い error 昇格 (issue #9 Tier2-15)。
+# unsupported_method (405 全数対応) は §5 HTTP セマンティクスの対応後に有効化する。
+# 認可系チェックは hooks で root security を外しているため対象外
+# (認可の全数検証は決定的な AuthorizationMatrixTests が担う)
+if [ "$SCHEMATHESIS_ENABLED" = "1" ] && [ "$SCHEMATHESIS_EXIT" -ne 0 ]; then
+    echo "API Fuzz: Schemathesis が契約違反を検出しました (exit=$SCHEMATHESIS_EXIT)"
     exit 1
 fi
 

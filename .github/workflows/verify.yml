@@ -70,6 +70,8 @@ jobs:
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
           sudo install /tmp/gitleaks /usr/local/bin/gitleaks
           gitleaks version
+      - name: ruff / pytest インストール (python ゲートスクリプト検査)
+        run: pip install --quiet ruff pytest
       - name: 統合 verify (repo スコープ)
         env:
           VERIFY_SCOPE: repo
@@ -130,6 +132,13 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: apps/frontend/pnpm-lock.yaml
+      - name: ast-grep をインストール (禁止パターン検査)
+        run: npm install -g @ast-grep/cli
+      - name: Playwright chromium をインストール (smoke E2E 用)
+        working-directory: apps/frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
       - name: 統合 verify (frontend スコープ)
         env:
           VERIFY_SCOPE: frontend

@@ -35,37 +35,45 @@ const createLot_Body = z
   .object({
     lotNumber: z
       .object({
-        year: z.number().int(),
-        location: z.string(),
-        seq: z.number().int(),
+        year: z.number().int().gte(1).lte(2147483647),
+        location: z
+          .string()
+          .min(1)
+          .regex(/^[^-\s\u0000]+$/u),
+        seq: z.number().int().gte(1).lte(2147483647),
       })
-      .partial()
       .passthrough(),
-    divisionCode: z.number().int(),
-    departmentCode: z.number().int(),
-    sectionCode: z.number().int(),
-    processCategory: z.number().int(),
-    inspectionCategory: z.number().int(),
-    manufacturingCategory: z.number().int(),
-    details: z.array(
-      z
-        .object({
-          itemCategory: z.string(),
-          premiumCategory: z.string(),
-          productCategoryCode: z.string(),
-          lengthSpecLower: z.number(),
-          thicknessSpecLower: z.number(),
-          thicknessSpecUpper: z.number(),
-          qualityGrade: z.string(),
-          count: z.number().int(),
-          quantity: z.number(),
-          inspectionResultCategory: z.string(),
-        })
-        .partial()
-        .passthrough()
-    ),
+    divisionCode: z.number().int().gte(-2147483648).lte(2147483647),
+    departmentCode: z.number().int().gte(-2147483648).lte(2147483647),
+    sectionCode: z.number().int().gte(-2147483648).lte(2147483647),
+    processCategory: z.number().int().gte(-2147483648).lte(2147483647),
+    inspectionCategory: z.number().int().gte(-2147483648).lte(2147483647),
+    manufacturingCategory: z.number().int().gte(-2147483648).lte(2147483647),
+    details: z
+      .array(
+        z
+          .object({
+            itemCategory: z.enum(["general", "premium", "custom"]),
+            premiumCategory: z
+              .string()
+              .regex(/^[^\u0000]*$/u)
+              .optional(),
+            productCategoryCode: z.string().regex(/^[^\u0000]*$/u),
+            lengthSpecLower: z.number().gte(-9999999999).lte(9999999999),
+            thicknessSpecLower: z.number().gte(-9999999999).lte(9999999999),
+            thicknessSpecUpper: z.number().gte(-9999999999).lte(9999999999),
+            qualityGrade: z.string().regex(/^[^\u0000]*$/u),
+            count: z.number().int().gte(1).lte(2147483647),
+            quantity: z.number().gte(0.001).lte(9999999999),
+            inspectionResultCategory: z
+              .string()
+              .regex(/^[^\u0000]*$/u)
+              .optional(),
+          })
+          .passthrough()
+      )
+      .min(1),
   })
-  .partial()
   .passthrough();
 const CreateLotResponse = z
   .object({
@@ -140,13 +148,22 @@ const LotResponse = z
   })
   .passthrough();
 const completeManufacturing_Body = z
-  .object({ date: z.string(), version: z.number().int().gte(1) })
+  .object({
+    date: z.string(),
+    version: z.number().int().gte(1).lte(2147483647),
+  })
   .passthrough();
 const instructLotShipping_Body = z
-  .object({ deadline: z.string(), version: z.number().int().gte(1) })
+  .object({
+    deadline: z.string(),
+    version: z.number().int().gte(1).lte(2147483647),
+  })
   .passthrough();
 const instructItemConversion_Body = z
-  .object({ destinationItem: z.string(), version: z.number().int().gte(1) })
+  .object({
+    destinationItem: z.string(),
+    version: z.number().int().gte(1).lte(2147483647),
+  })
   .passthrough();
 const SalesCaseType = z.enum(["direct", "reservation", "consignment"]);
 const SalesCaseSummary = z
@@ -168,8 +185,10 @@ const SalesCasesListResponse = z
   .passthrough();
 const createSalesCase_Body = z
   .object({
-    lots: z.array(z.string()).min(1),
-    divisionCode: z.number().int(),
+    lots: z
+      .array(z.string().regex(/^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$/u))
+      .min(1),
+    divisionCode: z.number().int().gte(-2147483648).lte(2147483647),
     salesDate: z.string(),
     caseType: z.enum(["direct", "reservation", "consignment"]),
   })
@@ -182,7 +201,12 @@ const CreatedSalesCaseResponse = z
   })
   .passthrough();
 const EditCaseLotsRequest = z
-  .object({ lots: z.array(z.string()), version: z.number().int() })
+  .object({
+    lots: z
+      .array(z.string().regex(/^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$/u))
+      .min(1),
+    version: z.number().int().gte(1).lte(2147483647),
+  })
   .passthrough();
 const DirectAppraisal = z
   .object({
@@ -316,7 +340,7 @@ const createSalesAppraisal_Body = z
           .passthrough()
       )
       .min(1),
-    version: z.number().int().gte(1),
+    version: z.number().int().gte(1).lte(2147483647),
   })
   .passthrough();
 const createSalesContract_Body = z
@@ -337,7 +361,7 @@ const createSalesContract_Body = z
     consumptionTax: z.number().int(),
     taxExcludedPaymentAmount: z.number().int(),
     paymentConsumptionTax: z.number().int(),
-    version: z.number().int().gte(1),
+    version: z.number().int().gte(1).lte(2147483647),
   })
   .passthrough();
 const createReservationPrice_Body = z
@@ -345,7 +369,7 @@ const createReservationPrice_Body = z
     appraisalDate: z.string(),
     reservedLotInfo: z.string(),
     reservedAmount: z.number().int(),
-    version: z.number().int().gte(1),
+    version: z.number().int().gte(1).lte(2147483647),
   })
   .passthrough();
 const ReservationStatusResponse = z
@@ -355,18 +379,21 @@ const confirmReservation_Body = z
   .object({
     determinedDate: z.string(),
     determinedAmount: z.number().int(),
-    version: z.number().int().gte(1),
+    version: z.number().int().gte(1).lte(2147483647),
   })
   .passthrough();
 const deliverReservation_Body = z
-  .object({ deliveryDate: z.string(), version: z.number().int().gte(1) })
+  .object({
+    deliveryDate: z.string(),
+    version: z.number().int().gte(1).lte(2147483647),
+  })
   .passthrough();
 const designateConsignment_Body = z
   .object({
     consignorName: z.string(),
     consignorCode: z.string(),
     designatedDate: z.string(),
-    version: z.number().int().gte(1),
+    version: z.number().int().gte(1).lte(2147483647),
   })
   .passthrough();
 const ConsignmentStatusResponse = z
@@ -376,7 +403,7 @@ const registerConsignmentResult_Body = z
   .object({
     resultDate: z.string(),
     resultAmount: z.number().int(),
-    version: z.number().int().gte(1),
+    version: z.number().int().gte(1).lte(2147483647),
   })
   .passthrough();
 const PriceCheckResponse = z
@@ -450,7 +477,7 @@ const endpoints = makeApi([
       {
         name: "lotId",
         type: "Query",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$/u),
       },
     ],
     response: PriceCheckResponse,
@@ -530,7 +557,7 @@ const endpoints = makeApi([
       {
         name: "offset",
         type: "Query",
-        schema: z.number().int().gte(0).optional().default(0),
+        schema: z.number().int().gte(0).lte(2147483647).optional().default(0),
       },
     ],
     response: LotsListResponse,
@@ -577,7 +604,7 @@ const endpoints = makeApi([
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$/u),
       },
     ],
     response: LotResponse,
@@ -603,12 +630,14 @@ const endpoints = makeApi([
       {
         name: "body",
         type: "Body",
-        schema: z.object({ version: z.number().int().gte(1) }).passthrough(),
+        schema: z
+          .object({ version: z.number().int().gte(1).lte(2147483647) })
+          .passthrough(),
       },
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$/u),
       },
     ],
     response: LotResponse,
@@ -648,7 +677,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$/u),
       },
     ],
     response: LotResponse,
@@ -684,7 +713,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$/u),
       },
     ],
     response: LotResponse,
@@ -720,7 +749,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$/u),
       },
     ],
     response: LotResponse,
@@ -751,12 +780,14 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "body",
         type: "Body",
-        schema: z.object({ version: z.number().int().gte(1) }).passthrough(),
+        schema: z
+          .object({ version: z.number().int().gte(1).lte(2147483647) })
+          .passthrough(),
       },
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$/u),
       },
     ],
     response: LotResponse,
@@ -792,7 +823,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$/u),
       },
     ],
     response: LotResponse,
@@ -826,7 +857,10 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "excludeCase",
         type: "Query",
-        schema: z.string().optional(),
+        schema: z
+          .string()
+          .regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/)
+          .optional(),
       },
     ],
     response: AvailableLotsResponse,
@@ -887,7 +921,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "status",
         type: "Query",
-        schema: z.string().optional(),
+        schema: z.string().min(1).optional(),
       },
       {
         name: "caseType",
@@ -902,7 +936,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "offset",
         type: "Query",
-        schema: z.number().int().gte(0).optional().default(0),
+        schema: z.number().int().gte(0).lte(2147483647).optional().default(0),
       },
     ],
     response: SalesCasesListResponse,
@@ -933,6 +967,11 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         description: `不正リクエスト。RFC 9457 Problem Details 形式`,
         schema: z.void(),
       },
+      {
+        status: 404,
+        description: `リソースなし。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
     ],
   },
   {
@@ -947,7 +986,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: SalesCaseDetailResponse,
@@ -973,7 +1012,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: z.void(),
@@ -1004,7 +1043,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: CreatedSalesCaseResponse,
@@ -1040,7 +1079,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: CreatedSalesCaseResponse,
@@ -1071,12 +1110,14 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "body",
         type: "Body",
-        schema: z.object({ version: z.number().int().gte(1) }).passthrough(),
+        schema: z
+          .object({ version: z.number().int().gte(1).lte(2147483647) })
+          .passthrough(),
       },
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: z.void(),
@@ -1112,7 +1153,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: ConsignmentStatusResponse,
@@ -1143,12 +1184,14 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "body",
         type: "Body",
-        schema: z.object({ version: z.number().int().gte(1) }).passthrough(),
+        schema: z
+          .object({ version: z.number().int().gte(1).lte(2147483647) })
+          .passthrough(),
       },
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: ConsignmentStatusResponse,
@@ -1184,7 +1227,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: ConsignmentStatusResponse,
@@ -1220,7 +1263,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: CreatedSalesCaseResponse,
@@ -1251,12 +1294,14 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "body",
         type: "Body",
-        schema: z.object({ version: z.number().int().gte(1) }).passthrough(),
+        schema: z
+          .object({ version: z.number().int().gte(1).lte(2147483647) })
+          .passthrough(),
       },
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: z.void(),
@@ -1296,7 +1341,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: CreatedSalesCaseResponse,
@@ -1332,7 +1377,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: ReservationStatusResponse,
@@ -1368,7 +1413,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: ReservationStatusResponse,
@@ -1399,12 +1444,14 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "body",
         type: "Body",
-        schema: z.object({ version: z.number().int().gte(1) }).passthrough(),
+        schema: z
+          .object({ version: z.number().int().gte(1).lte(2147483647) })
+          .passthrough(),
       },
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: ReservationStatusResponse,
@@ -1440,7 +1487,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: ReservationStatusResponse,
@@ -1476,7 +1523,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: CreatedSalesCaseResponse,
@@ -1512,7 +1559,7 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: CreatedSalesCaseResponse,
@@ -1543,12 +1590,14 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         name: "body",
         type: "Body",
-        schema: z.object({ version: z.number().int().gte(1) }).passthrough(),
+        schema: z
+          .object({ version: z.number().int().gte(1).lte(2147483647) })
+          .passthrough(),
       },
       {
         name: "id",
         type: "Path",
-        schema: z.string(),
+        schema: z.string().regex(/^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$/),
       },
     ],
     response: z.void(),

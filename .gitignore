@@ -32,3 +32,6 @@ __pycache__/
 
 # Stray Spring build tree (成果物のみ・ソース無し。追跡対象外)
 apps/api-spring/
+
+# Schemathesis ローカル実行キャッシュ
+.schemathesis/

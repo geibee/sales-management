@@ -24,7 +24,6 @@ import json
 import os
 import pathlib
 import re
-import sys
 from collections import Counter
 from datetime import date
 

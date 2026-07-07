@@ -26,18 +26,24 @@ module LotNumber =
         sprintf "%d-%s-%03d" n.Year n.Location n.Seq
 
     let tryParse (s: string) : LotNumber option =
-        let parts = s.Split('-')
-
-        if parts.Length <> 3 then
+        // NUL (U+0000) は Postgres の TEXT に格納できず DB 例外 → 500 になるため
+        // ドメインの入口で不正として弾く
+        if isNull s || s.Contains '\u0000' then
             None
         else
-            match System.Int32.TryParse parts.[0], System.Int32.TryParse parts.[2] with
-            | (true, year), (true, seq) when parts.[1] <> "" ->
-                Some
-                    { Year = year
-                      Location = parts.[1]
-                      Seq = seq }
-            | _ -> None
+
+            let parts = s.Split('-')
+
+            if parts.Length <> 3 then
+                None
+            else
+                match System.Int32.TryParse parts.[0], System.Int32.TryParse parts.[2] with
+                | (true, year), (true, seq) when parts.[1] <> "" ->
+                    Some
+                        { Year = year
+                          Location = parts.[1]
+                          Seq = seq }
+                | _ -> None
 
 type Amount = private Amount of int
 

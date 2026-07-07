@@ -20,6 +20,14 @@ import type {
 import { describeApiError } from "@/lib/api-client";
 import { formatAmount } from "@/lib/format";
 import {
+  type AppraisalRateRow,
+  RATE_DISPLAY_DEFAULT,
+  RATE_DISPLAY_MAX,
+  RATE_DISPLAY_MIN,
+  computeEstimatedTotal as computeEstimatedTotalRows,
+  displayToApiRate,
+} from "@/lib/rate";
+import {
   CalendarDays,
   CircleDollarSign,
   ClipboardCheck,
@@ -43,12 +51,6 @@ type ActionBody = Record<string, unknown>;
 type SubmitBody = (body: ActionBody) => Promise<void>;
 
 type FieldErrors = Record<string, string>;
-
-// 調整率は画面では百分率で入力し（許容 90〜110）、API には 1/100 した値（0.9〜1.1）で送る。
-const RATE_DISPLAY_MIN = 90;
-const RATE_DISPLAY_MAX = 110;
-const RATE_DISPLAY_DEFAULT = 100;
-const RATE_DISPLAY_SCALE = 100;
 
 type BaseFormProps = {
   title: string;
@@ -938,24 +940,21 @@ function EstimatedTotalField({
 }
 
 /**
- * 明細フィールド（基準単価・各調整率）から税抜査定合計を求める。
- * 例外調整率は任意で、未入力なら 1 として扱う。Amount は整数なので合計を丸める。
+ * 明細フィールド（基準単価・各調整率）を画面値のまま行に読み出し、
+ * 合計計算は純粋関数 `lib/rate.computeEstimatedTotal` に委譲する。
  */
 function computeEstimatedTotal(fd: FormData, lotCount: number): number {
-  let total = 0;
+  const rows: AppraisalRateRow[] = [];
   for (let index = 0; index < lotCount; index++) {
-    // 調整率は画面の百分率を 1/100 した値で計算する（例外調整率は未入力なら ×1）。
-    const base = toNumber(fd.get(`baseUnitPrice-${index}`));
-    const period = toNumber(fd.get(`periodAdjustmentRate-${index}`)) / RATE_DISPLAY_SCALE;
-    const counterparty =
-      toNumber(fd.get(`counterpartyAdjustmentRate-${index}`)) / RATE_DISPLAY_SCALE;
     const exceptionalRaw = String(fd.get(`exceptionalPeriodAdjustmentRate-${index}`) ?? "").trim();
-    const exceptional = exceptionalRaw === "" ? 1 : Number(exceptionalRaw) / RATE_DISPLAY_SCALE;
-
-    if (![base, period, counterparty, exceptional].every(Number.isFinite)) continue;
-    total += base * period * counterparty * exceptional;
+    rows.push({
+      base: toNumber(fd.get(`baseUnitPrice-${index}`)),
+      period: toNumber(fd.get(`periodAdjustmentRate-${index}`)),
+      counterparty: toNumber(fd.get(`counterpartyAdjustmentRate-${index}`)),
+      exceptional: exceptionalRaw === "" ? null : Number(exceptionalRaw),
+    });
   }
-  return Math.round(total);
+  return computeEstimatedTotalRows(rows);
 }
 
 function toNumber(value: FormDataEntryValue | null): number {
@@ -1024,7 +1023,7 @@ class FieldReader {
       min: RATE_DISPLAY_MIN,
       max: RATE_DISPLAY_MAX,
     });
-    return Number.isFinite(display) ? display / RATE_DISPLAY_SCALE : display;
+    return Number.isFinite(display) ? displayToApiRate(display) : display;
   }
 
   optionalRate(name: string, label: string): number | null {
@@ -1033,7 +1032,7 @@ class FieldReader {
       min: RATE_DISPLAY_MIN,
       max: RATE_DISPLAY_MAX,
     });
-    return Number.isFinite(display) ? display / RATE_DISPLAY_SCALE : null;
+    return Number.isFinite(display) ? displayToApiRate(display) : null;
   }
 
   requiredInt(name: string, label: string, opts: { min?: number } = {}): number {

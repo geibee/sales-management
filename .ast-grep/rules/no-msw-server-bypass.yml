@@ -1,0 +1,25 @@
+# テストハーネス迂回の検出 (AGENTS.md「新規テストは Support/* を使うこと」の frontend 版)。
+# MSW サーバは tests/support/server.ts の共有インスタンス (onUnhandledRequest: error +
+# contract-guard による zod 契約検証) に一本化する。テストが独自に setupServer すると
+# 契約ドリフト検査 (Tier1-7) の網から外れるため禁止。
+id: no-msw-server-bypass
+language: typescript
+severity: error
+message: setupServer の直接呼び出しは禁止。tests/support/server.ts の共有 server (契約検証つき) を使う
+files:
+  - apps/frontend/tests/**
+  - apps/frontend/src/**
+ignores:
+  - apps/frontend/tests/support/server.ts
+rule:
+  pattern: setupServer($$$ARGS)
+---
+id: no-msw-server-bypass-tsx
+language: tsx
+severity: error
+message: setupServer の直接呼び出しは禁止。tests/support/server.ts の共有 server (契約検証つき) を使う
+files:
+  - apps/frontend/tests/**
+  - apps/frontend/src/**
+rule:
+  pattern: setupServer($$$ARGS)

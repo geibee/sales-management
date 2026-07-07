@@ -214,3 +214,122 @@ let versionOnlyBody (version: JsonValue) : string = render (JObject [ "version",
 /// `version` + 任意の日付フィールドを持つボディ（出庫日等の状態遷移エンドポイント共通形）
 let dateVersionBody (dateField: string) (date: JsonValue) (version: JsonValue) : string =
     render (JObject [ dateField, date; "version", version ])
+
+// ───────────────────────────────────────────────────────────────
+// 販売案件サブタイプ操作の共通ボディ
+// (AppraisalContractParamTests とステートフル PBT で共用する)
+// ───────────────────────────────────────────────────────────────
+
+/// defaults を overrides で差分上書きし、omit のキーを取り除いて JSON を返す。
+let buildBodyWith
+    (defaults: (string * JsonValue) list)
+    (overrides: (string * JsonValue) list)
+    (omit: string list)
+    : string =
+    let m = Map.ofList overrides
+    let omitSet = Set.ofList omit
+
+    let fields =
+        defaults
+        |> List.choose (fun (k, dflt) ->
+            if omitSet.Contains k then
+                None
+            else
+                m |> Map.tryFind k |> Option.defaultValue dflt |> (fun v -> Some(k, v)))
+
+    render (JObject fields)
+
+/// direct 査定の lotAppraisals 要素 1 件分 (正常値)。
+let directLotAppraisal (lotId: string) : JsonValue =
+    JObject
+        [ "lotNumber", JString lotId
+          "detailAppraisals",
+          JArray
+              [ JObject
+                    [ "detailIndex", JInt 1
+                      "baseUnitPrice", JInt 1000
+                      "periodAdjustmentRate", JDecimal 1m
+                      "counterpartyAdjustmentRate", JDecimal 1m ] ] ]
+
+/// `POST/PUT /sales-cases/{id}/appraisals` (direct) の正常ボディ。
+let directAppraisalBody
+    (lotId: string)
+    (version: int)
+    (overrides: (string * JsonValue) list)
+    (omit: string list)
+    : string =
+    buildBodyWith
+        [ "type", JString "normal"
+          "appraisalDate", JString "2026-01-20"
+          "deliveryDate", JString "2026-01-25"
+          "salesMarket", JString "market"
+          "baseUnitPriceDate", JString "2026-01-01"
+          "periodAdjustmentRateDate", JString "2026-01-01"
+          "counterpartyAdjustmentRateDate", JString "2026-01-01"
+          "taxExcludedEstimatedTotal", JInt 100000
+          "lotAppraisals", JArray [ directLotAppraisal lotId ]
+          "version", JInt version ]
+        overrides
+        omit
+
+/// `POST /sales-cases/{id}/contracts` (direct) の正常ボディ。
+let directContractBody (version: int) (overrides: (string * JsonValue) list) (omit: string list) : string =
+    buildBodyWith
+        [ "contractDate", JString "2026-02-01"
+          "person", JString "person"
+          "buyer", JObject [ "customerNumber", JString "CUST001"; "agentName", JString "agent" ]
+          "salesType", JInt 1
+          "item", JString "item"
+          "deliveryMethod", JString "method"
+          "paymentDeferralCondition", JString ""
+          "salesMethod", JInt 1
+          "usage", JString ""
+          "taxExcludedContractAmount", JInt 100000
+          "consumptionTax", JInt 10000
+          "taxExcludedPaymentAmount", JInt 100000
+          "paymentConsumptionTax", JInt 10000
+          "version", JInt version ]
+        overrides
+        omit
+
+/// `POST /sales-cases/{id}/reservation/appraisals` の正常ボディ。
+let reservationAppraisalBody (version: int) : string =
+    render (
+        JObject
+            [ "appraisalDate", JString "2026-01-20"
+              "reservedLotInfo", JString "reserved-lot-info"
+              "reservedAmount", JInt 1000
+              "version", JInt version ]
+    )
+
+/// `POST /sales-cases/{id}/reservation/determine` の正常ボディ。
+let reservationDetermineBody (version: int) : string =
+    render (
+        JObject
+            [ "determinedDate", JString "2026-02-01"
+              "determinedAmount", JInt 1200
+              "version", JInt version ]
+    )
+
+/// `POST /sales-cases/{id}/reservation/delivery` の正常ボディ。
+let reservationDeliveryBody (version: int) : string =
+    render (JObject [ "deliveryDate", JString "2026-03-01"; "version", JInt version ])
+
+/// `POST /sales-cases/{id}/consignment/designate` の正常ボディ。
+let consignmentDesignateBody (version: int) : string =
+    render (
+        JObject
+            [ "consignorName", JString "consignor"
+              "consignorCode", JString "C001"
+              "designatedDate", JString "2026-01-20"
+              "version", JInt version ]
+    )
+
+/// `POST /sales-cases/{id}/consignment/result` の正常ボディ。
+let consignmentResultBody (version: int) : string =
+    render (
+        JObject
+            [ "resultDate", JString "2026-03-01"
+              "resultAmount", JInt 900
+              "version", JInt version ]
+    )

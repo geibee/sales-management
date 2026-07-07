@@ -110,10 +110,15 @@ let private duplicateLotResponse (lotNumber: string) : HttpHandler =
         ctx.Response.StatusCode <- 409
         ctx.Response.ContentType <- "application/problem+json"
 
+        // lotNumber は利用者入力由来 (制御文字・引用符を含み得る)。手組みの文字列
+        // 連結だと不正な JSON になるため、detail 全体をシリアライザでエスケープする
+        let detail =
+            System.Text.Json.JsonSerializer.Serialize(sprintf "Lot %s already exists" lotNumber)
+
         let body =
             sprintf
-                """{"type":"https://errors.example.com/duplicate-resource","title":"Duplicate resource","status":409,"detail":"Lot %s already exists"}"""
-                lotNumber
+                """{"type":"https://errors.example.com/duplicate-resource","title":"Duplicate resource","status":409,"detail":%s}"""
+                detail
 
         do! ctx.Response.WriteAsync body
         return Some ctx

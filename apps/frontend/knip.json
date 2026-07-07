@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["tests/unit/**/*.test.{ts,tsx}", "tests/e2e/**/*.spec.ts", "scripts/*.mjs"],
+  "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}", "scripts/**"],
+  "ignore": ["src/contracts/generated.ts"],
+  "ignoreDependencies": ["tailwindcss", "tw-animate-css"],
+  "rules": {
+    "exports": "warn",
+    "types": "warn"
+  }
+}

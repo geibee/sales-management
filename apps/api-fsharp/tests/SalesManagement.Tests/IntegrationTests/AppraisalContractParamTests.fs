@@ -19,78 +19,9 @@ let private check = checkStatusAndType
 // Body builders for appraisal/contract endpoints
 // ───────────────────────────────────────────────────────────────
 
-let private defaultLotAppraisal (lotId: string) : JsonValue =
-    JObject
-        [ "lotNumber", JString lotId
-          "detailAppraisals",
-          JArray
-              [ JObject
-                    [ "detailIndex", JInt 1
-                      "baseUnitPrice", JInt 1000
-                      "periodAdjustmentRate", JDecimal 1m
-                      "counterpartyAdjustmentRate", JDecimal 1m ] ] ]
-
-/// 正常な normal 査定ボディを生成する。`overrides` で各フィールドを差分上書きする。
-let private appraisalBody
-    (lotId: string)
-    (version: int)
-    (overrides: (string * JsonValue) list)
-    (omit: string list)
-    : string =
-    let defaults: (string * JsonValue) list =
-        [ "type", JString "normal"
-          "appraisalDate", JString "2026-01-20"
-          "deliveryDate", JString "2026-01-25"
-          "salesMarket", JString "market"
-          "baseUnitPriceDate", JString "2026-01-01"
-          "periodAdjustmentRateDate", JString "2026-01-01"
-          "counterpartyAdjustmentRateDate", JString "2026-01-01"
-          "taxExcludedEstimatedTotal", JInt 100000
-          "lotAppraisals", JArray [ defaultLotAppraisal lotId ]
-          "version", JInt version ]
-
-    let m = Map.ofList overrides
-    let omitSet = Set.ofList omit
-
-    let fields =
-        defaults
-        |> List.choose (fun (k, dflt) ->
-            if omitSet.Contains k then
-                None
-            else
-                m |> Map.tryFind k |> Option.defaultValue dflt |> (fun v -> Some(k, v)))
-
-    render (JObject fields)
-
-let private contractBody (version: int) (overrides: (string * JsonValue) list) (omit: string list) : string =
-    let defaults: (string * JsonValue) list =
-        [ "contractDate", JString "2026-02-01"
-          "person", JString "person"
-          "buyer", JObject [ "customerNumber", JString "CUST001"; "agentName", JString "agent" ]
-          "salesType", JInt 1
-          "item", JString "item"
-          "deliveryMethod", JString "method"
-          "paymentDeferralCondition", JString ""
-          "salesMethod", JInt 1
-          "usage", JString ""
-          "taxExcludedContractAmount", JInt 100000
-          "consumptionTax", JInt 10000
-          "taxExcludedPaymentAmount", JInt 100000
-          "paymentConsumptionTax", JInt 10000
-          "version", JInt version ]
-
-    let m = Map.ofList overrides
-    let omitSet = Set.ofList omit
-
-    let fields =
-        defaults
-        |> List.choose (fun (k, dflt) ->
-            if omitSet.Contains k then
-                None
-            else
-                m |> Map.tryFind k |> Option.defaultValue dflt |> (fun v -> Some(k, v)))
-
-    render (JObject fields)
+// 査定・成約の正常ボディは Support/RequestBuilders の共通ビルダーを使う (コピペ禁止規約)
+let private appraisalBody = directAppraisalBody
+let private contractBody = directContractBody
 
 let private versionOnly (v: JsonValue) : string = render (JObject [ "version", v ])
 

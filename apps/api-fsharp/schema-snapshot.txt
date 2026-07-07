@@ -1,0 +1,244 @@
+column|appraisal|appraisal_number_year|integer|NO|
+column|appraisal|appraisal_number_month|integer|NO|
+column|appraisal|appraisal_number_seq|integer|NO|
+column|appraisal|sales_case_number_year|integer|NO|
+column|appraisal|sales_case_number_month|integer|NO|
+column|appraisal|sales_case_number_seq|integer|NO|
+column|appraisal|appraisal_type|text|NO|'normal'::text
+column|appraisal|appraisal_date|date|NO|
+column|appraisal|delivery_date|date|NO|
+column|appraisal|sales_market|text|NO|
+column|appraisal|base_unit_price_date|text|NO|
+column|appraisal|period_adjustment_rate_date|text|NO|
+column|appraisal|counterparty_adjustment_rate_date|text|NO|
+column|appraisal|tax_excluded_estimated_total|integer|NO|
+column|appraisal|customer_contract_number|text|YES|
+column|appraisal|contract_adjustment_rate|numeric|YES|
+column|appraisal|version|integer|NO|1
+column|batch_chunk_progress|job_name|text|NO|
+column|batch_chunk_progress|job_params|text|NO|
+column|batch_chunk_progress|partition_id|integer|NO|0
+column|batch_chunk_progress|last_processed_id|bigint|NO|
+column|batch_chunk_progress|processed_count|integer|NO|0
+column|batch_chunk_progress|updated_at|timestamp with time zone|NO|now()
+column|batch_chunk_progress|status|text|NO|'RUNNING'::text
+column|batch_job_execution|job_name|text|NO|
+column|batch_job_execution|job_params|text|NO|
+column|batch_job_execution|status|text|NO|'RUNNING'::text
+column|batch_job_execution|started_at|timestamp with time zone|NO|now()
+column|batch_job_execution|completed_at|timestamp with time zone|YES|
+column|batch_job_execution|read_count|integer|NO|0
+column|batch_job_execution|write_count|integer|NO|0
+column|batch_job_execution|skip_count|integer|NO|0
+column|batch_job_execution|error_message|text|YES|
+column|consignment_info|sales_case_number_year|integer|NO|
+column|consignment_info|sales_case_number_month|integer|NO|
+column|consignment_info|sales_case_number_seq|integer|NO|
+column|consignment_info|consignor_name|text|NO|
+column|consignment_info|consignor_code|text|NO|
+column|consignment_info|designated_date|date|NO|
+column|consignment_info|version|integer|NO|1
+column|consignment_result|sales_case_number_year|integer|NO|
+column|consignment_result|sales_case_number_month|integer|NO|
+column|consignment_result|sales_case_number_seq|integer|NO|
+column|consignment_result|result_date|date|NO|
+column|consignment_result|result_amount|integer|NO|
+column|consignment_result|version|integer|NO|1
+column|contract|contract_number_year|integer|NO|
+column|contract|contract_number_month|integer|NO|
+column|contract|contract_number_seq|integer|NO|
+column|contract|appraisal_number_year|integer|NO|
+column|contract|appraisal_number_month|integer|NO|
+column|contract|appraisal_number_seq|integer|NO|
+column|contract|contract_date|date|NO|
+column|contract|person|text|NO|
+column|contract|customer_number|text|NO|
+column|contract|agent_name|text|YES|
+column|contract|sales_type|integer|NO|
+column|contract|item|text|NO|
+column|contract|delivery_method|text|NO|
+column|contract|sales_method|integer|NO|
+column|contract|tax_excluded_contract_amount|integer|NO|
+column|contract|consumption_tax|integer|NO|
+column|contract|tax_excluded_payment_amount|integer|NO|
+column|contract|payment_consumption_tax|integer|NO|
+column|contract|payment_deferral_condition|text|YES|
+column|contract|payment_deferral_amount|integer|YES|
+column|contract|usage_|text|YES|
+column|contract|version|integer|NO|1
+column|lot|lot_number_year|integer|NO|
+column|lot|lot_number_location|text|NO|
+column|lot|lot_number_seq|integer|NO|
+column|lot|division_code|integer|NO|
+column|lot|department_code|integer|NO|
+column|lot|section_code|integer|NO|
+column|lot|process_category|integer|NO|
+column|lot|inspection_category|integer|NO|
+column|lot|manufacturing_category|integer|NO|
+column|lot|status|text|NO|'manufacturing'::text
+column|lot|manufacturing_completed_date|date|YES|
+column|lot|shipping_deadline_date|date|YES|
+column|lot|shipped_date|date|YES|
+column|lot|destination_item|text|YES|
+column|lot|version|integer|NO|1
+column|lot|id|bigint|NO|nextval('lot_id_seq'::regclass)
+column|lot|created_at|timestamp with time zone|NO|now()
+column|lot|created_by|text|NO|'system'::text
+column|lot|updated_at|timestamp with time zone|NO|now()
+column|lot|updated_by|text|NO|'system'::text
+column|lot_appraisal|appraisal_number_year|integer|NO|
+column|lot_appraisal|appraisal_number_month|integer|NO|
+column|lot_appraisal|appraisal_number_seq|integer|NO|
+column|lot_appraisal|lot_number_year|integer|NO|
+column|lot_appraisal|lot_number_location|text|NO|
+column|lot_appraisal|lot_number_seq|integer|NO|
+column|lot_appraisal|processing_cost|integer|YES|
+column|lot_appraisal|individual_order_premium|numeric|YES|
+column|lot_appraisal|grade_premium|numeric|YES|
+column|lot_appraisal|reservation_addon|numeric|YES|
+column|lot_appraisal|adjustment_rate|numeric|YES|
+column|lot_appraisal|quality_adjustment_rate|numeric|YES|
+column|lot_appraisal|manufacturing_cost_unit_price|integer|YES|
+column|lot_appraisal|expected_sales_period|integer|YES|
+column|lot_appraisal|target_profit_rate|numeric|YES|
+column|lot_appraisal|version|integer|NO|1
+column|lot_detail|lot_number_year|integer|NO|
+column|lot_detail|lot_number_location|text|NO|
+column|lot_detail|lot_number_seq|integer|NO|
+column|lot_detail|seq_no|integer|NO|
+column|lot_detail|item_category|text|NO|
+column|lot_detail|premium_category|text|YES|
+column|lot_detail|product_category_code|text|NO|
+column|lot_detail|length_spec_lower|numeric|NO|
+column|lot_detail|thickness_spec_lower|numeric|NO|
+column|lot_detail|thickness_spec_upper|numeric|NO|
+column|lot_detail|quality_grade|text|NO|
+column|lot_detail|quantity_count|integer|NO|
+column|lot_detail|quantity_amount|numeric|NO|
+column|lot_detail|inspection_result_category|text|YES|
+column|lot_detail|version|integer|NO|1
+column|lot_detail_appraisal|appraisal_number_year|integer|NO|
+column|lot_detail_appraisal|appraisal_number_month|integer|NO|
+column|lot_detail_appraisal|appraisal_number_seq|integer|NO|
+column|lot_detail_appraisal|lot_number_year|integer|NO|
+column|lot_detail_appraisal|lot_number_location|text|NO|
+column|lot_detail_appraisal|lot_number_seq|integer|NO|
+column|lot_detail_appraisal|detail_seq_no|integer|NO|
+column|lot_detail_appraisal|base_unit_price|integer|NO|
+column|lot_detail_appraisal|period_adjustment_rate|numeric|NO|
+column|lot_detail_appraisal|counterparty_adjustment_rate|numeric|NO|
+column|lot_detail_appraisal|exceptional_period_adjustment_rate|numeric|YES|
+column|lot_detail_appraisal|version|integer|NO|1
+column|master_department|code|integer|NO|
+column|master_department|name|text|NO|
+column|master_department|division_code|integer|NO|
+column|master_division|code|integer|NO|
+column|master_division|name|text|NO|
+column|master_inspection_category|code|integer|NO|
+column|master_inspection_category|name|text|NO|
+column|master_manufacturing_category|code|integer|NO|
+column|master_manufacturing_category|name|text|NO|
+column|master_process_category|code|integer|NO|
+column|master_process_category|name|text|NO|
+column|master_section|code|integer|NO|
+column|master_section|name|text|NO|
+column|master_section|department_code|integer|NO|
+column|outbox_events|id|bigint|NO|nextval('outbox_events_id_seq'::regclass)
+column|outbox_events|event_type|text|NO|
+column|outbox_events|payload|jsonb|NO|
+column|outbox_events|status|text|NO|'pending'::text
+column|outbox_events|created_at|timestamp with time zone|NO|now()
+column|outbox_events|processed_at|timestamp with time zone|YES|
+column|outbox_events|error_detail|text|YES|
+column|reservation_price|appraisal_number_year|integer|NO|
+column|reservation_price|appraisal_number_month|integer|NO|
+column|reservation_price|appraisal_number_seq|integer|NO|
+column|reservation_price|sales_case_number_year|integer|NO|
+column|reservation_price|sales_case_number_month|integer|NO|
+column|reservation_price|sales_case_number_seq|integer|NO|
+column|reservation_price|appraisal_date|date|NO|
+column|reservation_price|reserved_lot_info|text|NO|
+column|reservation_price|reserved_amount|integer|NO|
+column|reservation_price|status|text|NO|'provisional'::text
+column|reservation_price|determined_date|date|YES|
+column|reservation_price|determined_amount|integer|YES|
+column|reservation_price|version|integer|NO|1
+column|reservation_price|delivered_date|date|YES|
+column|sales_case|sales_case_number_year|integer|NO|
+column|sales_case|sales_case_number_month|integer|NO|
+column|sales_case|sales_case_number_seq|integer|NO|
+column|sales_case|division_code|integer|NO|
+column|sales_case|sales_date|date|NO|
+column|sales_case|case_type|text|NO|'direct'::text
+column|sales_case|status|text|NO|'before_appraisal'::text
+column|sales_case|shipping_instruction_date|date|YES|
+column|sales_case|shipping_completed_date|date|YES|
+column|sales_case|version|integer|NO|1
+column|sales_case_lot|sales_case_number_year|integer|NO|
+column|sales_case_lot|sales_case_number_month|integer|NO|
+column|sales_case_lot|sales_case_number_seq|integer|NO|
+column|sales_case_lot|lot_number_year|integer|NO|
+column|sales_case_lot|lot_number_location|text|NO|
+column|sales_case_lot|lot_number_seq|integer|NO|
+column|sales_case_lot|version|integer|NO|1
+constraint|appraisal|PRIMARY KEY|appraisal_pkey|appraisal_number_year,appraisal_number_month,appraisal_number_seq
+constraint|appraisal|FOREIGN KEY|appraisal_sales_case_number_year_sales_case_number_month_s_fkey|sales_case_number_year,sales_case_number_month,sales_case_number_seq
+constraint|batch_chunk_progress|FOREIGN KEY|batch_chunk_progress_job_name_job_params_fkey|job_name,job_params
+constraint|batch_chunk_progress|PRIMARY KEY|batch_chunk_progress_pkey|job_name,job_params,partition_id
+constraint|batch_job_execution|PRIMARY KEY|batch_job_execution_pkey|job_name,job_params
+constraint|consignment_info|PRIMARY KEY|consignment_info_pkey|sales_case_number_year,sales_case_number_month,sales_case_number_seq
+constraint|consignment_info|FOREIGN KEY|consignment_info_sales_case_number_year_sales_case_number__fkey|sales_case_number_year,sales_case_number_month,sales_case_number_seq
+constraint|consignment_result|PRIMARY KEY|consignment_result_pkey|sales_case_number_year,sales_case_number_month,sales_case_number_seq
+constraint|consignment_result|FOREIGN KEY|consignment_result_sales_case_number_year_sales_case_numbe_fkey|sales_case_number_year,sales_case_number_month,sales_case_number_seq
+constraint|contract|FOREIGN KEY|contract_appraisal_number_year_appraisal_number_month_appr_fkey|appraisal_number_year,appraisal_number_month,appraisal_number_seq
+constraint|contract|PRIMARY KEY|contract_pkey|contract_number_year,contract_number_month,contract_number_seq
+constraint|lot|UNIQUE|lot_id_key|id
+constraint|lot|PRIMARY KEY|lot_pkey|lot_number_year,lot_number_location,lot_number_seq
+constraint|lot_appraisal|FOREIGN KEY|lot_appraisal_appraisal_number_year_appraisal_number_month_fkey|appraisal_number_year,appraisal_number_month,appraisal_number_seq
+constraint|lot_appraisal|PRIMARY KEY|lot_appraisal_pkey|appraisal_number_year,appraisal_number_month,appraisal_number_seq,lot_number_year,lot_number_location,lot_number_seq
+constraint|lot_detail|FOREIGN KEY|lot_detail_lot_number_year_lot_number_location_lot_number__fkey|lot_number_year,lot_number_location,lot_number_seq
+constraint|lot_detail|PRIMARY KEY|lot_detail_pkey|lot_number_year,lot_number_location,lot_number_seq,seq_no
+constraint|lot_detail_appraisal|FOREIGN KEY|lot_detail_appraisal_appraisal_number_year_appraisal_numbe_fkey|appraisal_number_year,appraisal_number_month,appraisal_number_seq,lot_number_year,lot_number_location,lot_number_seq
+constraint|lot_detail_appraisal|PRIMARY KEY|lot_detail_appraisal_pkey|appraisal_number_year,appraisal_number_month,appraisal_number_seq,lot_number_year,lot_number_location,lot_number_seq,detail_seq_no
+constraint|master_department|FOREIGN KEY|master_department_division_code_fkey|division_code
+constraint|master_department|PRIMARY KEY|master_department_pkey|code
+constraint|master_division|PRIMARY KEY|master_division_pkey|code
+constraint|master_inspection_category|PRIMARY KEY|master_inspection_category_pkey|code
+constraint|master_manufacturing_category|PRIMARY KEY|master_manufacturing_category_pkey|code
+constraint|master_process_category|PRIMARY KEY|master_process_category_pkey|code
+constraint|master_section|FOREIGN KEY|master_section_department_code_fkey|department_code
+constraint|master_section|PRIMARY KEY|master_section_pkey|code
+constraint|outbox_events|PRIMARY KEY|outbox_events_pkey|id
+constraint|reservation_price|PRIMARY KEY|reservation_price_pkey|appraisal_number_year,appraisal_number_month,appraisal_number_seq
+constraint|reservation_price|FOREIGN KEY|reservation_price_sales_case_number_year_sales_case_number_fkey|sales_case_number_year,sales_case_number_month,sales_case_number_seq
+constraint|sales_case|PRIMARY KEY|sales_case_pkey|sales_case_number_year,sales_case_number_month,sales_case_number_seq
+constraint|sales_case_lot|FOREIGN KEY|sales_case_lot_lot_number_year_lot_number_location_lot_num_fkey|lot_number_year,lot_number_location,lot_number_seq
+constraint|sales_case_lot|PRIMARY KEY|sales_case_lot_pkey|sales_case_number_year,sales_case_number_month,sales_case_number_seq,lot_number_year,lot_number_location,lot_number_seq
+constraint|sales_case_lot|FOREIGN KEY|sales_case_lot_sales_case_number_year_sales_case_number_mo_fkey|sales_case_number_year,sales_case_number_month,sales_case_number_seq
+index|appraisal|appraisal_pkey|CREATE UNIQUE INDEX appraisal_pkey ON public.appraisal USING btree (appraisal_number_year, appraisal_number_month, appraisal_number_seq)
+index|batch_chunk_progress|batch_chunk_progress_pkey|CREATE UNIQUE INDEX batch_chunk_progress_pkey ON public.batch_chunk_progress USING btree (job_name, job_params, partition_id)
+index|batch_job_execution|batch_job_execution_pkey|CREATE UNIQUE INDEX batch_job_execution_pkey ON public.batch_job_execution USING btree (job_name, job_params)
+index|consignment_info|consignment_info_pkey|CREATE UNIQUE INDEX consignment_info_pkey ON public.consignment_info USING btree (sales_case_number_year, sales_case_number_month, sales_case_number_seq)
+index|consignment_result|consignment_result_pkey|CREATE UNIQUE INDEX consignment_result_pkey ON public.consignment_result USING btree (sales_case_number_year, sales_case_number_month, sales_case_number_seq)
+index|contract|contract_pkey|CREATE UNIQUE INDEX contract_pkey ON public.contract USING btree (contract_number_year, contract_number_month, contract_number_seq)
+index|lot|idx_lot_status|CREATE INDEX idx_lot_status ON public.lot USING btree (status)
+index|lot|idx_lot_status_id|CREATE INDEX idx_lot_status_id ON public.lot USING btree (status, id)
+index|lot|lot_id_key|CREATE UNIQUE INDEX lot_id_key ON public.lot USING btree (id)
+index|lot|lot_pkey|CREATE UNIQUE INDEX lot_pkey ON public.lot USING btree (lot_number_year, lot_number_location, lot_number_seq)
+index|lot_appraisal|lot_appraisal_pkey|CREATE UNIQUE INDEX lot_appraisal_pkey ON public.lot_appraisal USING btree (appraisal_number_year, appraisal_number_month, appraisal_number_seq, lot_number_year, lot_number_location, lot_number_seq)
+index|lot_detail|lot_detail_pkey|CREATE UNIQUE INDEX lot_detail_pkey ON public.lot_detail USING btree (lot_number_year, lot_number_location, lot_number_seq, seq_no)
+index|lot_detail_appraisal|lot_detail_appraisal_pkey|CREATE UNIQUE INDEX lot_detail_appraisal_pkey ON public.lot_detail_appraisal USING btree (appraisal_number_year, appraisal_number_month, appraisal_number_seq, lot_number_year, lot_number_location, lot_number_seq, detail_seq_no)
+index|master_department|master_department_pkey|CREATE UNIQUE INDEX master_department_pkey ON public.master_department USING btree (code)
+index|master_division|master_division_pkey|CREATE UNIQUE INDEX master_division_pkey ON public.master_division USING btree (code)
+index|master_inspection_category|master_inspection_category_pkey|CREATE UNIQUE INDEX master_inspection_category_pkey ON public.master_inspection_category USING btree (code)
+index|master_manufacturing_category|master_manufacturing_category_pkey|CREATE UNIQUE INDEX master_manufacturing_category_pkey ON public.master_manufacturing_category USING btree (code)
+index|master_process_category|master_process_category_pkey|CREATE UNIQUE INDEX master_process_category_pkey ON public.master_process_category USING btree (code)
+index|master_section|master_section_pkey|CREATE UNIQUE INDEX master_section_pkey ON public.master_section USING btree (code)
+index|outbox_events|idx_outbox_pending|CREATE INDEX idx_outbox_pending ON public.outbox_events USING btree (status) WHERE (status = 'pending'::text)
+index|outbox_events|idx_outbox_processing|CREATE INDEX idx_outbox_processing ON public.outbox_events USING btree (status, processed_at) WHERE (status = 'processing'::text)
+index|outbox_events|outbox_events_pkey|CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)
+index|reservation_price|reservation_price_pkey|CREATE UNIQUE INDEX reservation_price_pkey ON public.reservation_price USING btree (appraisal_number_year, appraisal_number_month, appraisal_number_seq)
+index|sales_case|idx_sales_case_case_type|CREATE INDEX idx_sales_case_case_type ON public.sales_case USING btree (case_type)
+index|sales_case|idx_sales_case_status|CREATE INDEX idx_sales_case_status ON public.sales_case USING btree (status)
+index|sales_case|sales_case_pkey|CREATE UNIQUE INDEX sales_case_pkey ON public.sales_case USING btree (sales_case_number_year, sales_case_number_month, sales_case_number_seq)
+index|sales_case_lot|sales_case_lot_pkey|CREATE UNIQUE INDEX sales_case_lot_pkey ON public.sales_case_lot USING btree (sales_case_number_year, sales_case_number_month, sales_case_number_seq, lot_number_year, lot_number_location, lot_number_seq)

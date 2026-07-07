@@ -111,12 +111,16 @@ export function LotListPage() {
           <table className="t">
             <thead>
               <tr>
-                <th style={{ width: 36 }} />
+                <th style={{ width: 36 }}>
+                  <span className="sr-only">選択</span>
+                </th>
                 <th>ロット番号</th>
                 <th>状態</th>
                 <th>製造完了日</th>
                 <th className="num">version</th>
-                <th style={{ width: 36 }} />
+                <th style={{ width: 36 }}>
+                  <span className="sr-only">詳細</span>
+                </th>
               </tr>
             </thead>
             <tbody>

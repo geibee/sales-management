@@ -28,7 +28,23 @@ from __future__ import annotations
 
 from typing import Any
 
+import codecs
+
 import schemathesis
+
+# /lots/export は `text/csv; charset=windows-31j` を返すが、Python は
+# "windows-31j" というエンコーディング名を知らない (実体は cp932)。
+# 未登録のまま失敗レポートを描画すると Schemathesis 本体が LookupError で
+# クラッシュするため、alias を登録しておく。
+# codecs.lookup は名前を正規化 (小文字化 + ハイフン→アンダースコア) して渡す
+_WINDOWS_31J_ALIASES = {"windows_31j", "windows31j"}
+
+
+def _windows31j_lookup(name: str):  # pragma: no cover - 1 行の alias 解決
+    return codecs.lookup("cp932") if name.lower() in _WINDOWS_31J_ALIASES else None
+
+
+codecs.register(_windows31j_lookup)
 
 # 状態遷移を要求するため fuzz から外すパステンプレート → 除外メソッド集合。
 # `*` は当該パスのすべての HTTP メソッドを除外。
@@ -54,6 +70,12 @@ _STATEFUL_PATHS: dict[str, set[str]] = {
 
 @schemathesis.hook
 def before_load_schema(context: Any, raw_schema: dict[str, Any]) -> None:
+    # fuzz 環境は認証 OFF で起動する (ci.sh)。ルート security を残すと
+    # Schemathesis が Authorization ヘッダの欠落・改変ケースを生成して
+    # 401 を期待し、全 operation が false positive になる。認可の全数検証は
+    # 決定的な AuthorizationMatrixTests (spec 由来の 401/403 マトリクス) が担う。
+    raw_schema.pop("security", None)
+
     paths = raw_schema.get("paths") or {}
     removed: list[str] = []
     for template, methods in _STATEFUL_PATHS.items():

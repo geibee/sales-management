@@ -111,6 +111,17 @@ verify_repo() {
   bats scripts/tests
   log "bats: OK"
 
+  # python 製ゲートスクリプト (ラチェット / SARIF 変換 / LESSONS 更新) の
+  # lint + 単体テスト。ゲート自体のバグ = 全検査の fail-open なので検査する (issue #9 Tier2-17)
+  command -v ruff >/dev/null 2>&1 \
+    || fail "ruff が見つかりません (fail-closed: python ゲートスクリプトの lint なしで合格にできない)"
+  ruff check .
+  log "ruff: OK"
+  command -v pytest >/dev/null 2>&1 \
+    || fail "pytest が見つかりません (fail-closed: python ゲートスクリプトのテストなしで合格にできない)"
+  pytest scripts/tests/python -q
+  log "pytest: OK"
+
   # openapi.yaml の破壊的変更ゲート (oasdiff breaking)。
   # AI ループは契約を「都合よく」変えがちなので、後方互換を壊す spec 変更
   # (必須フィールド追加・enum 削除・型変更等) を PR 時点で機械検出する
@@ -128,10 +139,27 @@ verify_repo() {
     local base_spec
     base_spec=$(mktemp --suffix=.yaml)
     git show "$spec_base:$spec" >"$base_spec"
-    oasdiff breaking --fail-on ERR "$base_spec" "$spec" \
-      || { rm -f "$base_spec"; fail "openapi.yaml に破壊的変更が含まれます (oasdiff breaking)"; }
+
+    if oasdiff breaking --fail-on ERR "$base_spec" "$spec"; then
+      log "oasdiff: 破壊的変更なし"
+    else
+      # 意図した破壊的変更 (実装に合わせた契約の厳格化等) は、承認ファイルに
+      # 現行 openapi.yaml の blob ハッシュを記録してコミットすることで通す。
+      # spec をさらに変更するとハッシュが合わなくなるため fail-closed のまま。
+      # 承認の履歴は git log (このファイルの変更) で追跡できる
+      local approved current_hash
+      approved=$(cat apps/api-fsharp/.openapi-breaking-approved 2>/dev/null || true)
+      current_hash=$(git hash-object "$spec")
+
+      if [[ "$approved" == "$current_hash" ]]; then
+        log "oasdiff: 破壊的変更を検出したが .openapi-breaking-approved と一致 (承認済み)"
+      else
+        rm -f "$base_spec"
+        fail "openapi.yaml に破壊的変更が含まれます (oasdiff breaking)。意図した変更なら apps/api-fsharp/.openapi-breaking-approved に $current_hash を記録してレビューを受けてください"
+      fi
+    fi
+
     rm -f "$base_spec"
-    log "oasdiff: 破壊的変更なし"
   fi
 
   log "repo PASS"
@@ -194,6 +222,13 @@ verify_backend() {
     || fail "coverage.cobertura.xml が生成されていません (fail-closed: 計測できないものを緑にしない)"
   python3 scripts/coverage-ratchet.py "$cobertura"
 
+  # 契約カバレッジラチェット (統合テストが 2xx で到達した operationId の記録と
+  # openapi.yaml の全 operation を突合し、未到達 operation の増加 = 新規 API の
+  # テスト追加漏れを検出する)
+  [[ -f coverage/operation-coverage.json ]] \
+    || fail "operation-coverage.json が生成されていません (fail-closed: 契約カバレッジを検証できない)"
+  python3 scripts/operation-coverage-ratchet.py coverage/operation-coverage.json
+
   log "backend PASS"
 
   popd >/dev/null
@@ -205,6 +240,13 @@ verify_frontend() {
   command -v pnpm >/dev/null 2>&1 \
     || fail "pnpm が見つかりません (fail-closed: frontend 変更は pnpm なしで合格にできない)"
 
+  # TypeScript の禁止パターン検査 (.ast-grep/rules/。issue #9 Tier2-18)。
+  # F# 側の同種ルールは Architecture/SourceRuleTests.fs (backend ゲート) が担う
+  command -v ast-grep >/dev/null 2>&1 \
+    || fail "ast-grep が見つかりません (fail-closed: 禁止パターン検査なしで合格にできない)"
+  ast-grep scan
+  log "ast-grep: OK"
+
   pushd apps/frontend >/dev/null
 
   # 新規 worktree では node_modules が無いので毎回実行する (lockfile 一致なら高速)
@@ -214,11 +256,17 @@ verify_frontend() {
   pnpm lint:contracts
   # 生成コードドリフト検査: generated.ts が openapi.yaml と同期しているか
   pnpm check:contracts-drift
+  # デッドコード検出 (未使用 export / 未使用依存 / 未参照ファイル。issue #9 Tier2-16)
+  pnpm knip
   # テスト + カバレッジラチェット (coverage-baseline.json から退行したら失敗)
   pnpm test:coverage
   # 本番ビルド (typecheck では検出できない Vite ビルド破壊 —
   # 動的 import / asset 解決 / Tailwind 等 — を PR 時点で検出する)
   pnpm build
+  # バックエンドレス smoke E2E (MSW モックでの主要導線。issue #9 Tier2-16)。
+  # chromium 未導入環境では fail-closed にせずスキップすると素通りになるため、
+  # playwright 実行自体に失敗解決を委ねる (ブラウザ欠如はエラーで落ちる)
+  pnpm test:e2e:smoke
   log "frontend PASS"
 
   popd >/dev/null

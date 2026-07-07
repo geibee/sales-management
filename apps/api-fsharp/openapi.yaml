@@ -38,7 +38,7 @@ components:
     ProblemDetails:
       type: object
       properties:
-        type: { type: string, format: uri }
+        type: { type: string, description: 'エラー種別の安定コード (bad-request / not-found / conflict / forbidden 等。URI 形式ではない)' }
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
@@ -237,10 +237,13 @@ components:
       properties:
         lots:
           type: array
-          items: { type: string }
+          items: { type: string, pattern: '^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$' }
+          minItems: 1
           description: 新しいロット番号の集合（1件以上）
         version:
           type: integer
+          minimum: 1
+          maximum: 2147483647
           description: 楽観的ロック用バージョン番号
 
     SalesCaseType:
@@ -628,7 +631,7 @@ paths:
       parameters:
         - { name: status, in: query, required: false, schema: { type: string, enum: [manufacturing, manufactured, shipping_instructed, shipped, conversion_instructed] } }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
-        - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, maximum: 2147483647, default: 0 } }
       responses:
         '200':
           description: 取得成功
@@ -644,36 +647,41 @@ paths:
         required: true
         content:
           application/json:
+            example: {lotNumber: {year: 2026, location: 'F12A', seq: 1}, divisionCode: 1, departmentCode: 10, sectionCode: 100, processCategory: 1, inspectionCategory: 1, manufacturingCategory: 1, details: [{itemCategory: 'premium', premiumCategory: 'A', productCategoryCode: 'v1', lengthSpecLower: 1.0, thicknessSpecLower: 1.0, thicknessSpecUpper: 2.0, qualityGrade: 'A', count: 1, quantity: 10.0, inspectionResultCategory: 'pass'}]}
             schema:
               type: object
+              required: [lotNumber, divisionCode, departmentCode, sectionCode, processCategory, inspectionCategory, manufacturingCategory, details]
               properties:
                 lotNumber:
                   type: object
+                  required: [year, location, seq]
                   properties:
-                    year: { type: integer }
-                    location: { type: string }
-                    seq: { type: integer }
-                divisionCode: { type: integer }
-                departmentCode: { type: integer }
-                sectionCode: { type: integer }
-                processCategory: { type: integer }
-                inspectionCategory: { type: integer }
-                manufacturingCategory: { type: integer }
+                    year: { type: integer, minimum: 1, maximum: 2147483647 }
+                    location: { type: string, minLength: 1, pattern: '^[^-\s\u0000]+$' }
+                    seq: { type: integer, minimum: 1, maximum: 2147483647 }
+                divisionCode: { type: integer, minimum: -2147483648, maximum: 2147483647 }
+                departmentCode: { type: integer, minimum: -2147483648, maximum: 2147483647 }
+                sectionCode: { type: integer, minimum: -2147483648, maximum: 2147483647 }
+                processCategory: { type: integer, minimum: -2147483648, maximum: 2147483647 }
+                inspectionCategory: { type: integer, minimum: -2147483648, maximum: 2147483647 }
+                manufacturingCategory: { type: integer, minimum: -2147483648, maximum: 2147483647 }
                 details:
                   type: array
+                  minItems: 1
                   items:
                     type: object
+                    required: [itemCategory, productCategoryCode, lengthSpecLower, thicknessSpecLower, thicknessSpecUpper, qualityGrade, count, quantity]
                     properties:
-                      itemCategory: { type: string }
-                      premiumCategory: { type: string }
-                      productCategoryCode: { type: string }
-                      lengthSpecLower: { type: number }
-                      thicknessSpecLower: { type: number }
-                      thicknessSpecUpper: { type: number }
-                      qualityGrade: { type: string }
-                      count: { type: integer }
-                      quantity: { type: number }
-                      inspectionResultCategory: { type: string }
+                      itemCategory: { type: string, enum: [general, premium, custom] }
+                      premiumCategory: { type: string, pattern: '^[^\u0000]*$' }
+                      productCategoryCode: { type: string, pattern: '^[^\u0000]*$' }
+                      lengthSpecLower: { type: number, minimum: -9999999999, maximum: 9999999999 }
+                      thicknessSpecLower: { type: number, minimum: -9999999999, maximum: 9999999999 }
+                      thicknessSpecUpper: { type: number, minimum: -9999999999, maximum: 9999999999 }
+                      qualityGrade: { type: string, pattern: '^[^\u0000]*$' }
+                      count: { type: integer, minimum: 1, maximum: 2147483647 }
+                      quantity: { type: number, minimum: 0.001, maximum: 9999999999 }
+                      inspectionResultCategory: { type: string, pattern: '^[^\u0000]*$' }
       responses:
         '200':
           description: 作成成功
@@ -721,7 +729,7 @@ paths:
         製造完了かつどの販売案件にも割り当てられていないロットを返す。
         `excludeCase` を指定すると、その案件に現在割り当て済みのロットも「割当可能」として含める（案件のロット修正用）。
       parameters:
-        - { name: excludeCase, in: query, required: false, schema: { type: string }, description: 除外する販売案件番号（年-月-連番） }
+        - { name: excludeCase, in: query, required: false, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 除外する販売案件番号（年-月-連番） }
       responses:
         '200':
           description: 取得成功
@@ -751,7 +759,7 @@ paths:
       operationId: getLot
       summary: 在庫ロット取得
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$' }, description: ロット番号 (年-保管場所-連番) }
       responses:
         '200':
           description: 取得成功
@@ -771,17 +779,18 @@ paths:
         DB 側は `UPDATE ... WHERE version = @expected RETURNING version` で実装され、
         affected rows = 0 の場合は 409 Conflict を返す。
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$' }, description: ロット番号 (年-保管場所-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {date: '2026-04-22', version: 1}
             schema:
               type: object
               required: [date, version]
               properties:
                 date: { type: string, format: date }
-                version: { type: integer, minimum: 1, description: 楽観的ロック用バージョン }
+                version: { type: integer, minimum: 1, maximum: 2147483647, description: 楽観的ロック用バージョン }
       responses:
         '200':
           description: 遷移成功
@@ -798,17 +807,18 @@ paths:
       operationId: instructLotShipping
       summary: 出荷指示
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$' }, description: ロット番号 (年-保管場所-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {deadline: '2026-05-10', version: 1}
             schema:
               type: object
               required: [deadline, version]
               properties:
                 deadline: { type: string, format: date }
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 遷移成功
@@ -825,17 +835,18 @@ paths:
       operationId: completeLotShipping
       summary: 出荷完了
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$' }, description: ロット番号 (年-保管場所-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {date: '2026-05-20', version: 1}
             schema:
               type: object
               required: [date, version]
               properties:
                 date: { type: string, format: date }
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 遷移成功
@@ -852,16 +863,17 @@ paths:
       operationId: cancelManufacturingCompletion
       summary: 製造完了取消
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$' }, description: ロット番号 (年-保管場所-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {version: 1}
             schema:
               type: object
               required: [version]
               properties:
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 取消成功
@@ -878,17 +890,18 @@ paths:
       operationId: instructItemConversion
       summary: 品目変換を指示
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$' }, description: ロット番号 (年-保管場所-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {destinationItem: '変換先品目', version: 1}
             schema:
               type: object
               required: [destinationItem, version]
               properties:
                 destinationItem: { type: string }
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 変換成功
@@ -903,16 +916,17 @@ paths:
       operationId: cancelItemConversionInstruction
       summary: 品目変換指示を取消
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$' }, description: ロット番号 (年-保管場所-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {version: 1}
             schema:
               type: object
               required: [version]
               properties:
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 取消成功
@@ -932,10 +946,10 @@ paths:
         販売案件をページング付きで取得する。`status` / `caseType` クエリでフィルタ、
         `limit` (1..200, default 50) と `offset` (>= 0, default 0) でページング。
       parameters:
-        - { name: status, in: query, required: false, schema: { type: string, description: "案件ステータス (例 before_appraisal, appraised, contracted など)" } }
+        - { name: status, in: query, required: false, schema: { type: string, minLength: 1, description: "案件ステータス (例 before_appraisal, appraised, contracted など)" } }
         - { name: caseType, in: query, required: false, schema: { type: string, enum: [direct, reservation, consignment] } }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
-        - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, maximum: 2147483647, default: 0 } }
       responses:
         '200':
           description: 取得成功
@@ -951,15 +965,16 @@ paths:
         required: true
         content:
           application/json:
+            example: {lots: ['2026-A-001'], divisionCode: 1, salesDate: '2026-04-15', caseType: 'direct'}
             schema:
               type: object
               required: [lots, divisionCode, salesDate, caseType]
               properties:
                 lots:
                   type: array
-                  items: { type: string }
+                  items: { type: string, pattern: '^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$' }
                   minItems: 1
-                divisionCode: { type: integer }
+                divisionCode: { type: integer, minimum: -2147483648, maximum: 2147483647 }
                 salesDate: { type: string, format: date }
                 caseType:
                   type: string
@@ -972,6 +987,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CreatedSalesCaseResponse'
         '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /sales-cases/{id}/lots:
     put:
@@ -982,11 +998,12 @@ paths:
         および consignment（before_consignment）のみ許可（reservation は不可）。各ロットは製造完了かつ
         他案件に未割当である必要がある（自案件に現在割当済みのロットは可）。`version` は楽観的ロック用。
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {lots: ['2026-A-001'], version: 1}
             schema:
               $ref: '#/components/schemas/EditCaseLotsRequest'
       responses:
@@ -1008,7 +1025,7 @@ paths:
         販売案件 ID から詳細を取得する。`caseType` (direct / reservation / consignment) で
         サブタイプ固有のフィールドが切り替わる。`viewer` ロール以上で利用可能。
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       responses:
         '200':
           description: 取得成功
@@ -1022,7 +1039,7 @@ paths:
       operationId: deleteSalesCase
       summary: 販売案件削除
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       responses:
         '204': { description: 削除成功 }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -1033,11 +1050,12 @@ paths:
       operationId: createSalesAppraisal
       summary: 価格査定登録
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {type: 'normal', appraisalDate: '2026-01-20', deliveryDate: '2026-01-25', salesMarket: 'market', baseUnitPriceDate: '2026-01-01', periodAdjustmentRateDate: '2026-01-01', counterpartyAdjustmentRateDate: '2026-01-01', taxExcludedEstimatedTotal: 100000, lotAppraisals: [{lotNumber: '2026-A-001', detailAppraisals: [{detailIndex: 1, baseUnitPrice: 1000, periodAdjustmentRate: 1.0, counterpartyAdjustmentRate: 1.0}]}], version: 1}
             schema:
               type: object
               required:
@@ -1088,7 +1106,7 @@ paths:
                             periodAdjustmentRate: { type: number, minimum: 0.9, maximum: 1.1, description: "調整率(API値)。表示は百分率で API には1/100した値。0.9〜1.1" }
                             counterpartyAdjustmentRate: { type: number, minimum: 0.9, maximum: 1.1, description: "調整率(API値) 0.9〜1.1" }
                             exceptionalPeriodAdjustmentRate: { type: number, nullable: true, minimum: 0.9, maximum: 1.1, description: "調整率(API値) 0.9〜1.1" }
-                version: { type: integer, minimum: 1, description: 楽観的ロック用バージョン }
+                version: { type: integer, minimum: 1, maximum: 2147483647, description: 楽観的ロック用バージョン }
       responses:
         '200':
           description: 登録成功
@@ -1103,11 +1121,12 @@ paths:
       operationId: updateSalesAppraisal
       summary: 価格査定更新
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {type: 'normal', appraisalDate: '2026-01-20', deliveryDate: '2026-01-25', salesMarket: 'market', baseUnitPriceDate: '2026-01-01', periodAdjustmentRateDate: '2026-01-01', counterpartyAdjustmentRateDate: '2026-01-01', taxExcludedEstimatedTotal: 100000, lotAppraisals: [{lotNumber: '2026-A-001', detailAppraisals: [{detailIndex: 1, baseUnitPrice: 1000, periodAdjustmentRate: 1.0, counterpartyAdjustmentRate: 1.0}]}], version: 2}
             schema:
               type: object
               required:
@@ -1158,7 +1177,7 @@ paths:
                             periodAdjustmentRate: { type: number, minimum: 0.9, maximum: 1.1, description: "調整率(API値)。表示は百分率で API には1/100した値。0.9〜1.1" }
                             counterpartyAdjustmentRate: { type: number, minimum: 0.9, maximum: 1.1, description: "調整率(API値) 0.9〜1.1" }
                             exceptionalPeriodAdjustmentRate: { type: number, nullable: true, minimum: 0.9, maximum: 1.1, description: "調整率(API値) 0.9〜1.1" }
-                version: { type: integer, minimum: 1, description: 楽観的ロック用バージョン }
+                version: { type: integer, minimum: 1, maximum: 2147483647, description: 楽観的ロック用バージョン }
       responses:
         '200':
           description: 更新成功
@@ -1173,16 +1192,17 @@ paths:
       operationId: deleteSalesAppraisal
       summary: 価格査定削除
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {version: 1}
             schema:
               type: object
               required: [version]
               properties:
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '204': { description: 削除成功 }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -1194,11 +1214,12 @@ paths:
       operationId: createSalesContract
       summary: 売買契約登録
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {contractDate: '2026-02-01', person: 'person', buyer: {customerNumber: 'CUST001', agentName: 'agent'}, salesType: 1, item: 'item', deliveryMethod: 'method', paymentDeferralCondition: '', salesMethod: 1, usage: '', taxExcludedContractAmount: 100000, consumptionTax: 10000, taxExcludedPaymentAmount: 100000, paymentConsumptionTax: 10000, version: 1}
             schema:
               type: object
               required:
@@ -1234,7 +1255,7 @@ paths:
                 consumptionTax: { type: integer }
                 taxExcludedPaymentAmount: { type: integer }
                 paymentConsumptionTax: { type: integer }
-                version: { type: integer, minimum: 1, description: 楽観的ロック用バージョン }
+                version: { type: integer, minimum: 1, maximum: 2147483647, description: 楽観的ロック用バージョン }
       responses:
         '200':
           description: 登録成功
@@ -1249,16 +1270,17 @@ paths:
       operationId: deleteSalesContract
       summary: 売買契約削除
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {version: 1}
             schema:
               type: object
               required: [version]
               properties:
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '204': { description: 削除成功 }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -1270,17 +1292,18 @@ paths:
       operationId: instructSalesCaseShipping
       summary: 販売案件 出荷指示
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {date: '2026-02-10', version: 1}
             schema:
               type: object
               required: [date, version]
               properties:
                 date: { type: string, format: date, description: 出荷指示日 }
-                version: { type: integer, minimum: 1, description: 楽観的ロック用バージョン }
+                version: { type: integer, minimum: 1, maximum: 2147483647, description: 楽観的ロック用バージョン }
       responses:
         '200':
           description: 遷移成功
@@ -1295,16 +1318,17 @@ paths:
       operationId: cancelSalesCaseShippingInstruction
       summary: 販売案件 出荷指示解除
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {version: 1}
             schema:
               type: object
               required: [version]
               properties:
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '204': { description: 解除成功 }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -1316,17 +1340,18 @@ paths:
       operationId: completeSalesCaseShipping
       summary: 販売案件 出荷完了
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {date: '2026-02-20', version: 1}
             schema:
               type: object
               required: [date, version]
               properties:
                 date: { type: string, format: date }
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 遷移成功
@@ -1343,11 +1368,12 @@ paths:
       operationId: createReservationPrice
       summary: 予約価格登録
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {appraisalDate: '2026-01-20', reservedLotInfo: 'reserved-lot-info', reservedAmount: 1000, version: 1}
             schema:
               type: object
               required: [appraisalDate, reservedLotInfo, reservedAmount, version]
@@ -1355,7 +1381,7 @@ paths:
                 appraisalDate: { type: string, format: date }
                 reservedLotInfo: { type: string }
                 reservedAmount: { type: integer }
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 登録成功
@@ -1372,18 +1398,19 @@ paths:
       operationId: confirmReservation
       summary: 予約確定
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {determinedDate: '2026-02-01', determinedAmount: 1200, version: 1}
             schema:
               type: object
               required: [determinedDate, determinedAmount, version]
               properties:
                 determinedDate: { type: string, format: date }
                 determinedAmount: { type: integer }
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 確定成功
@@ -1400,16 +1427,17 @@ paths:
       operationId: cancelReservationConfirmation
       summary: 予約確定取消
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {version: 1}
             schema:
               type: object
               required: [version]
               properties:
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 取消成功
@@ -1426,17 +1454,18 @@ paths:
       operationId: deliverReservation
       summary: 予約納品
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {deliveryDate: '2026-03-01', version: 1}
             schema:
               type: object
               required: [deliveryDate, version]
               properties:
                 deliveryDate: { type: string, format: date }
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 引き渡し成功
@@ -1453,11 +1482,12 @@ paths:
       operationId: designateConsignment
       summary: 委託指定
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {consignorName: 'consignor', consignorCode: 'C001', designatedDate: '2026-01-20', version: 1}
             schema:
               type: object
               required: [consignorName, consignorCode, designatedDate, version]
@@ -1465,7 +1495,7 @@ paths:
                 consignorName: { type: string }
                 consignorCode: { type: string }
                 designatedDate: { type: string, format: date }
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 指定成功
@@ -1482,16 +1512,17 @@ paths:
       operationId: cancelConsignmentDesignation
       summary: 委託指定解除
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {version: 1}
             schema:
               type: object
               required: [version]
               properties:
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 解除成功
@@ -1508,18 +1539,19 @@ paths:
       operationId: registerConsignmentResult
       summary: 委託結果登録
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[0-9]{1,9}-[0-9]{1,9}$' }, description: 販売案件番号 (年-月-連番) }
       requestBody:
         required: true
         content:
           application/json:
+            example: {resultDate: '2026-03-01', resultAmount: 900, version: 1}
             schema:
               type: object
               required: [resultDate, resultAmount, version]
               properties:
                 resultDate: { type: string, format: date }
                 resultAmount: { type: integer }
-                version: { type: integer, minimum: 1 }
+                version: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
           description: 登録成功
@@ -1540,7 +1572,7 @@ paths:
         リトライ・サーキットブレーカー（Polly）が前段にあり、上流障害時は 502/503 を返す。
         `viewer` ロール以上で利用可能。
       parameters:
-        - { name: lotId, in: query, required: true, schema: { type: string }, description: "ロット番号（例: 2024-A-001）" }
+        - { name: lotId, in: query, required: true, schema: { type: string, pattern: '^[0-9]{1,9}-[^-\u0000]+-[0-9]{1,9}$' }, description: "ロット番号（例: 2024-A-001）" }
       responses:
         '200':
           description: 価格取得成功
