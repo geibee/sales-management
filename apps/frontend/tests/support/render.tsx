@@ -16,6 +16,7 @@
  * `setToken(...)` した内容はそのまま残る。
  */
 import { Toaster } from "@/components/atoms/sonner";
+import { routeTree } from "@/routeTree.gen";
 import {
   RouterProvider,
   createMemoryHistory,
@@ -55,8 +56,8 @@ export interface RenderWithRouterOptions {
  * 即席で組んだ catch-all ルート 1 本のうえに `ui` を載せて TanStack
  * Router を立ち上げる。production の `routeTree.gen.ts` に依存しない。
  *
- * 本物のルートツリーが要るテスト (Phase 6 など) は `routeTree` を
- * import して自前の initialPath で起動する想定 (現時点では未使用)。
+ * 本物のルートツリーが要るテスト (Phase 6 の FE-NAV-*) は
+ * `renderWithRealRouter` を使う。
  */
 export function renderWithRouter(
   ui: ReactElement,
@@ -67,6 +68,25 @@ export function renderWithRouter(
   const rootRoute = createRootRoute({ component: () => ui });
   const router = createRouter({
     routeTree: rootRoute,
+    history: createMemoryHistory({ initialEntries: [initialPath] }),
+  });
+  return render(
+    <AppProviders>
+      <RouterProvider router={router as never} />
+    </AppProviders>,
+  );
+}
+
+/**
+ * production の `routeTree.gen.ts` をそのまま使い、メモリ history で
+ * `initialPath` から起動する (Phase 6 / FE-NAV-*)。route 解決・
+ * `navigate({to})` の実遷移・実 route 上の Guard fallback を検査できる。
+ * root route が `Shell` を描画するため、Sidebar (/lots・/sales-cases) と
+ * Topbar (/health) の MSW handler が必要になる点に注意。
+ */
+export function renderWithRealRouter(initialPath: string): RenderResult {
+  const router = createRouter({
+    routeTree,
     history: createMemoryHistory({ initialEntries: [initialPath] }),
   });
   return render(
