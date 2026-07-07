@@ -12,13 +12,18 @@
  *   - DELETE 系 action は confirm を介して呼ばれる
  *   - 409 は toast.error、navigation なし
  */
+import { schemas } from "@/contracts";
 import { SalesCaseDetailPage } from "@/pages/sales-cases/SalesCaseDetailPage";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
 import { deferred } from "../../support/deferred";
-import { makeAvailableLot, makeAvailableLotsResponse, makeDirectSalesCase } from "../../support/fixtures";
+import {
+  makeAvailableLot,
+  makeAvailableLotsResponse,
+  makeDirectSalesCase,
+} from "../../support/fixtures";
 import { renderWithRouter } from "../../support/render";
 import { requestsFor, server } from "../../support/server";
 
@@ -35,7 +40,9 @@ describe("<SalesCaseDetailPage> (FE-PAGE-SALES-DETAIL-* / FE-REQ-SALES-*)", () =
     server.use(http.get(`/api/sales-cases/${ID}`, () => d.promise));
     renderWithRouter(<SalesCaseDetailPage id={ID} />);
     expect(await screen.findByText("読み込み中…")).toBeInTheDocument();
-    d.resolve(HttpResponse.json(makeDirectSalesCase({ salesCaseNumber: ID })) as unknown as Response);
+    d.resolve(
+      HttpResponse.json(makeDirectSalesCase({ salesCaseNumber: ID })) as unknown as Response,
+    );
   });
 
   it("FE-PAGE-SALES-DETAIL-002: success → heading / badge / 状態フロー", async () => {
@@ -96,7 +103,7 @@ describe("<SalesCaseDetailPage> (FE-PAGE-SALES-DETAIL-* / FE-REQ-SALES-*)", () =
     await waitFor(() =>
       expect(requestsFor("/api/lots/available").length).toBeGreaterThanOrEqual(1),
     );
-    expect(requestsFor("/api/lots/available")[0].search).toContain(`excludeCase=${ID}`);
+    expect(requestsFor("/api/lots/available")[0]!.search).toContain(`excludeCase=${ID}`);
     // 新規ロットを 1 件追加して確定
     const dialog = screen.getByRole("dialog");
     fireEvent.click(
@@ -104,7 +111,7 @@ describe("<SalesCaseDetailPage> (FE-PAGE-SALES-DETAIL-* / FE-REQ-SALES-*)", () =
     );
     fireEvent.click(within(dialog).getByRole("button", { name: "更新" }));
     await waitFor(() => expect(requestsFor(`/api/sales-cases/${ID}/lots`)).toHaveLength(1));
-    const body = requestsFor(`/api/sales-cases/${ID}/lots`)[0].body as {
+    const body = requestsFor(`/api/sales-cases/${ID}/lots`)[0]!.body as {
       lots: unknown;
       version: unknown;
     };
@@ -156,8 +163,171 @@ describe("<SalesCaseDetailPage> (FE-PAGE-SALES-DETAIL-* / FE-REQ-SALES-*)", () =
     const card = (await screen.findByText("価格査定 削除")).closest('[data-slot="card"]')!;
     fireEvent.click(within(card as HTMLElement).getByRole("button", { name: /実行/ }));
     await waitFor(() => expect(requestsFor(`/api/sales-cases/${ID}/appraisals`)).toHaveLength(1));
-    expect(requestsFor(`/api/sales-cases/${ID}/appraisals`)[0].method).toBe("DELETE");
-    expect(requestsFor(`/api/sales-cases/${ID}/appraisals`)[0].body).toEqual({ version: 9 });
+    expect(requestsFor(`/api/sales-cases/${ID}/appraisals`)[0]!.method).toBe("DELETE");
+    expect(requestsFor(`/api/sales-cases/${ID}/appraisals`)[0]!.body).toEqual({ version: 9 });
+  });
+
+  it("FE-REQ-SALES-ACTION-001: 価格査定 登録 → POST body の各 rate は ÷100 (0.9〜1.1) で契約適合", async () => {
+    authDisabled();
+    server.use(
+      http.get(`/api/sales-cases/${ID}`, () =>
+        HttpResponse.json(
+          makeDirectSalesCase({
+            salesCaseNumber: ID,
+            status: "before_appraisal",
+            caseType: "direct",
+            lots: ["2026-A-1"],
+            version: 4,
+          }),
+        ),
+      ),
+      http.post(`/api/sales-cases/${ID}/appraisals`, () =>
+        HttpResponse.json({ salesCaseNumber: ID, status: "appraised", version: 5 }),
+      ),
+    );
+    renderWithRouter(<SalesCaseDetailPage id={ID} />);
+    const card = (await screen.findByText("価格査定 登録")).closest(
+      '[data-slot="card"]',
+    )! as HTMLElement;
+    fireEvent.change(within(card).getByLabelText("期中調整率(%)"), { target: { value: "95" } });
+    fireEvent.change(within(card).getByLabelText("取引先調整率(%)"), {
+      target: { value: "105" },
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "登録" }));
+    await waitFor(() => expect(requestsFor(`/api/sales-cases/${ID}/appraisals`)).toHaveLength(1));
+    // 契約 request schema でそのまま parse できる = rate が 0.9〜1.1 に収まっている
+    const body = schemas.createSalesAppraisal_Body.parse(
+      requestsFor(`/api/sales-cases/${ID}/appraisals`)[0]!.body,
+    );
+    expect(body.lotAppraisals[0]!.detailAppraisals[0]!.periodAdjustmentRate).toBeCloseTo(0.95, 5);
+    expect(body.lotAppraisals[0]!.detailAppraisals[0]!.counterpartyAdjustmentRate).toBeCloseTo(
+      1.05,
+      5,
+    );
+    expect(body.version).toBe(4);
+  });
+
+  it("FE-REQ-SALES-ACTION-003: 売買契約 登録 → POST body の契約調整率は ÷100 で契約適合", async () => {
+    authDisabled();
+    server.use(
+      http.get(`/api/sales-cases/${ID}`, () =>
+        HttpResponse.json(
+          makeDirectSalesCase({
+            salesCaseNumber: ID,
+            status: "appraised",
+            caseType: "direct",
+            version: 6,
+          }),
+        ),
+      ),
+      http.post(`/api/sales-cases/${ID}/contracts`, () =>
+        HttpResponse.json({ salesCaseNumber: ID, status: "contracted", version: 7 }),
+      ),
+    );
+    renderWithRouter(<SalesCaseDetailPage id={ID} />);
+    const card = (await screen.findByText("売買契約 登録")).closest(
+      '[data-slot="card"]',
+    )! as HTMLElement;
+    fireEvent.change(within(card).getByLabelText("契約調整率(%)"), { target: { value: "105" } });
+    fireEvent.click(within(card).getByRole("button", { name: "登録" }));
+    await waitFor(() => expect(requestsFor(`/api/sales-cases/${ID}/contracts`)).toHaveLength(1));
+    const raw = requestsFor(`/api/sales-cases/${ID}/contracts`)[0]!.body as {
+      contractAdjustmentRate: number;
+    };
+    // 契約 request schema (passthrough) に適合しつつ、調整率は ÷100 換算で送る
+    const body = schemas.createSalesContract_Body.parse(raw);
+    expect(raw.contractAdjustmentRate).toBeCloseTo(1.05, 5);
+    expect(body.version).toBe(6);
+  });
+
+  it("FE-PAGE-SALES-DETAIL-APPRAISAL-001: 査定合計が page 上で wire-up され、単価変更で即再計算される", async () => {
+    authDisabled();
+    server.use(
+      http.get(`/api/sales-cases/${ID}`, () =>
+        HttpResponse.json(
+          makeDirectSalesCase({
+            salesCaseNumber: ID,
+            status: "before_appraisal",
+            caseType: "direct",
+            lots: ["2026-A-1", "2026-A-2"],
+            version: 4,
+          }),
+        ),
+      ),
+    );
+    renderWithRouter(<SalesCaseDetailPage id={ID} />);
+    const card = (await screen.findByText("価格査定 登録")).closest(
+      '[data-slot="card"]',
+    )! as HTMLElement;
+    // 初期値: 単価1000 × rate 1.0 × 1.0 × 2 ロット = 2,000
+    expect(within(card).getByText(/2,000/)).toBeInTheDocument();
+    // 1 ロット目の単価を 3000 に → 3000 + 1000 = 4,000 (BR-APPRAISAL-TOTAL-FORMULA)
+    fireEvent.change(within(card).getAllByLabelText("基準単価")[0]!, {
+      target: { value: "3000" },
+    });
+    await waitFor(() => expect(within(card).getByText(/4,000/)).toBeInTheDocument());
+  });
+
+  it("FE-VERSION-SALES-002: 売買契約 削除 → DELETE body に version", async () => {
+    authDisabled();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    server.use(
+      http.get(`/api/sales-cases/${ID}`, () =>
+        HttpResponse.json(
+          makeDirectSalesCase({
+            salesCaseNumber: ID,
+            status: "contracted",
+            caseType: "direct",
+            version: 8,
+          }),
+        ),
+      ),
+      http.delete(
+        `/api/sales-cases/${ID}/contracts`,
+        () => new HttpResponse(null, { status: 204 }),
+      ),
+    );
+    renderWithRouter(<SalesCaseDetailPage id={ID} />);
+    const card = (await screen.findByText("売買契約 削除")).closest(
+      '[data-slot="card"]',
+    )! as HTMLElement;
+    fireEvent.click(within(card).getByRole("button", { name: /実行/ }));
+    await waitFor(() => expect(requestsFor(`/api/sales-cases/${ID}/contracts`)).toHaveLength(1));
+    expect(requestsFor(`/api/sales-cases/${ID}/contracts`)[0]!.method).toBe("DELETE");
+    expect(requestsFor(`/api/sales-cases/${ID}/contracts`)[0]!.body).toEqual({ version: 8 });
+  });
+
+  it("FE-VERSION-SALES-003: 出荷指示 解除 → DELETE body に version", async () => {
+    authDisabled();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    server.use(
+      http.get(`/api/sales-cases/${ID}`, () =>
+        HttpResponse.json(
+          makeDirectSalesCase({
+            salesCaseNumber: ID,
+            status: "shipping_instructed",
+            caseType: "direct",
+            version: 11,
+          }),
+        ),
+      ),
+      http.delete(
+        `/api/sales-cases/${ID}/shipping-instruction`,
+        () => new HttpResponse(null, { status: 204 }),
+      ),
+    );
+    renderWithRouter(<SalesCaseDetailPage id={ID} />);
+    const card = (await screen.findByText("出荷指示 解除")).closest(
+      '[data-slot="card"]',
+    )! as HTMLElement;
+    fireEvent.click(within(card).getByRole("button", { name: /実行/ }));
+    await waitFor(() =>
+      expect(requestsFor(`/api/sales-cases/${ID}/shipping-instruction`)).toHaveLength(1),
+    );
+    expect(requestsFor(`/api/sales-cases/${ID}/shipping-instruction`)[0]!.method).toBe("DELETE");
+    expect(requestsFor(`/api/sales-cases/${ID}/shipping-instruction`)[0]!.body).toEqual({
+      version: 11,
+    });
   });
 
   it("FE-ERR-PAGE-001: 価格査定 削除 で 409 → toast.error、page は残る", async () => {
