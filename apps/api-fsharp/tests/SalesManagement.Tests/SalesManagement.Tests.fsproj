@@ -18,6 +18,8 @@
     <Compile Include="Support/TheoryCases.fs" />
     <Compile Include="Support/Generators.fs" />
     <Compile Include="Support/SmokeTest.fs" />
+    <Compile Include="SmartConstructorTests.fs" />
+    <Compile Include="LotRepositoryRoundTripTests.fs" />
     <Compile Include="LotPropertyTests.fs" />
     <Compile Include="LotStateMachinePropertyTests.fs" />
     <Compile Include="SalesCaseStateMachinePropertyTests.fs" />
