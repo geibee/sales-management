@@ -49,6 +49,7 @@
     <Compile Include="IntegrationTests/SalesCaseSubtypeRoutingTests.fs" />
     <Compile Include="IntegrationTests/CodeMasterAndLotEditTests.fs" />
     <Compile Include="IntegrationTests/MiscEndpointTests.fs" />
+    <Compile Include="IntegrationTests/MigrationTests.fs" />
     <Compile Include="IntegrationTests/BatchMigrationTests.fs" />
     <Compile Include="IntegrationTests/LotIdMigrationTests.fs" />
     <Compile Include="IntegrationTests/BatchJobLifecycleTests.fs" />
