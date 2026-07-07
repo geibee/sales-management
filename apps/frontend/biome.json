@@ -41,9 +41,10 @@
         "useImportType": "warn"
       },
       "suspicious": {
-        "noExplicitAny": "warn"
+        "noExplicitAny": "error"
       },
       "a11y": {
+        "all": true,
         "useKeyWithClickEvents": "off"
       }
     }
