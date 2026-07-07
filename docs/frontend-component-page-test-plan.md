@@ -544,15 +544,15 @@ refetch は implementation mock ではなく、原則 MSW GET count で検査す
 
 | ID | 対象関数 / 場所 | property | generator | 状態 |
 |---|---|---|---|---|
-| `FE-PBT-SALES-LOTS-001` | `parseLotNumbers` (`src/pages/sales-cases/sales-case-create-validation.ts`) と LotSelectDialog 出力 | 選択 lotIds はユニーク、空文字を含まない | `fc.uniqueArray(fc.stringMatching(/^\d+-[^-\s]+-\d+$/))` | ❌ |
-| `FE-PBT-RATE-001` | `displayRate ⇄ apiRate` (要抽出: RichActionForms 内 `RATE_DISPLAY_SCALE`) | 画面値 r∈[90,110] を `÷100` した API 値は `[0.9, 1.1]`、逆変換で誤差 < `1e-9` で一致 | `fc.integer({ min: 90, max: 110 })` | ❌ |
-| `FE-PBT-RATE-002` | `requiredRate` の range guard | r ∈ [90,110] のみ valid、外は `error` を立てる | `fc.integer({ min: -1000, max: 1000 })` | ❌ |
-| `FE-PBT-TOTAL-001` | `computeEstimatedTotal` (要 export 化) | `Math.round(Σ base × period × counterparty × exceptional)` の結果が手計算値 ±1 で一致 | `fc.array(fc.record({ base: fc.integer({min:0, max:1_000_000}), period: fc.integer({min:90,max:110}), counterparty: fc.integer({min:90,max:110}), exceptional: fc.oneof(fc.constant(null), fc.integer({min:90,max:110})) }))` | ❌ |
-| `FE-PBT-STATUS-001` | `lotActionEnabled` (`src/lib/format.ts`) | matrix に無い status × action は `false` | `fc.tuple(fc.constantFrom(...LOT_ACTIONS), fc.oneof(fc.constantFrom(...KNOWN_STATUSES), fc.string()))` | ❌ |
-| `FE-PBT-FORMAT-001` | `lotStatusLabel` / `caseStatusLabel` | 未知 status は入力値を fallback 表示 | `fc.string().filter(s => !KNOWN.includes(s))` | ❌ |
-| `FE-PBT-NAMEMAP-001` | `codeName` | `name == null` のとき `String(code)`、`name` 有のとき `${name} (${code})` | `fc.record({ code: fc.integer(), name: fc.oneof(fc.constant(null), fc.constant(undefined), fc.string()) })` | ❌ |
-| `FE-PBT-VERSION-001` (新) | `withConflictRefresh` の純粋部分 (要抽出): `version` が null/undefined のとき API call は skip | `fc.oneof(fc.constant(null), fc.constant(undefined), fc.integer())` | ❌ |
-| `FE-PBT-LOTID-001` (新) | `lotsSchema.superRefine` (`/^\d+-[^-\s]+-\d+$/`) | invalid string array に対し issue には全 invalid を列挙する | `fc.array(fc.oneof(fc.stringMatching(/^\d+-[^-\s]+-\d+$/), fc.string()))` | ❌ |
+| `FE-PBT-SALES-LOTS-001` | `parseLotNumbers` (`src/pages/sales-cases/sales-case-create-validation.ts`) と LotSelectDialog 出力 | 選択 lotIds はユニーク、空文字を含まない | `fc.uniqueArray(fc.stringMatching(/^\d+-[^-\s]+-\d+$/))` | ✅ |
+| `FE-PBT-RATE-001` | `displayRate ⇄ apiRate` (要抽出: RichActionForms 内 `RATE_DISPLAY_SCALE`) | 画面値 r∈[90,110] を `÷100` した API 値は `[0.9, 1.1]`、逆変換で誤差 < `1e-9` で一致 | `fc.integer({ min: 90, max: 110 })` | ✅ |
+| `FE-PBT-RATE-002` | `requiredRate` の range guard | r ∈ [90,110] のみ valid、外は `error` を立てる | `fc.integer({ min: -1000, max: 1000 })` | ✅ |
+| `FE-PBT-TOTAL-001` | `computeEstimatedTotal` (要 export 化) | `Math.round(Σ base × period × counterparty × exceptional)` の結果が手計算値 ±1 で一致 | `fc.array(fc.record({ base: fc.integer({min:0, max:1_000_000}), period: fc.integer({min:90,max:110}), counterparty: fc.integer({min:90,max:110}), exceptional: fc.oneof(fc.constant(null), fc.integer({min:90,max:110})) }))` | ✅ |
+| `FE-PBT-STATUS-001` | `lotActionEnabled` (`src/lib/format.ts`) | matrix に無い status × action は `false` | `fc.tuple(fc.constantFrom(...LOT_ACTIONS), fc.oneof(fc.constantFrom(...KNOWN_STATUSES), fc.string()))` | ✅ |
+| `FE-PBT-FORMAT-001` | `lotStatusLabel` / `caseStatusLabel` | 未知 status は入力値を fallback 表示 | `fc.string().filter(s => !KNOWN.includes(s))` | ✅ |
+| `FE-PBT-NAMEMAP-001` | `codeName` | `name == null` のとき `String(code)`、`name` 有のとき `${name} (${code})` | `fc.record({ code: fc.integer(), name: fc.oneof(fc.constant(null), fc.constant(undefined), fc.string()) })` | ✅ |
+| `FE-PBT-VERSION-001` (新) | `withConflictRefresh` の純粋部分 (要抽出): `version` が null/undefined のとき API call は skip | `fc.oneof(fc.constant(null), fc.constant(undefined), fc.integer())` | ⏸ 保留 (lot.version は number 型で null 経路が型的に到達不能。ガード抽出は挙動追加になるため UI 改修と合わせて実施) |
+| `FE-PBT-LOTID-001` (新) | `lotsSchema.superRefine` (`/^\d+-[^-\s]+-\d+$/`) | invalid string array に対し issue には全 invalid を列挙する | `fc.array(fc.oneof(fc.stringMatching(/^\d+-[^-\s]+-\d+$/), fc.string()))` | ✅ |
 
 ### 実装規約
 

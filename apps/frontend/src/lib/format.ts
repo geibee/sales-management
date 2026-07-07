@@ -1,5 +1,14 @@
 import type { LotStatus } from "@/contracts";
 
+/**
+ * Record lookup の安全版。status はサーバ由来の任意文字列なので、
+ * "valueOf" のような prototype 継承キーで Object.prototype のメンバを
+ * 拾わないよう own property のみを引く (fast-check が検出した実バグの恒久対応)。
+ */
+function ownLookup<T>(map: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(map, key) ? map[key] : undefined;
+}
+
 export const LOT_STATUS_LABEL: Record<LotStatus, string> = {
   manufacturing: "製造中",
   manufactured: "製造完了",
@@ -10,7 +19,7 @@ export const LOT_STATUS_LABEL: Record<LotStatus, string> = {
 
 export function lotStatusLabel(status: string | null | undefined): string {
   if (!status) return "(unknown)";
-  return (LOT_STATUS_LABEL as Record<string, string>)[status] ?? status;
+  return ownLookup(LOT_STATUS_LABEL as Record<string, string>, status) ?? status;
 }
 
 export const SALES_CASE_STATUS_LABEL: Record<string, string> = {
@@ -45,7 +54,7 @@ export function caseStatusLabel(
       : caseType === "consignment"
         ? CONSIGNMENT_STATUS_LABEL
         : SALES_CASE_STATUS_LABEL;
-  return map[status] ?? status;
+  return ownLookup(map, status) ?? status;
 }
 
 /**
@@ -64,7 +73,7 @@ export const LOT_STATUS_TONE: Record<string, StatusTone> = {
 
 export function lotStatusTone(status: string | null | undefined): StatusTone {
   if (!status) return "neutral";
-  return LOT_STATUS_TONE[status] ?? "neutral";
+  return ownLookup(LOT_STATUS_TONE, status) ?? "neutral";
 }
 
 export const CASE_STATUS_TONE: Record<string, StatusTone> = {
@@ -87,7 +96,7 @@ export const CASE_STATUS_TONE: Record<string, StatusTone> = {
 
 export function caseStatusTone(status: string | null | undefined): StatusTone {
   if (!status) return "neutral";
-  return CASE_STATUS_TONE[status] ?? "neutral";
+  return ownLookup(CASE_STATUS_TONE, status) ?? "neutral";
 }
 
 export const CASE_TYPE_LABEL: Record<string, string> = {
@@ -98,7 +107,7 @@ export const CASE_TYPE_LABEL: Record<string, string> = {
 
 export function caseTypeLabel(caseType: string | null | undefined): string {
   if (!caseType) return "(unknown)";
-  return CASE_TYPE_LABEL[caseType] ?? caseType;
+  return ownLookup(CASE_TYPE_LABEL, caseType) ?? caseType;
 }
 
 /**
