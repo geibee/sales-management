@@ -80,7 +80,7 @@ describe("<SalesCaseCreatePage> (FE-PAGE-SALES-CREATE-* / FE-REQ-SALES-CREATE-*)
     fireEvent.change(screen.getByLabelText("販売日"), { target: { value: "2026-05-01" } });
     fireEvent.click(screen.getByRole("button", { name: /作成/ }));
     await waitFor(() => expect(requestsFor("/api/sales-cases")).toHaveLength(1));
-    const body = requestsFor("/api/sales-cases")[0].body as {
+    const body = requestsFor("/api/sales-cases")[0]!.body as {
       lots: unknown;
       divisionCode: unknown;
       salesDate: unknown;

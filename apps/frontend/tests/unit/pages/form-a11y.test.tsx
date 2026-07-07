@@ -98,6 +98,6 @@ describe("Form a11y (FE-A11Y-FORM-*)", () => {
     const form = input.closest("form")! as HTMLFormElement;
     form.requestSubmit();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0][0]).toMatchObject({ date: "2026-05-01", version: 2 });
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ date: "2026-05-01", version: 2 });
   });
 });

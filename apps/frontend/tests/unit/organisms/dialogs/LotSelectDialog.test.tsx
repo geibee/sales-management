@@ -69,7 +69,7 @@ describe("<LotSelectDialog> (FE-COMP-LOT-SELECT-*)", () => {
     await waitFor(() =>
       expect(requestsFor("/api/lots/available").length).toBeGreaterThanOrEqual(1),
     );
-    const call = requestsFor("/api/lots/available")[0];
+    const call = requestsFor("/api/lots/available")[0]!;
     expect(call.search).toContain("excludeCase=2026-S-001");
   });
 

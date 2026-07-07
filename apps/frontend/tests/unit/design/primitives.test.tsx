@@ -205,7 +205,7 @@ describe("StatusFlow", () => {
     const { container } = render(<StatusFlow steps={steps} currentIndex={1} />);
     const dots = container.querySelectorAll(".flow-dot");
     // index0 は completed → Check アイコン (svg)、index1/2 は数字。
-    expect(dots[0].querySelector("svg")).not.toBeNull();
+    expect(dots[0]!.querySelector("svg")).not.toBeNull();
     expect(dots[1]).toHaveTextContent("2");
     expect(dots[2]).toHaveTextContent("3");
   });
@@ -243,6 +243,6 @@ describe("StatusFlow", () => {
     );
     const nodes = container.querySelectorAll(".flow-step");
     expect(nodes[3]).toHaveAttribute("data-state", "pending");
-    expect(nodes[3].querySelector(".flow-dot")).toHaveTextContent("4");
+    expect(nodes[3]!.querySelector(".flow-dot")).toHaveTextContent("4");
   });
 });

@@ -133,7 +133,7 @@ export function formatQuantity(value: number): string {
  * `{code, name}` を「名称 (コード)」で表示する。`name` が null/未登録なら
  * コードのみ。`LotDetailPage` だけにあったのを共通化した。
  */
-export function codeName(cn: { code: number; name?: string | null }): string {
+export function codeName(cn: { code: number; name?: string | null | undefined }): string {
   return cn.name ? `${cn.name} (${cn.code})` : String(cn.code);
 }
 

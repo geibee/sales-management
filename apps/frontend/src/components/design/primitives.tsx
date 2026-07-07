@@ -160,7 +160,7 @@ export function Sparkline({
         : tone === "warn"
           ? "var(--warn-soft)"
           : "var(--bg-sunk)";
-  const last = pts[pts.length - 1];
+  const last = pts[pts.length - 1] ?? ([0, 0] as const);
   return (
     <svg
       className="spark"

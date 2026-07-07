@@ -4,9 +4,9 @@ import useSWR from "swr";
 
 export type AvailableLotsQuery = {
   /** 除外する販売案件番号。指定時はその案件に現在割当済みのロットも候補に含める（修正用）。 */
-  excludeCase?: string;
+  excludeCase?: string | undefined;
   /** false のときは fetch しない（モーダルが閉じている間など）。 */
-  enabled?: boolean;
+  enabled?: boolean | undefined;
 };
 
 export function useAvailableLots(q: AvailableLotsQuery = {}) {

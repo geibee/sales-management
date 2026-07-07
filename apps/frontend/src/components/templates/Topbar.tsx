@@ -15,7 +15,7 @@ function crumbsFor(pathname: string): Crumb[] {
     if (seg.length === 1) return [...base, { label: "在庫ロット" }];
     if (seg[1] === "new")
       return [...base, { label: "在庫ロット", to: "/lots" }, { label: "新規作成" }];
-    return [...base, { label: "在庫ロット", to: "/lots" }, { label: seg[1], mono: true }];
+    return [...base, { label: "在庫ロット", to: "/lots" }, { label: seg[1] ?? "", mono: true }];
   }
 
   if (
@@ -27,7 +27,11 @@ function crumbsFor(pathname: string): Crumb[] {
     if (seg[0] === "sales-cases" && seg.length === 1) return [...base, { label: "販売案件" }];
     if (seg[0] === "sales-cases" && seg[1] === "new")
       return [...base, { label: "販売案件", to: "/sales-cases" }, { label: "新規作成" }];
-    return [...base, { label: "販売案件", to: "/sales-cases" }, { label: seg[1], mono: true }];
+    return [
+      ...base,
+      { label: "販売案件", to: "/sales-cases" },
+      { label: seg[1] ?? "", mono: true },
+    ];
   }
 
   if (seg[0] === "external") {
