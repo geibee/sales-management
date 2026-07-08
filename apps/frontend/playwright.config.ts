@@ -13,9 +13,16 @@ const backendServer = {
   timeout: 300_000,
 };
 
+// E2E は既定の 5173 ではなく専用ポートで vite を起動する。
+// 5173 は他プロジェクトの dev サーバーが占有していることがあり、
+// reuseExistingServer がその「別物のアプリ」を黙って被検体にしてしまう
+// (赤 = 本当に壊れている、を守るための決定性対策)。--strictPort で
+// ポートが取れない場合はフォールバックせず起動失敗にする。
+const E2E_PORT = 5273;
+
 const frontendServer = {
-  command: "pnpm dev",
-  url: "http://localhost:5173",
+  command: `pnpm dev --port ${E2E_PORT} --strictPort`,
+  url: `http://localhost:${E2E_PORT}`,
   reuseExistingServer: !process.env.CI,
   timeout: 60_000,
 };
@@ -28,7 +35,7 @@ export default defineConfig({
   workers: 1,
   reporter: [["list"]],
   use: {
-    baseURL: "http://localhost:5173",
+    baseURL: `http://localhost:${E2E_PORT}`,
     trace: "on-first-retry",
     // playwright install できない環境 (システム提供の chromium を使う CI サンドボックス等)
     // では PW_CHROMIUM_PATH で実行バイナリを差し替えられる
