@@ -10,6 +10,7 @@ open FsCheck.FSharp
 open Npgsql
 open SalesManagement.Domain.Types
 open SalesManagement.Infrastructure
+open SalesManagement.Tests.Support
 open SalesManagement.Tests.Support.ApiFixture
 
 let private mustOk =
@@ -136,5 +137,5 @@ type LotRepositoryRoundTripTests(fixture: AuthOffFixture) =
                 if loaded <> lot then
                     failwithf "round-trip 不一致。\n期待: %A\n実際: %A" lot loaded
 
-        let config = Config.QuickThrowOnFailure.WithMaxTest(30)
+        let config = PbtConfig.standard 30
         Check.One(config, Prop.forAll (Arb.fromGen lotGen) run)

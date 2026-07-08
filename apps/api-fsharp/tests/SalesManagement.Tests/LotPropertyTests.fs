@@ -3,6 +3,7 @@ module SalesManagement.Tests.LotPropertyTests
 open System
 open Xunit
 open FsCheck.Xunit
+open SalesManagement.Tests.Support.PbtConfig
 open SalesManagement.Domain.Types
 open SalesManagement.Domain.LotWorkflows
 open SalesManagement.Tests.Support.Generators
@@ -10,7 +11,7 @@ open SalesManagement.Tests.Support.Generators
 [<Properties(Arbitrary = [| typeof<Domain.Arbitraries> |])>]
 module Tests =
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``製造完了→取消で元の製造中ロットに戻る（往復性）`` (date: DateOnly) (common: LotCommon) =
         let lot: ManufacturingLot = { Common = common }
@@ -18,7 +19,7 @@ module Tests =
         let cancelled = cancelManufacturingCompletion manufactured
         cancelled.Common = common
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``製造中→製造完了→出荷指示→出荷完了の順序で遷移可能`` (common: LotCommon) =
         let lot: ManufacturingLot = { Common = common }
@@ -34,14 +35,14 @@ module Tests =
         && shipped.ShippingDeadlineDate = d2
         && shipped.ShippedDate = d3
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``状態遷移でロット共通情報は変わらない（不変性）`` (common: LotCommon) =
         let lot: ManufacturingLot = { Common = common }
         let manufactured = completeManufacturing (DateOnly(2024, 1, 1)) lot
         manufactured.Common = common
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``品目変換指示取消後は製造完了状態に戻る（往復性）`` (date: DateOnly) (common: LotCommon) =
         let manufactured: ManufacturedLot =

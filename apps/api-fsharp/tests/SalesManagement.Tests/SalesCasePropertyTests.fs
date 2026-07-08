@@ -5,6 +5,7 @@ open Xunit
 open FsCheck
 open FsCheck.FSharp
 open FsCheck.Xunit
+open SalesManagement.Tests.Support.PbtConfig
 open SalesManagement.Domain.Types
 open SalesManagement.Domain.SalesCaseTypes
 open SalesManagement.Domain.ReservationCaseTypes
@@ -240,7 +241,7 @@ type SalesCaseArbitraries =
 [<Properties(Arbitrary = [| typeof<SalesCaseArbitraries> |])>]
 module Tests =
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``査定削除後は査定前状態に戻る（往復性）`` (common: SalesCaseCommon) (appraisal: PriceAppraisal) =
         let case: BeforeAppraisalCase = { Common = common }
@@ -248,7 +249,7 @@ module Tests =
         let restored = deleteAppraisal appraised
         restored.Common = common
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``契約削除後は査定済み状態に戻る（往復性）`` (common: SalesCaseCommon) (appraisal: PriceAppraisal) (contract: SalesContract) =
         let appraised: AppraisedCase =
@@ -259,7 +260,7 @@ module Tests =
         let restored = deleteContract contracted
         restored.Common = common && restored.Appraisal = appraisal
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``出庫指示取消後は契約済み状態に戻る（往復性）``
         (common: SalesCaseCommon)
@@ -279,7 +280,7 @@ module Tests =
         && restored.Appraisal = appraisal
         && restored.Contract = contract
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``5状態を順序通り遷移できる（順序性）``
         (common: SalesCaseCommon)
@@ -300,7 +301,7 @@ module Tests =
         && completed.ShippingInstruction = info
         && completed.ShippingCompletedDate = date
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``状態遷移で SalesCaseCommon は変わらない（不変性）``
         (common: SalesCaseCommon)
@@ -322,7 +323,7 @@ module Tests =
         | Normal a -> a.Common.AppraisalNumber
         | CustomerContract a -> a.Common.AppraisalNumber
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``査定更新後も AppraisalNumber は呼び出し側が渡した値と一致する（不変性）``
         (common: SalesCaseCommon)
@@ -336,7 +337,7 @@ module Tests =
         let updated = updateAppraisalOf newAppraisal case
         appraisalNumberOf updated.Appraisal = appraisalNumberOf newAppraisal
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``顧客契約査定には顧客契約番号と契約調整率が保持される`` (common: AppraisalCommon) (rateRaw: PositiveInt) =
         let customerContractNumber = "SA-2024-001"
@@ -355,14 +356,14 @@ module Tests =
         | Normal _ -> false
 
     // 調整率(API値)は 0.9〜1.1 のときのみ受理される（画面の 90〜110% に対応）。
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``調整率は0.9〜1.1のときのみ受理される（境界）`` (value: decimal) =
         match SalesManagement.Api.SalesCaseDtos.validateAdjustmentRate "rate" value with
         | Ok accepted -> accepted = value && value >= 0.9m && value <= 1.1m
         | Error _ -> value < 0.9m || value > 1.1m
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``予約確定取消後は査定済み状態に戻る（往復性）``
         (common: SalesCaseCommon)
@@ -382,7 +383,7 @@ module Tests =
 
         restored.Common = common && restored.Appraisal = appraised.Appraisal
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``委託指定解除後は指定前に戻る（往復性）`` (common: SalesCaseCommon) (info: ConsignorInfo) =
         let before: BeforeConsignmentCase = { Common = common }
@@ -390,7 +391,7 @@ module Tests =
         let restored = cancelDesignation designated
         restored.Common = common
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``予約は4状態を順序通り遷移できる（順序性）``
         (common: SalesCaseCommon)
@@ -412,7 +413,7 @@ module Tests =
         && delivered.DeterminedDate = determinedDate
         && delivered.DeliveryDate = deliveryDate
 
-    [<Property>]
+    [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``委託は3状態を順序通り遷移できる（順序性）``
         (common: SalesCaseCommon)

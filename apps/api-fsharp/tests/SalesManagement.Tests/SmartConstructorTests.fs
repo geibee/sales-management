@@ -9,13 +9,14 @@ open FsCheck
 open FsCheck.FSharp
 open SalesManagement.Domain.Types
 open SalesManagement.Domain.SmartConstructors
+open SalesManagement.Tests.Support
 
 let private isOk =
     function
     | Ok _ -> true
     | Error _ -> false
 
-let private pbtConfig = Config.QuickThrowOnFailure.WithMaxTest(200)
+let private pbtConfig = PbtConfig.standard 200
 
 /// 境界周辺 + 極値を厚めに引く int generator (デフォルト Arb の分布に依存しない)
 let private intGen =

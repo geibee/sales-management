@@ -14,6 +14,7 @@ open System.Net
 open Xunit
 open FsCheck
 open FsCheck.FSharp
+open SalesManagement.Tests.Support
 open SalesManagement.Tests.Support.ApiFixture
 open SalesManagement.Tests.Support.HttpHelpers
 open SalesManagement.Tests.Support.RequestBuilders
@@ -136,7 +137,7 @@ let private runAgainstModel
 let private commandListGen (commandGen: Gen<'cmd>) : Gen<'cmd list> =
     Gen.choose (0, 12) |> Gen.bind (fun n -> Gen.listOfLength n commandGen)
 
-let private pbtConfig = Config.QuickThrowOnFailure.WithMaxTest(20)
+let private pbtConfig = PbtConfig.standard 20
 
 // ═══════════════════════════════════════════════ direct 案件
 

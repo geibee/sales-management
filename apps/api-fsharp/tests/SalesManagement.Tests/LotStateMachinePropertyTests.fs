@@ -7,6 +7,7 @@ open FsCheck
 open FsCheck.FSharp
 open FsCheck.Xunit
 open SalesManagement.Domain.Types
+open SalesManagement.Tests.Support
 open SalesManagement.Tests.Support.ApiFixture
 open SalesManagement.Tests.Support.HttpHelpers
 open SalesManagement.Tests.Support.RequestBuilders
@@ -191,7 +192,7 @@ type LotStateMachinePropertyTests(fixture: AuthOffFixture) =
                 .GetAwaiter()
                 .GetResult()
 
-        let config = Config.QuickThrowOnFailure.WithMaxTest(30)
+        let config = PbtConfig.standard 30
         let prop = Prop.forAll (Arb.fromGen lotCommandListGen) runCommands
         Check.One(config, prop)
     }
@@ -248,7 +249,7 @@ type LotStateMachinePropertyTests(fixture: AuthOffFixture) =
                 .GetAwaiter()
                 .GetResult()
 
-        let config = Config.QuickThrowOnFailure.WithMaxTest(30)
+        let config = PbtConfig.standard 30
         let prop = Prop.forAll (Arb.fromGen lotCommandListGen) runCommands
         Check.One(config, prop)
     }
