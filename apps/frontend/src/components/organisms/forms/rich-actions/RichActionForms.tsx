@@ -895,9 +895,15 @@ function EstimatedTotalField({
 
   return (
     <div className="space-y-1">
-      <Label htmlFor={name}>{label}</Label>
+      {/* 自動計算モードは labelable な入力が無い (値は span 表示 + hidden 送信)。
+          htmlFor の先が存在しない孤立 label にしないため aria-labelledby で紐付ける。 */}
+      <Label id={`${name}-label`}>{label}</Label>
       <div className="flex items-center gap-2">
-        <span className="font-medium text-sm tabular-nums" aria-live="polite">
+        <span
+          className="font-medium text-sm tabular-nums"
+          aria-live="polite"
+          aria-labelledby={`${name}-label`}
+        >
           {formatAmount(computedValue)}
         </span>
         <Button type="button" variant="outline" size="sm" onClick={openModal}>

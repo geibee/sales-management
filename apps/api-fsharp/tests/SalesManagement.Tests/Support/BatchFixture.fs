@@ -4,14 +4,21 @@ open System
 open Npgsql
 
 /// Batch 系統合テストの共通 DB 接続文字列。
-/// `DATABASE_URL` を優先し、未設定なら docker-compose の標準ローカル設定にフォールバックする。
+/// `TEST_DATABASE_URL` → `DATABASE_URL` → docker-compose の標準ローカル設定の順で解決する。
 /// Batch ジョブは ApiFixture (Testcontainers) ではなく外部 Postgres プロセスへ直接接続するため
 /// 専用の文字列を維持している。
+/// `TEST_DATABASE_URL` が別にあるのは、`DATABASE_URL` はアプリ本体
+/// (Program.resolveConnectionString) も最優先で読むため、プロセス全体に設定すると
+/// ApiFixture (Testcontainers) 配下のアプリの接続先まで乗っ取ってしまうから。
+/// 「テスト用外部 Postgres だけ」を別の場所へ逃がしたいときはこちらを使う。
 let connectionString: string =
-    match Environment.GetEnvironmentVariable("DATABASE_URL") with
-    | null
-    | "" -> "Host=localhost;Port=5432;Database=sales_management;Username=app;Password=app"
-    | url -> url
+    [ "TEST_DATABASE_URL"; "DATABASE_URL" ]
+    |> List.tryPick (fun name ->
+        match Environment.GetEnvironmentVariable name with
+        | null
+        | "" -> None
+        | url -> Some url)
+    |> Option.defaultValue "Host=localhost;Port=5432;Database=sales_management;Username=app;Password=app"
 
 /// パラメータバインドつき非クエリ実行。
 let execParam (sql: string) (parameters: (string * obj) list) =

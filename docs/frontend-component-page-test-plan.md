@@ -13,7 +13,7 @@ component/page test は `Vitest + Testing Library + MSW` を主戦場にし、E2
 | 集計 | 値 |
 |---|---|
 | テストファイル数 | 45 |
-| passing tests | 315 |
+| passing tests | 324 |
 | todo | 3 |
 | 既知 Red (未実装 ID) | なし (2026-07-07 全 Phase 消化) |
 
@@ -34,6 +34,19 @@ component/page test は `Vitest + Testing Library + MSW` を主戦場にし、E2
 > tsconfig (noUncheckedIndexedAccess / exactOptionalPropertyTypes / noImplicitOverride)、
 > Biome (noExplicitAny=error、lint 対象に tests/ scripts/、a11y all)、
 > E2E (3 案件種別フロー: tests/e2e/backend-case-flows.spec.ts) を強化した。
+
+> **rev4 追記 (2026-07-07, issue #9 後続)**: 残っていた 3 ID を消化した。
+> `FE-REQ-LOT-CREATE-004` (cascade 段階遷移) は radix Select の SelectValue 表示が
+> jsdom では不安定なため「submit body に届く code」を oracle とした。この実装で
+> **実装バグを 2 件発見・修正**: (1) `SelectField` — radix の hidden native select が
+> options 入れ替えと同時のプログラム的 value 変更で空文字の再同期 change を発火し、
+> `parse: Number` が `Number("") = 0` を form へ書き戻す (事業部変更後の作成で
+> departmentCode/sectionCode=0 が API に送信されるデータ破壊。onValueChange で
+> `""` を無視するガードを追加)。(2) `EstimatedTotalField` 自動計算モード —
+> `<Label htmlFor>` の先が id なし hidden input で孤立 label になっていた
+> (`aria-labelledby` で表示 span へ紐付けるよう修正)。`FE-A11Y-RICH-001` は
+> ラベル列挙でなく form 内の label / 可視 input の全数機械列挙で検査するため、
+> field 追加時の紐付け忘れも構造的に検出される。
 
 | Phase | 状態 | 主な未消化 ID |
 |---|---|---|
@@ -351,7 +364,7 @@ page test での再検証は **重複ポリシー** とする。RichActionForms 
 
 | ID | 対象 | 操作 | 期待結果 | assertion | 状態 |
 |---|---|---|---|---|---|
-| `FE-A11Y-RICH-001` | RichActionForms 各 form | 全 input を取得 | 全 label と input が `htmlFor` で紐付く | `getByLabelText(fieldLabel)` が全項目で hit | ❌ (実装方針: 7 form を `it.each` で回す) |
+| `FE-A11Y-RICH-001` | RichActionForms 各 form | 全 input を取得 | 全 label と input が `htmlFor` で紐付く | 7 form を `it.each` で回し、label / 可視 input を全数機械列挙して accessible name と htmlFor 解決を検査 | ✅ (rev4。EstimatedTotalField の孤立 label を検出・修正) |
 | `FE-A11Y-LOT-ACTION-001` | LotActionForm | date input を取得 | label と input が紐付く | `getByLabelText(dateLabel)` | ✅ |
 | `FE-A11Y-LOT-SELECT-001` | LotSelectDialog | 行 checkbox | label (lotNumber) と checkbox が紐付く、列ヘッダは `role="columnheader"` | `getByRole("checkbox", { name: lotNumber })` | ✅ (LotSelectDialog-001 内) |
 | `FE-A11Y-APPROVER-001` | 上長承認モーダル | 承認者表示 | 固定値を read-only として `aria-readonly` または disabled | DOM 属性 | ✅ (DA-005) |
@@ -372,7 +385,7 @@ API 呼び出しの正しさは、原則 endpoint helper mock ではなく MSW r
 | `FE-REQ-LOT-CREATE-001` | LotCreatePage | `POST /lots` body に number fields と code-master 整数値 | `201 { lotNumber }` | body 型 (integer)、toast success、navigate mock | ✅ |
 | `FE-REQ-LOT-CREATE-002` | LotCreatePage | double submit `POST /lots` | pending promise | request count 1 | ✅ |
 | `FE-REQ-LOT-CREATE-003` | LotCreatePage | `POST /lots` | `400 problem` | toast error、navigation なし | ✅ |
-| `FE-REQ-LOT-CREATE-004` | LotCreatePage | `GET /code-masters` | `200 階層 + フラット` | 事業部→部→課 cascade、工程/検査/製造 flat、option name 表示 | ⚠️ (option 表示は ✅、cascade の段階遷移は未) |
+| `FE-REQ-LOT-CREATE-004` | LotCreatePage | `GET /code-masters` | `200 階層 + フラット` | 事業部→部→課 cascade、工程/検査/製造 flat、option name 表示 | ✅ (rev4。cascade は submit body oracle。SelectField の Number("")=0 バグを検出・修正) |
 | `FE-REQ-LOT-ACTION-001` | LotDetailPage | `GET /lots/{id}` | delayed success | loading 固定後 success 表示、明細テーブル、名称 `(コード)` 表示 | ✅ |
 | `FE-REQ-LOT-ACTION-002` | LotDetailPage | `POST /lots/{id}/complete-manufacturing` body `{ date, version }` | `200 updated lot` | request body、success toast | ✅ |
 | `FE-REQ-LOT-ACTION-003` | LotDetailPage | `POST /lots/{id}/complete-manufacturing` body `{ date, version }` | `409 problem` | toast error、page 残存 | ✅ |
@@ -387,7 +400,7 @@ API 呼び出しの正しさは、原則 endpoint helper mock ではなく MSW r
 | `FE-REQ-SALES-LOTS-001` | SalesCaseDetailPage | direct/before_appraisal で「ロットを修正」 → LotSelectDialog → `PUT /sales-cases/{id}/lots` body `{ lots:string[], version }` | `204` | body 型、version | ✅ |
 | `FE-REQ-SALES-LOTS-002` | SalesCaseDetailPage | 価格登録後 | - | 「ロットを修正」 button 非表示 | button not in document | ✅ |
 | `FE-REQ-SALES-LOTS-003` | SalesCaseDetailPage | LotSelectDialog open 時 | `GET /lots/available?excludeCase={id}` | query に excludeCase が入る | ✅ |
-| `FE-REQ-SALES-LOTS-004` | SalesCaseDetailPage | `PUT /sales-cases/{id}/lots` | `409 problem` | toast error | ❌ (refetch は constraint-001) |
+| `FE-REQ-SALES-LOTS-004` | SalesCaseDetailPage | `PUT /sales-cases/{id}/lots` | `409 problem` | toast error | ✅ (rev4。refetch は FE-CONSTRAINT-001) |
 | `FE-REQ-RESERVATION-001` | ReservationCaseDetailPage | `POST /sales-cases/{id}/reservation/appraisals` body rich form | `204` | 契約 request schema 適合 (rate フィールドは契約に無い) | ✅ |
 | `FE-REQ-RESERVATION-002` | ReservationCaseDetailPage | `DELETE /sales-cases/{id}/reservation/determination` body `{ version }` | `204` | confirm true、version body | ✅ |
 | `FE-REQ-CONSIGNMENT-001` | ConsignmentCaseDetailPage | `POST /sales-cases/{id}/consignment/designate` body rich form | `204` | 契約 request schema 適合 (rate フィールドは契約に無い) | ✅ |

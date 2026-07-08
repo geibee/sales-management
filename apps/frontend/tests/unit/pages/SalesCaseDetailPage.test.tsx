@@ -120,6 +120,49 @@ describe("<SalesCaseDetailPage> (FE-PAGE-SALES-DETAIL-* / FE-REQ-SALES-*)", () =
     expect(body.version).toBe(5);
   });
 
+  it("FE-REQ-SALES-LOTS-004: PUT /sales-cases/{id}/lots が 409 → toast.error (refetch は FE-CONSTRAINT-001)", async () => {
+    authDisabled();
+    const toastError = vi.spyOn(toast, "error");
+    server.use(
+      http.get(`/api/sales-cases/${ID}`, () =>
+        HttpResponse.json(
+          makeDirectSalesCase({
+            salesCaseNumber: ID,
+            status: "before_appraisal",
+            caseType: "direct",
+            lots: ["2026-A-1"],
+            version: 5,
+          }),
+        ),
+      ),
+      http.get("/api/lots/available", () =>
+        HttpResponse.json(
+          makeAvailableLotsResponse([
+            makeAvailableLot({ lotNumber: "2026-A-1" }),
+            makeAvailableLot({ lotNumber: "2026-A-2" }),
+          ]),
+        ),
+      ),
+      http.put(`/api/sales-cases/${ID}/lots`, () =>
+        HttpResponse.json(
+          { type: "conflict", title: "Conflict", status: 409, detail: "version mismatch" },
+          { status: 409 },
+        ),
+      ),
+    );
+    renderWithRouter(<SalesCaseDetailPage id={ID} />);
+    fireEvent.click(await screen.findByRole("button", { name: /ロットを修正/ }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(
+      await within(dialog).findByRole("checkbox", { name: "ロット 2026-A-2 を選択" }),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "更新" }));
+    await waitFor(() => expect(requestsFor(`/api/sales-cases/${ID}/lots`)).toHaveLength(1));
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    // page は detail 表示のまま残る
+    expect(screen.getByRole("heading", { name: new RegExp(ID) })).toBeInTheDocument();
+  });
+
   it("FE-REQ-SALES-LOTS-002: 価格登録後 (status=appraised) は「ロットを修正」が出ない", async () => {
     authDisabled();
     server.use(

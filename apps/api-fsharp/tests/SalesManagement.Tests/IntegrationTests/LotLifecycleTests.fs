@@ -250,3 +250,93 @@ type LotManufacturingCancellationTests(fixture: AuthOffFixture) =
 
         Assert.Equal("manufacturing", lotStatus fixture.ConnectionString year location seq)
     }
+
+// 出荷指示 → 出荷完了 / 品目変換指示 → 取消の happy path (2xx)。
+// これらの operation は従来ステートフル PBT (LotStateMachinePropertyTests) の
+// ランダム経路でしか 2xx に到達しておらず、FsCheck の seed 次第で契約カバレッジ
+// (operation-coverage) の記録が run ごとに揺れていた。決定的テストで固定する。
+[<Collection("ApiAuthOff")>]
+type LotShippingAndConversionLifecycleTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
+
+    [<Fact>]
+    [<Trait("Category", "LotLifecycle")>]
+    [<Trait("Category", "Integration")>]
+    member _.``instruct-shipping → complete-shipping: manufactured から shipped まで遷移する``() = task {
+        use client = fixture.NewClient()
+        let year, location, seq, lotId = uniqueLot ()
+
+        let! createResp = postJson client "/lots" (lotBody year location seq)
+        Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
+
+        let! mfgResp =
+            postJson client (sprintf "/lots/%s/complete-manufacturing" lotId) (completeManufacturingBody 1 "2026-01-10")
+
+        Assert.Equal(HttpStatusCode.OK, mfgResp.StatusCode)
+        let! mfgBody = readBody mfgResp
+        let mfgVersion = (parseJson mfgBody).GetProperty("version").GetInt32()
+
+        let! instructResp =
+            postJson
+                client
+                (sprintf "/lots/%s/instruct-shipping" lotId)
+                (sprintf """{"deadline":"2026-02-01","version":%d}""" mfgVersion)
+
+        Assert.Equal(HttpStatusCode.OK, instructResp.StatusCode)
+        let! instructBody = readBody instructResp
+        let instructed = parseJson instructBody
+        Assert.Equal("shipping_instructed", instructed.GetProperty("status").GetString())
+        let instructedVersion = instructed.GetProperty("version").GetInt32()
+
+        let! completeResp =
+            postJson
+                client
+                (sprintf "/lots/%s/complete-shipping" lotId)
+                (sprintf """{"date":"2026-02-10","version":%d}""" instructedVersion)
+
+        Assert.Equal(HttpStatusCode.OK, completeResp.StatusCode)
+        let! completeBody = readBody completeResp
+        Assert.Equal("shipped", (parseJson completeBody).GetProperty("status").GetString())
+        Assert.Equal("shipped", lotStatus fixture.ConnectionString year location seq)
+    }
+
+    [<Fact>]
+    [<Trait("Category", "LotLifecycle")>]
+    [<Trait("Category", "Integration")>]
+    member _.``instruct-item-conversion → 取消: manufactured へ戻る``() = task {
+        use client = fixture.NewClient()
+        let year, location, seq, lotId = uniqueLot ()
+
+        let! createResp = postJson client "/lots" (lotBody year location seq)
+        Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
+
+        let! mfgResp =
+            postJson client (sprintf "/lots/%s/complete-manufacturing" lotId) (completeManufacturingBody 1 "2026-01-10")
+
+        Assert.Equal(HttpStatusCode.OK, mfgResp.StatusCode)
+        let! mfgBody = readBody mfgResp
+        let mfgVersion = (parseJson mfgBody).GetProperty("version").GetInt32()
+
+        let! convertResp =
+            postJson
+                client
+                (sprintf "/lots/%s/instruct-item-conversion" lotId)
+                (sprintf """{"destinationItem":"変換先品目","version":%d}""" mfgVersion)
+
+        Assert.Equal(HttpStatusCode.OK, convertResp.StatusCode)
+        let! convertBody = readBody convertResp
+        let converted = parseJson convertBody
+        Assert.Equal("conversion_instructed", converted.GetProperty("status").GetString())
+        let convertedVersion = converted.GetProperty("version").GetInt32()
+
+        let! cancelResp =
+            deleteWithBody
+                client
+                (sprintf "/lots/%s/instruct-item-conversion" lotId)
+                (Some(sprintf """{"version":%d}""" convertedVersion))
+
+        Assert.Equal(HttpStatusCode.OK, cancelResp.StatusCode)
+        let! cancelBody = readBody cancelResp
+        Assert.Equal("manufactured", (parseJson cancelBody).GetProperty("status").GetString())
+        Assert.Equal("manufactured", lotStatus fixture.ConnectionString year location seq)
+    }

@@ -58,6 +58,14 @@ if (typeof window.matchMedia !== "function") {
   });
 }
 
+// ---- Element.scrollIntoView ----
+// jsdom は scrollIntoView を実装していない。radix-ui Select は開いた時に
+// 選択中 item を viewport へスクロールしようとするため、no-op を入れる
+// (キーボード操作での開閉・選択テストに必要)。
+if (typeof window.HTMLElement.prototype.scrollIntoView !== "function") {
+  window.HTMLElement.prototype.scrollIntoView = vi.fn();
+}
+
 // ---- window.confirm ----
 // 既定は「常に承諾」。破壊系フローを進行させたいため。キャンセル分岐を
 // 検証したいテストは個別に `vi.spyOn(window, "confirm")` で上書きする。

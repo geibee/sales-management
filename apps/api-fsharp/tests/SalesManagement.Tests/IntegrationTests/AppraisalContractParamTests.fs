@@ -7,6 +7,7 @@ open System.Text.Json
 open System.Threading.Tasks
 open Xunit
 open SalesManagement.Tests.Support.ApiFixture
+open SalesManagement.Tests.Support.CaseSeeding
 open SalesManagement.Tests.Support.HttpHelpers
 open SalesManagement.Tests.Support.ProblemDetailsAssert
 open SalesManagement.Tests.Support.RequestBuilders
@@ -25,70 +26,7 @@ let private contractBody = directContractBody
 
 let private versionOnly (v: JsonValue) : string = render (JObject [ "version", v ])
 
-// ───────────────────────────────────────────────────────────────
-// Seeding helpers — drive lot → manufactured → sales case → appraisal
-// via the public API so we don't depend on the DB schema directly.
-// ───────────────────────────────────────────────────────────────
-
-let private parseField (resp: HttpResponseMessage) (name: string) : Task<string> = task {
-    let! body = readBody resp
-    use doc = JsonDocument.Parse body
-    return doc.RootElement.GetProperty(name).GetString()
-}
-
-let private seedManufacturedLot (client: HttpClient) (year: int) (location: string) (seq: int) : Task<string> = task {
-    let body =
-        createLotBody
-            { emptyLotOverrides with
-                Year = Some(JInt year)
-                Location = Some(JString location)
-                Seq = Some(JInt seq) }
-
-    let! createResp = postJson client "/lots" body
-    Assert.Equal(HttpStatusCode.OK, createResp.StatusCode)
-    let lotId = sprintf "%d-%s-%03d" year location seq
-
-    let! mfgResp =
-        postJson client (sprintf "/lots/%s/complete-manufacturing" lotId) """{"date":"2026-01-10","version":1}"""
-
-    Assert.Equal(HttpStatusCode.OK, mfgResp.StatusCode)
-    return lotId
-}
-
-let private seedDirectCase (client: HttpClient) (lotId: string) : Task<string> = task {
-    let body =
-        createSalesCaseBody
-            { emptySalesCaseOverrides with
-                Lots = Some(JArray [ JString lotId ])
-                CaseType = Some(JString "direct") }
-
-    let! resp = postJson client "/sales-cases" body
-    Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
-    return! parseField resp "salesCaseNumber"
-}
-
-/// Seed `(caseId, lotId)` for a sales case in `before_appraisal` state.
-/// Caller is responsible for `fixture.Reset()` before invoking.
-let private seedBeforeAppraisal (client: HttpClient) : Task<string * string> = task {
-    let r = Random()
-    let year = 6000 + r.Next(0, 999)
-    let location = sprintf "AC%d" (r.Next(0, 999))
-    let! lotId = seedManufacturedLot client year location 1
-    let! caseId = seedDirectCase client lotId
-    return caseId, lotId
-}
-
-/// Drive a freshly seeded direct case to `appraised` and return `(caseId, lotId, version)`.
-let private seedAppraised (client: HttpClient) : Task<string * string * int> = task {
-    let! caseId, lotId = seedBeforeAppraisal client
-    let body = appraisalBody lotId 1 [] []
-    let! resp = postJson client (sprintf "/sales-cases/%s/appraisals" caseId) body
-    Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
-    let! body = readBody resp
-    use doc = JsonDocument.Parse body
-    let version = doc.RootElement.GetProperty("version").GetInt32()
-    return caseId, lotId, version
-}
+// Seeding は Support/CaseSeeding の共通ヘルパを使う (コピペ禁止規約)。
 
 // `Invalid sales case id` / `Sales case not found` 等は ProblemDetails の
 // `type` に対応する。`bad-request` (400) と `not-found` (404) を区別するため、

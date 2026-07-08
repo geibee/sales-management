@@ -299,50 +299,54 @@ data 出荷指示情報 = 出荷指示日
 // ----------------------------------------------------------------
 // 振る舞い
 // ----------------------------------------------------------------
+// 各 behavior 行末の `// fn: <Module>.<関数>` は F# 実装シンボルへの注釈。
+// verify の DSL 整合ゲート (apps/api-fsharp/scripts/dsl-consistency.py) が
+// 「注釈があること」と「その関数が実在すること」を突合する。
+// behavior を追加したら実装と注釈を揃えるまで verify は通らない。
 
 // 在庫ロットのライフサイクル
-behavior 製造完了を指示する = 製造中ロット AND 製造完了日 -> 製造完了ロット OR 製造完了指示エラー
-behavior 出荷を指示する = 製造完了ロット AND 出荷期限日 -> 出荷指示済みロット OR 出荷指示エラー
-behavior 出荷完了を指示する = 出荷指示済みロット AND 出荷日 -> 出荷完了ロット OR 出荷完了指示エラー
-behavior 製造完了を取り消す = 製造完了ロット -> 製造中ロット OR 取消エラー
+behavior 製造完了を指示する = 製造中ロット AND 製造完了日 -> 製造完了ロット OR 製造完了指示エラー  // fn: LotWorkflows.completeManufacturing
+behavior 出荷を指示する = 製造完了ロット AND 出荷期限日 -> 出荷指示済みロット OR 出荷指示エラー  // fn: LotWorkflows.instructShipping
+behavior 出荷完了を指示する = 出荷指示済みロット AND 出荷日 -> 出荷完了ロット OR 出荷完了指示エラー  // fn: LotWorkflows.completeShipping
+behavior 製造完了を取り消す = 製造完了ロット -> 製造中ロット OR 取消エラー  // fn: LotWorkflows.cancelManufacturingCompletion
 
 // 販売案件のライフサイクル
-behavior 販売案件を作成する = List<製造完了ロット> AND 販売案件種別 -> 販売案件 OR 販売案件作成エラー
-behavior 販売案件を削除する = 査定前直接販売案件 -> 削除済み OR 削除エラー
+behavior 販売案件を作成する = List<製造完了ロット> AND 販売案件種別 -> 販売案件 OR 販売案件作成エラー  // fn: SalesCaseWorkflows.createSalesCase
+behavior 販売案件を削除する = 査定前直接販売案件 -> 削除済み OR 削除エラー  // fn: SalesCaseRoutes.deleteSalesCaseHandler
 
 // 価格査定・委託指定の登録前であれば、案件に紐づくロットの組み合わせを差し替えられる（状態は不変）。
 // 渡すロットは製造完了済みかつ他案件に未割当であること。
-behavior 直接販売案件のロットを修正する = 査定前直接販売案件 AND List<製造完了ロット> -> 査定前直接販売案件 OR ロット修正エラー
-behavior 委託販売案件のロットを修正する = 委託指定前販売案件 AND List<製造完了ロット> -> 委託指定前販売案件 OR ロット修正エラー
+behavior 直接販売案件のロットを修正する = 査定前直接販売案件 AND List<製造完了ロット> -> 査定前直接販売案件 OR ロット修正エラー  // fn: SalesCaseRoutes.editCaseLotsCore
+behavior 委託販売案件のロットを修正する = 委託指定前販売案件 AND List<製造完了ロット> -> 委託指定前販売案件 OR ロット修正エラー  // fn: SalesCaseRoutes.editCaseLotsCore
 
 // 価格査定のライフサイクル
-behavior 価格査定を作成する = 査定前直接販売案件 AND 査定情報 -> 査定済み直接販売案件 OR 査定作成エラー
-behavior 価格査定を更新する = 査定済み直接販売案件 AND 査定情報 -> 査定済み直接販売案件 OR 査定更新エラー
-behavior 価格査定を削除する = 査定済み直接販売案件 -> 査定前直接販売案件 OR 査定削除エラー
+behavior 価格査定を作成する = 査定前直接販売案件 AND 査定情報 -> 査定済み直接販売案件 OR 査定作成エラー  // fn: SalesCaseWorkflows.createAppraisal
+behavior 価格査定を更新する = 査定済み直接販売案件 AND 査定情報 -> 査定済み直接販売案件 OR 査定更新エラー  // fn: SalesCaseWorkflows.updateAppraisalOf
+behavior 価格査定を削除する = 査定済み直接販売案件 -> 査定前直接販売案件 OR 査定削除エラー  // fn: SalesCaseWorkflows.deleteAppraisal
 
 // 販売契約のライフサイクル
-behavior 販売契約を締結する = 査定済み直接販売案件 AND 契約情報 -> 契約済み直接販売案件 OR 契約締結エラー
-behavior 販売契約を削除する = 契約済み直接販売案件 -> 査定済み直接販売案件 OR 契約削除エラー
+behavior 販売契約を締結する = 査定済み直接販売案件 AND 契約情報 -> 契約済み直接販売案件 OR 契約締結エラー  // fn: SalesCaseWorkflows.concludeContract
+behavior 販売契約を削除する = 契約済み直接販売案件 -> 査定済み直接販売案件 OR 契約削除エラー  // fn: SalesCaseWorkflows.deleteContract
 
 // 出庫のライフサイクル（販売案件単位）
-behavior 出庫を指示する = 契約済み直接販売案件 -> 出荷指示済み直接販売案件 OR 出庫指示エラー
-behavior 出庫完了を指示する = 出荷指示済み直接販売案件 AND 出荷完了日 -> 出荷完了直接販売案件 OR 出庫完了指示エラー
-behavior 出庫指示を取り消す = 出荷指示済み直接販売案件 -> 契約済み直接販売案件 OR 出庫指示取消エラー
+behavior 出庫を指示する = 契約済み直接販売案件 -> 出荷指示済み直接販売案件 OR 出庫指示エラー  // fn: SalesCaseWorkflows.instructShipping
+behavior 出庫完了を指示する = 出荷指示済み直接販売案件 AND 出荷完了日 -> 出荷完了直接販売案件 OR 出庫完了指示エラー  // fn: SalesCaseWorkflows.completeShipping
+behavior 出庫指示を取り消す = 出荷指示済み直接販売案件 -> 契約済み直接販売案件 OR 出庫指示取消エラー  // fn: SalesCaseWorkflows.cancelShippingInstruction
 
 // 予約のライフサイクル
-behavior 予約価格を作成する = 仮予約案件 AND 予約価格情報 -> 予約済み案件 OR 予約価格作成エラー
-behavior 予約を確定する = 予約済み案件 AND 確定日 -> 予約確定済み案件 OR 予約確定エラー
-behavior 予約確定を取り消す = 予約確定済み案件 -> 予約済み案件 OR 予約確定取消エラー
-behavior 納品を指示する = 予約確定済み案件 AND 納品日 -> 予約納品済み案件 OR 納品エラー
+behavior 予約価格を作成する = 仮予約案件 AND 予約価格情報 -> 予約済み案件 OR 予約価格作成エラー  // fn: ReservationCaseWorkflows.createReservationPrice
+behavior 予約を確定する = 予約済み案件 AND 確定日 -> 予約確定済み案件 OR 予約確定エラー  // fn: ReservationCaseWorkflows.confirmReservation
+behavior 予約確定を取り消す = 予約確定済み案件 -> 予約済み案件 OR 予約確定取消エラー  // fn: ReservationCaseWorkflows.cancelReservationConfirmation
+behavior 納品を指示する = 予約確定済み案件 AND 納品日 -> 予約納品済み案件 OR 納品エラー  // fn: ReservationCaseWorkflows.deliverReservation
 
 // 委託のライフサイクル
-behavior 委託販売案件を指定する = 委託指定前販売案件 AND 委託業者情報 -> 委託指定済み販売案件 OR 委託指定エラー
-behavior 委託販売案件指定を解除する = 委託指定済み販売案件 -> 委託指定前販売案件 OR 委託指定解除エラー
-behavior 委託販売結果を入力する = 委託指定済み販売案件 AND 委託販売結果 -> 委託販売結果入力済み販売案件 OR 委託結果入力エラー
+behavior 委託販売案件を指定する = 委託指定前販売案件 AND 委託業者情報 -> 委託指定済み販売案件 OR 委託指定エラー  // fn: ConsignmentCaseWorkflows.designateConsignment
+behavior 委託販売案件指定を解除する = 委託指定済み販売案件 -> 委託指定前販売案件 OR 委託指定解除エラー  // fn: ConsignmentCaseWorkflows.cancelDesignation
+behavior 委託販売結果を入力する = 委託指定済み販売案件 AND 委託販売結果 -> 委託販売結果入力済み販売案件 OR 委託結果入力エラー  // fn: ConsignmentCaseWorkflows.enterConsignmentResult
 
 // 品目変換（ロットの品目区分変換）
-behavior 品目変換を指示する = 製造完了ロット AND 変換先情報 -> 変換指示済みロット OR 変換指示エラー
-behavior 品目変換指示を取り消す = 変換指示済みロット -> 製造完了ロット OR 変換指示取消エラー
+behavior 品目変換を指示する = 製造完了ロット AND 変換先情報 -> 変換指示済みロット OR 変換指示エラー  // fn: LotWorkflows.instructItemConversion
+behavior 品目変換指示を取り消す = 変換指示済みロット -> 製造完了ロット OR 変換指示取消エラー  // fn: LotWorkflows.cancelItemConversionInstruction
 ```
 
 ---
