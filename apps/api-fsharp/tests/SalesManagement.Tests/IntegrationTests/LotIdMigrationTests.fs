@@ -10,11 +10,15 @@ let private fsharpRoot =
     let baseDir = AppContext.BaseDirectory
     Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", ".."))
 
+// TEST_DATABASE_URL → DATABASE_URL → 既定、の順で解決する (理由は Support/BatchFixture.fs 参照)
 let private connectionString =
-    match Environment.GetEnvironmentVariable("DATABASE_URL") with
-    | null
-    | "" -> "Host=localhost;Port=5432;Database=sales_management;Username=app;Password=app"
-    | url -> url
+    [ "TEST_DATABASE_URL"; "DATABASE_URL" ]
+    |> List.tryPick (fun name ->
+        match Environment.GetEnvironmentVariable name with
+        | null
+        | "" -> None
+        | url -> Some url)
+    |> Option.defaultValue "Host=localhost;Port=5432;Database=sales_management;Username=app;Password=app"
 
 let private execParam (sql: string) (parameters: (string * obj) list) =
     use conn = new NpgsqlConnection(connectionString)
