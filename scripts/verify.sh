@@ -173,6 +173,13 @@ verify_backend() {
 
   pushd apps/api-fsharp >/dev/null
 
+  # DSL ↔ コード整合ゲート (issue #9 §3)。dsl/domain-model.md の全 behavior に
+  # `// fn:` 注釈があり、注釈先の F# 関数が実在することを grep レベルで突合する。
+  # DSL に behavior を足したのに実装が無い (またはリネームで乖離した) 場合に赤になる
+  command -v python3 >/dev/null 2>&1 \
+    || fail "python3 が見つかりません (fail-closed: DSL 整合ゲートに必要)"
+  python3 scripts/dsl-consistency.py
+
   # 新規 worktree / CI ランナーではローカルツール (fantomas 等) が未復元
   dotnet tool restore
   dotnet build src/SalesManagement --warnaserror

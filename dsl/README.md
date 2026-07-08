@@ -49,9 +49,18 @@ Stage 1 では次を仕様入力にしない。
 
 型で表現できない仕様は、まず F# の純粋関数・テスト・コメントで扱う。必要性が明確になってから、次の段階として専用の検証仕様を検討する。
 
+## behavior と実装の整合ゲート
+
+`behavior` 行には行末に `// fn: <Module>.<関数名>` の注釈を付ける。
+verify の DSL 整合ゲート (`apps/api-fsharp/scripts/dsl-consistency.py`) が
+「全 behavior に注釈があること」と「注釈先の関数が `src/SalesManagement/` の
+該当モジュールに実在すること」を突合する。grep レベルの決定的検査であり、
+専用パーサーは引き続き導入しない (issue #9 §3)。behavior を追加したのに
+実装 (と注釈) が無いと verify が赤になる。
+
 ## 作業手順
 
-1. `domain-model.md` の型と `behavior` を更新する
+1. `domain-model.md` の型と `behavior` を更新する (実装したら `// fn:` 注釈を付ける)
 2. AI に `domain-model.md` と既存の `apps/api-fsharp/src/SalesManagement/Domain/` を読ませる
 3. F# の型定義、エラー型、workflow の純粋関数を更新する
 4. `dotnet build` を通す
