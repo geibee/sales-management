@@ -3,6 +3,7 @@ module SalesManagement.Tests.IntegrationTests.LotCsvExportTests
 open System
 open System.Net
 open System.Text
+open Npgsql
 open Xunit
 open SalesManagement.Tests.Support.ApiFixture
 open SalesManagement.Tests.Support.HttpHelpers
@@ -146,4 +147,66 @@ type CsvExportTests(fixture: AuthOffFixture) =
 
         Assert.True(lineCount >= 51, sprintf "expected >=51 lines, got %d" lineCount)
         Assert.True(sw.ElapsedMilliseconds < 10000L, sprintf "export took %dms" sw.ElapsedMilliseconds)
+    }
+
+    /// CSV インジェクション検査 (issue #15 §2)。API のバリデーションでは投入できない
+    /// 悪意ある値 (Excel が数式として解釈する = + - @ TAB CR 始まり) を SQL で直接
+    /// seeding し、出力セルが "'" 前置で無害化されることを全数 assert する。
+    [<Fact>]
+    [<Trait("Category", "LotCsvExport")>]
+    [<Trait("Category", "Integration")>]
+    member _.``CSV export neutralizes formula injection in cell values``() = task {
+        // (seq, 悪意ある status 値)。status は DB 制約が TEXT のみなので
+        // 侵害・移行バグ等で任意文字列が混入し得る列として代表させる
+        let maliciousStatuses =
+            [ 1, "=CMD('/C calc')!A0"
+              2, "+2+5+cmd|' /C calc'!A0"
+              3, "-2+3+cmd|' /C calc'!A0"
+              4, "@SUM(1+9)*cmd|' /C calc'!A0"
+              5, "\tCMD"
+              6, "\rCMD"
+              7, "=HYPERLINK(\"http://evil\",\"click\")" ]
+
+        do! task {
+            use conn = new NpgsqlConnection(fixture.ConnectionString)
+            do! conn.OpenAsync()
+
+            for (seq, status) in maliciousStatuses do
+                use cmd = conn.CreateCommand()
+
+                cmd.CommandText <-
+                    """INSERT INTO lot (lot_number_year, lot_number_location, lot_number_seq,
+                                        division_code, department_code, section_code,
+                                        process_category, inspection_category, manufacturing_category, status)
+                       VALUES (9900, 'V', @seq, 1, 1, 1, 1, 1, 1, @status)"""
+
+                cmd.Parameters.AddWithValue("seq", seq) |> ignore
+                cmd.Parameters.AddWithValue("status", status) |> ignore
+                let! _ = cmd.ExecuteNonQueryAsync()
+                ()
+        }
+
+        use client = fixture.NewClient()
+        let! resp = getReq client "/lots/export?format=csv"
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode)
+
+        let! bytes = resp.Content.ReadAsByteArrayAsync()
+        let decoded = Encoding.GetEncoding(932).GetString(bytes)
+        let lines = decoded.Split('\n') |> Array.map (fun l -> l.TrimEnd('\r'))
+
+        for (seq, status) in maliciousStatuses do
+            let lotId = sprintf "9900-V-%03d" seq
+
+            let line =
+                lines
+                |> Array.tryFind (fun l -> l.Contains lotId)
+                |> Option.defaultWith (fun () -> failwithf "lot %s の行が CSV に見つからない" lotId)
+
+            // 数式トリガ文字は "'" 前置 + 全体は二重引用符囲み。内部の '"' は '""' に倍化される
+            let expectedCell = sprintf "\"'%s\"" (status.Replace("\"", "\"\""))
+            Assert.Contains(expectedCell, line)
+
+            // 生の (無害化前の) セルが二重引用符囲みで露出していないこと
+            let rawCell = sprintf "\"%s\"" (status.Replace("\"", "\"\""))
+            Assert.DoesNotContain(rawCell, line)
     }

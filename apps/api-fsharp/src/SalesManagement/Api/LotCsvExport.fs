@@ -10,9 +10,20 @@ open Npgsql
 open SalesManagement.Domain.Types
 open SalesManagement.Infrastructure
 
+/// Excel が数式として解釈する先頭文字 (OWASP CSV Injection)。
+/// これらで始まるセルは先頭に "'" を付与して数式化を無効にする (issue #15 §2)。
+let private formulaTriggerChars = [| '='; '+'; '-'; '@'; '\t'; '\r' |]
+
 let private csvEscape (s: string) : string =
     let raw = if isNull s then "" else s
-    let escaped = raw.Replace("\"", "\"\"")
+
+    let neutralized =
+        if raw.Length > 0 && Array.contains raw.[0] formulaTriggerChars then
+            "'" + raw
+        else
+            raw
+
+    let escaped = neutralized.Replace("\"", "\"\"")
     sprintf "\"%s\"" escaped
 
 let private csvLine (fields: string list) : string =
