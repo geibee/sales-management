@@ -8,13 +8,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Support/StandaloneAppHost.fs" />
     <Compile Include="Support/OpenApiValidation.fs" />
+    <Compile Include="Support/StandaloneAppHost.fs" />
     <Compile Include="Support/ApiFixture.fs" />
     <Compile Include="Support/BatchFixture.fs" />
     <Compile Include="Support/HttpHelpers.fs" />
     <Compile Include="Support/ProblemDetailsAssert.fs" />
     <Compile Include="Support/RequestBuilders.fs" />
+    <Compile Include="Support/CaseSeeding.fs" />
     <Compile Include="Support/TheoryCases.fs" />
     <Compile Include="Support/Generators.fs" />
     <Compile Include="Support/SmokeTest.fs" />
@@ -65,6 +66,7 @@
     <Compile Include="IntegrationTests/LotRoutesParamTests.fs" />
     <Compile Include="IntegrationTests/StateTransitionParamTests.fs" />
     <Compile Include="IntegrationTests/AppraisalContractParamTests.fs" />
+    <Compile Include="IntegrationTests/SalesCaseShippingLifecycleTests.fs" />
     <Compile Include="IntegrationTests/ListQueryParamTests.fs" />
     <Compile Include="IntegrationTests/ReservationConsignmentParamTests.fs" />
     <Compile Include="Program.fs" />
