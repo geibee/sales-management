@@ -90,7 +90,24 @@ module Hosting =
         fun (next: HttpFunc) (ctx: HttpContext) -> task {
             try
                 return! next ctx
-            with ex ->
+            with
+            // Kestrel の MaxRequestBodySize 超過 (Content-Length 宣言の無い chunked ボディ) は
+            // ハンドラのボディ読込中に 413 の BadHttpRequestException として現れる。
+            // 500 に丸めず、Kestrel が意図した status code のまま problem+json で返す
+            | :? BadHttpRequestException as ex when not ctx.Response.HasStarted ->
+                Log.Warning("Bad HTTP request: {Detail} (status={StatusCode})", ex.Message, ex.StatusCode)
+                ctx.Response.StatusCode <- ex.StatusCode
+                ctx.Response.ContentType <- "application/problem+json"
+
+                let body =
+                    sprintf
+                        """{"type":"bad-http-request","title":"Bad HTTP request","status":%d,"detail":"%s"}"""
+                        ex.StatusCode
+                        (ex.Message.Replace("\"", "'"))
+
+                do! ctx.Response.WriteAsync body
+                return Some ctx
+            | ex ->
                 Log.Error(ex, "Unhandled exception in HTTP pipeline")
 
                 if not ctx.Response.HasStarted then
@@ -216,6 +233,8 @@ window.onload = () => {
         (authOptions: SalesManagement.Api.Auth.AuthOptions)
         (connectionString: string)
         (openapiPath: string)
+        (pathSpecs: HttpSemantics.PathSpec list)
+        (maxRequestBodyBytes: int64)
         : HttpHandler =
         let authEnabled = authOptions.Enabled
         let viewerGate = SalesManagement.Api.Auth.requireViewer authEnabled
@@ -248,7 +267,11 @@ window.onload = () => {
             else
                 baseRoutes
 
-        exceptionHandler >=> choose allRoutes
+        // ルート前段: spec 定義済み operation への 413 / 415 ガード。
+        // ルート後段: spec に path はあるがメソッド未定義 → 405 (issue #15 §1)
+        exceptionHandler
+        >=> HttpSemantics.requestGuards pathSpecs maxRequestBodyBytes
+        >=> choose (allRoutes @ [ HttpSemantics.methodNotAllowedFallback pathSpecs ])
 
     let private resolveConnectionString (config: IConfiguration) : string =
         match Environment.GetEnvironmentVariable("DATABASE_URL") with
@@ -455,6 +478,22 @@ window.onload = () => {
             opts.ShutdownTimeout <- TimeSpan.FromSeconds(float shutdownSeconds))
         |> ignore
 
+    /// リクエストボディ上限 (413)。本 API のボディは小さな JSON のみなので
+    /// Kestrel デフォルト (30MB) から大きく絞る。上限判定は
+    /// HttpSemantics.requestGuards が行い、決定的な 413 problem+json を返す。
+    /// Kestrel 側は 4 倍の余裕を持たせたバックストップにする — Kestrel 上限に
+    /// かかるとレスポンス後の request body ドレインができず接続が abort され、
+    /// クライアントから 413 が観測できないことがあるため。
+    let private configureRequestBodyLimit (builder: WebApplicationBuilder) (configuration: IConfiguration) : int64 =
+        let maxRequestBodyBytes =
+            int64 (getInt configuration "Server:MaxRequestBodyBytes" 1_048_576)
+
+        builder.WebHost.ConfigureKestrel(fun (opts: Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions) ->
+            opts.Limits.MaxRequestBodySize <- Nullable(maxRequestBodyBytes * 4L))
+        |> ignore
+
+        maxRequestBodyBytes
+
     let private useSecurityHeaders (app: WebApplication) : unit =
         app.Use(
             Func<HttpContext, RequestDelegate, Task>(fun (ctx: HttpContext) (next: RequestDelegate) -> task {
@@ -473,6 +512,18 @@ window.onload = () => {
             })
         )
         |> ignore
+
+    let private useGiraffePipeline
+        (app: WebApplication)
+        (authOptions: SalesManagement.Api.Auth.AuthOptions)
+        (connectionString: string)
+        (maxRequestBodyBytes: int64)
+        : unit =
+        let openapiPath = Path.Combine(AppContext.BaseDirectory, "openapi.yaml")
+        let pathSpecs = HttpSemantics.load openapiPath
+        let isDev = app.Environment.IsDevelopment()
+
+        app.UseGiraffe(buildHandlers isDev authOptions connectionString openapiPath pathSpecs maxRequestBodyBytes)
 
     let createApp (args: string[]) : WebApplication =
         System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance)
@@ -497,6 +548,8 @@ window.onload = () => {
         match resolvePort configuration with
         | Some p -> builder.WebHost.UseUrls(sprintf "http://0.0.0.0:%d" p) |> ignore
         | None -> ()
+
+        let maxRequestBodyBytes = configureRequestBodyLimit builder configuration
 
         SalesManagement.Api.Auth.configure builder.Services authOptions
         builder.Services.AddGiraffe() |> ignore
@@ -534,8 +587,7 @@ window.onload = () => {
                     diag.Set("RequestId", httpCtx.TraceIdentifier)))
         |> ignore
 
-        let openapiPath = Path.Combine(AppContext.BaseDirectory, "openapi.yaml")
-        app.UseGiraffe(buildHandlers (app.Environment.IsDevelopment()) authOptions connectionString openapiPath)
+        useGiraffePipeline app authOptions connectionString maxRequestBodyBytes
         app
 
     [<EntryPoint>]

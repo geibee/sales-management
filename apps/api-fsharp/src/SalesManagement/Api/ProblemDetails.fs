@@ -59,6 +59,33 @@ let conflict (detail: string) : HttpHandler =
           Detail = detail
           Errors = null }
 
+let methodNotAllowed (detail: string) : HttpHandler =
+    writeProblem
+        405
+        { Type = "method-not-allowed"
+          Title = "Method Not Allowed"
+          Status = 405
+          Detail = detail
+          Errors = null }
+
+let payloadTooLarge (detail: string) : HttpHandler =
+    writeProblem
+        413
+        { Type = "payload-too-large"
+          Title = "Payload Too Large"
+          Status = 413
+          Detail = detail
+          Errors = null }
+
+let unsupportedMediaType (detail: string) : HttpHandler =
+    writeProblem
+        415
+        { Type = "unsupported-media-type"
+          Title = "Unsupported Media Type"
+          Status = 415
+          Detail = detail
+          Errors = null }
+
 let toResponse (resourceName: string) (err: DomainError) : HttpHandler =
     match err with
     | NotFound(_, id) ->

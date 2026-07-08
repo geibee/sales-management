@@ -193,7 +193,6 @@ if [ "$SCHEMATHESIS_ENABLED" = "1" ]; then
         run /app/openapi.yaml \
             --url http://localhost:5000 \
             --checks all \
-            --exclude-checks unsupported_method \
             -n 200 \
             --seed 42 \
             --request-timeout 2.0 \
@@ -285,7 +284,8 @@ if [ $ZAP_EXIT -ne 0 ]; then
 fi
 
 # Schemathesis は既知検出のトリアージ完了に伴い error 昇格 (issue #9 Tier2-15)。
-# unsupported_method (405 全数対応) は §5 HTTP セマンティクスの対応後に有効化する。
+# unsupported_method (405 全数対応) は HTTP セマンティクス層の導入 (issue #15 §1,
+# Api/HttpSemantics.fs) に伴い有効化済み。
 # 認可系チェックは hooks で root security を外しているため対象外
 # (認可の全数検証は決定的な AuthorizationMatrixTests が担う)
 if [ "$SCHEMATHESIS_ENABLED" = "1" ] && [ "$SCHEMATHESIS_EXIT" -ne 0 ]; then
