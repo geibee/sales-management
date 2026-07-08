@@ -319,6 +319,105 @@ describe("RichActionForms 共通 (FE-COMP-RICH-COMMON-*)", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  // FE-A11Y-RICH-001: 7 form 全部で「全 label ↔ input の紐付け」を検査する。
+  // ラベル文字列を列挙せず form 内の label / 可視 input を全数機械列挙するため、
+  // form に field を追加しても検査から漏れない (紐付け忘れは即赤になる)。
+  const allForms: Array<[name: string, doRender: () => void]> = [
+    [
+      "DirectAppraisalForm",
+      () =>
+        renderWithApp(
+          <DirectAppraisalForm
+            data={makeDirectSalesCase({ lots: ["2026-A-1"] })}
+            title="査定"
+            buttonLabel="登録"
+            onSubmit={vi.fn()}
+          />,
+        ),
+    ],
+    [
+      "SalesContractForm",
+      () =>
+        renderWithApp(
+          <SalesContractForm
+            data={makeDirectSalesCase({ lots: ["2026-A-1"] })}
+            title="契約"
+            buttonLabel="登録"
+            onSubmit={vi.fn()}
+          />,
+        ),
+    ],
+    [
+      "DateVersionActionForm",
+      () =>
+        renderWithApp(
+          <DateVersionActionForm
+            title="出荷指示"
+            buttonLabel="登録"
+            dateLabel="出荷予定日"
+            defaultDate="2026-05-01"
+            version={1}
+            onSubmit={vi.fn()}
+          />,
+        ),
+    ],
+    [
+      "ReservationPriceForm",
+      () =>
+        renderWithApp(
+          <ReservationPriceForm data={makeReservationSalesCase()} onSubmit={vi.fn()} />,
+        ),
+    ],
+    [
+      "ReservationConfirmationForm",
+      () =>
+        renderWithApp(
+          <ReservationConfirmationForm data={makeReservationSalesCase()} onSubmit={vi.fn()} />,
+        ),
+    ],
+    [
+      "ConsignmentDesignationForm",
+      () =>
+        renderWithApp(
+          <ConsignmentDesignationForm data={makeConsignmentSalesCase()} onSubmit={vi.fn()} />,
+        ),
+    ],
+    [
+      "ConsignmentResultForm",
+      () =>
+        renderWithApp(
+          <ConsignmentResultForm data={makeConsignmentSalesCase()} onSubmit={vi.fn()} />,
+        ),
+    ],
+  ];
+
+  it.each(allForms)("FE-A11Y-RICH-001: %s — 全 input が label と紐付く", (_name, doRender) => {
+    doRender();
+    const formEl = document.querySelector("form");
+    expect(formEl).not.toBeNull();
+
+    // 可視 input 全数: アクセシブルネーム (label 由来) を必ず持つ
+    const controls = Array.from(
+      formEl!.querySelectorAll<HTMLElement>("input:not([type='hidden']), select, textarea"),
+    ).filter((el) => el.closest("[aria-hidden='true']") === null);
+    expect(controls.length).toBeGreaterThan(0);
+    for (const el of controls) {
+      expect(el, `${el.getAttribute("name") ?? el.tagName} に label がない`).toHaveAccessibleName();
+    }
+
+    // label 全数: htmlFor が実在の control を指す (孤立 label の検出)
+    const labels = Array.from(formEl!.querySelectorAll<HTMLLabelElement>("label"));
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) {
+      if (!label.htmlFor) continue;
+      const target = document.getElementById(label.htmlFor);
+      expect(
+        target,
+        `label "${label.textContent}" の htmlFor="${label.htmlFor}" 先が存在しない: ${label.outerHTML}`,
+      ).not.toBeNull();
+    }
+  });
+
   it("FE-COMP-RICH-COMMON-002: mount 直後 (blur なし) はエラー非表示", () => {
     const data = makeDirectSalesCase();
     renderWithApp(

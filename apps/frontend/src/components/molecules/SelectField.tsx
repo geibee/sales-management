@@ -53,6 +53,12 @@ export function SelectField<T extends FieldValues>({
             <Select
               value={stringValue}
               onValueChange={(v) => {
+                // radix の hidden native select は、options の入れ替えと同時に
+                // value がプログラム変更されると再同期 change を空文字で発火する
+                // ことがある (新 option 登録前は DOM が value を "" に強制する)。
+                // SelectItem は空文字 value を持てない (radix が throw) ため、
+                // "" は正規の選択では発生しない → 無視して form 値を守る。
+                if (v === "") return;
                 field.onChange(parse ? parse(v) : v);
                 onAfterChange?.(v);
               }}
