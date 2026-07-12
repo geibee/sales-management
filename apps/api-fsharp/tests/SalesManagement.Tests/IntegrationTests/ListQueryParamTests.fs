@@ -198,6 +198,7 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
         yield case "/sales-cases?caseType=anything-goes" 400 "bad-request"
         yield case "/sales-cases?status=anything&caseType=anything" 400 "bad-request"
         yield case "/sales-cases?status=" 400 "validation-error"
+        yield case "/sales-cases?status=%00" 200 ""
         yield case "/sales-cases?caseType=" 400 "validation-error"
         // 不正パラメータ
         yield case "/sales-cases?limit=300&offset=0" 400 "bad-request"
@@ -214,6 +215,18 @@ type ListQueryParamTests(fixture: AuthOffFixture) =
         use client = fixture.NewClient()
         let! resp = getReq client path
         do! check status expectedType resp
+    }
+
+    [<Fact>]
+    [<Trait("Category", "Param")>]
+    [<Trait("Category", "Integration")>]
+    member _.``GET /sales-cases returns an empty result for a NUL status filter``() = task {
+        use client = fixture.NewClient()
+        let! resp = getReq client "/sales-cases?status=%00"
+        let! body = readBody resp
+        let root = parseJson body
+        Assert.Equal(0, root.GetProperty("total").GetInt32())
+        Assert.Empty(root.GetProperty("items").EnumerateArray())
     }
 
     // ───────────────────────────────────────────────────────────────

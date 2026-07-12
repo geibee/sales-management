@@ -51,6 +51,32 @@ let private tryGetStringQuery (ctx: HttpContext) (key: string) : string option =
         let s = v.ToString()
         if String.IsNullOrEmpty s then None else Some s
 
+let private listSalesCases
+    (connectionString: string)
+    (status: string option)
+    (caseType: string option)
+    (limit: int)
+    (offset: int)
+    : SalesCaseListRepository.SalesCaseListResult =
+    match status with
+    | Some value when value.Contains '\u0000' ->
+        // status は契約上 free-form。NUL は PostgreSQL の text に渡せないが、
+        // 保存済み status と一致し得ないため安全に空結果として扱う。
+        { Items = []
+          Total = 0
+          Limit = limit
+          Offset = offset }
+    | _ ->
+        use conn = new NpgsqlConnection(connectionString)
+        conn.Open()
+
+        SalesCaseListRepository.list
+            conn
+            { Status = status
+              CaseType = caseType
+              Limit = limit
+              Offset = offset }
+
 let listSalesCasesHandler (connectionString: string) : HttpHandler =
     fun next ctx -> task {
         match QueryGuard.tryFindInvalidQuery [ "status"; "caseType"; "limit"; "offset" ] ctx with
@@ -82,16 +108,7 @@ let listSalesCasesHandler (connectionString: string) : HttpHandler =
                     let status = tryGetStringQuery ctx "status"
                     let caseType = tryGetStringQuery ctx "caseType"
 
-                    use conn = new NpgsqlConnection(connectionString)
-                    conn.Open()
-
-                    let result =
-                        SalesCaseListRepository.list
-                            conn
-                            { Status = status
-                              CaseType = caseType
-                              Limit = limit
-                              Offset = offset }
+                    let result = listSalesCases connectionString status caseType limit offset
 
                     let response: ListSalesCasesResponse =
                         { items = result.Items |> List.map toSalesCaseSummary |> List.toArray

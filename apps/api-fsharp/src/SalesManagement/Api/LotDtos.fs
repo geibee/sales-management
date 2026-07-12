@@ -1,6 +1,7 @@
 module SalesManagement.Api.LotDtos
 
 open System
+open System.Text.Json
 open SalesManagement.Domain.Types
 open SalesManagement.Domain.SmartConstructors
 open SalesManagement.Domain.Errors
@@ -152,6 +153,20 @@ let private validateSpecRanges (prefix: string) (dto: LotDetailDto) : Result<uni
         | [] -> Ok()
         | errors -> Error errors
 
+let private validateRequiredDetailStrings (prefix: string) (dto: LotDetailDto) : Result<unit, ValidationError list> =
+    [ "productCategoryCode", dto.productCategoryCode
+      "qualityGrade", dto.qualityGrade ]
+    |> List.choose (fun (name, value) ->
+        if isNull value then
+            Some
+                { Field = sprintf "%s.%s" prefix name
+                  Message = "is required" }
+        else
+            None)
+    |> function
+        | [] -> Ok()
+        | errors -> Error errors
+
 let private validateDetail (index: int) (dto: LotDetailDto) : Result<LotDetail, ValidationError list> =
     if isNull (box dto) then
         // details: [null] のとき要素が null で bind される (Schemathesis 検出)
@@ -186,12 +201,16 @@ let private validateDetail (index: int) (dto: LotDetailDto) : Result<LotDetail, 
                      else
                          Ok q))
 
+        let requiredStringsR = validateRequiredDetailStrings prefix dto
+
         // 仕様値 (openapi.yaml) と対のレンジ。無制限だと JSON→Decimal 変換の限界が
         // 実質の境界になり、契約から観測できない挙動になる
         let specRangeR = validateSpecRanges prefix dto
 
-        Validation.zip specRangeR (Validation.zip categoryR (Validation.zip countR quantityR))
-        |> Result.map (fun ((), rest) -> rest)
+        Validation.zip
+            requiredStringsR
+            (Validation.zip specRangeR (Validation.zip categoryR (Validation.zip countR quantityR)))
+        |> Result.map (fun ((), ((), rest)) -> rest)
         |> Result.map (fun (category, (count, quantity)) ->
             { ItemCategory = category
               PremiumCategory = nullToOption dto.premiumCategory
@@ -203,6 +222,74 @@ let private validateDetail (index: int) (dto: LotDetailDto) : Result<LotDetail, 
               Count = count
               Quantity = quantity
               InspectionResultCategory = nullToOption dto.inspectionResultCategory })
+
+let private tryGetJsonProperty (name: string) (element: JsonElement) : JsonElement option =
+    if element.ValueKind <> JsonValueKind.Object then
+        None
+    else
+        let mutable value = Unchecked.defaultof<JsonElement>
+
+        if element.TryGetProperty(name, &value) then
+            Some value
+        else
+            None
+
+let private missingProperties (prefix: string) (required: string list) (element: JsonElement) : ValidationError list =
+    if element.ValueKind <> JsonValueKind.Object then
+        []
+    else
+        required
+        |> List.choose (fun name ->
+            match tryGetJsonProperty name element with
+            | Some _ -> None
+            | None ->
+                Some
+                    { Field = prefix + name
+                      Message = "is required" })
+
+/// System.Text.Json は欠落した数値を 0 に束縛するため、0 が正当値のプロパティでは
+/// 「欠落」と「明示的な 0」を DTO だけで区別できない。OpenAPI の required と対になる
+/// 存在検査を JSON 境界で先に行い、永続化や重複判定より前に 400 を確定させる。
+let validateCreateLotRequiredProperties (root: JsonElement) : ValidationError list =
+    let topLevel =
+        missingProperties
+            ""
+            [ "lotNumber"
+              "divisionCode"
+              "departmentCode"
+              "sectionCode"
+              "processCategory"
+              "inspectionCategory"
+              "manufacturingCategory"
+              "details" ]
+            root
+
+    let lotNumber =
+        match tryGetJsonProperty "lotNumber" root with
+        | Some value -> missingProperties "lotNumber." [ "year"; "location"; "seq" ] value
+        | None -> []
+
+    let details =
+        match tryGetJsonProperty "details" root with
+        | Some value when value.ValueKind = JsonValueKind.Array ->
+            value.EnumerateArray()
+            |> Seq.indexed
+            |> Seq.collect (fun (index, detail) ->
+                missingProperties
+                    (sprintf "details[%d]." index)
+                    [ "itemCategory"
+                      "productCategoryCode"
+                      "lengthSpecLower"
+                      "thicknessSpecLower"
+                      "thicknessSpecUpper"
+                      "qualityGrade"
+                      "count"
+                      "quantity" ]
+                    detail)
+            |> List.ofSeq
+        | _ -> []
+
+    topLevel @ lotNumber @ details
 
 let private validateDetails (dtos: LotDetailDto[]) : Result<NonEmptyList<LotDetail>, ValidationError list> =
     if isNull dtos || dtos.Length = 0 then

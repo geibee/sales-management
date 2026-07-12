@@ -57,7 +57,7 @@ const createLot_Body = z
             premiumCategory: z
               .string()
               .regex(/^[^\u0000]*$/u)
-              .optional(),
+              .nullish(),
             productCategoryCode: z.string().regex(/^[^\u0000]*$/u),
             lengthSpecLower: z.number().gte(-9999999999).lte(9999999999),
             thicknessSpecLower: z.number().gte(-9999999999).lte(9999999999),
@@ -68,7 +68,7 @@ const createLot_Body = z
             inspectionResultCategory: z
               .string()
               .regex(/^[^\u0000]*$/u)
-              .optional(),
+              .nullish(),
           })
           .passthrough()
       )

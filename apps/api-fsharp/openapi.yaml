@@ -673,7 +673,7 @@ paths:
                     required: [itemCategory, productCategoryCode, lengthSpecLower, thicknessSpecLower, thicknessSpecUpper, qualityGrade, count, quantity]
                     properties:
                       itemCategory: { type: string, enum: [general, premium, custom] }
-                      premiumCategory: { type: string, pattern: '^[^\u0000]*$' }
+                      premiumCategory: { type: string, nullable: true, pattern: '^[^\u0000]*$' }
                       productCategoryCode: { type: string, pattern: '^[^\u0000]*$' }
                       lengthSpecLower: { type: number, minimum: -9999999999, maximum: 9999999999 }
                       thicknessSpecLower: { type: number, minimum: -9999999999, maximum: 9999999999 }
@@ -681,7 +681,7 @@ paths:
                       qualityGrade: { type: string, pattern: '^[^\u0000]*$' }
                       count: { type: integer, minimum: 1, maximum: 2147483647 }
                       quantity: { type: number, minimum: 0.001, maximum: 9999999999 }
-                      inspectionResultCategory: { type: string, pattern: '^[^\u0000]*$' }
+                      inspectionResultCategory: { type: string, nullable: true, pattern: '^[^\u0000]*$' }
       responses:
         '200':
           description: 作成成功

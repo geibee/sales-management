@@ -3,6 +3,8 @@ module SalesManagement.Tests.IntegrationTests.OpenApiSchemaTests
 open System
 open System.IO
 open System.Text.RegularExpressions
+open Microsoft.OpenApi.Models
+open Microsoft.OpenApi.Readers
 open Xunit
 
 let private openapiPath =
@@ -121,3 +123,23 @@ let ``LotStatus enum lists all five states`` () =
     Assert.Contains("shipping_instructed", body)
     Assert.Contains("shipped", body)
     Assert.Contains("conversion_instructed", body)
+
+[<Fact>]
+[<Trait("Category", "OpenApiSchema")>]
+[<Trait("Category", "Integration")>]
+let ``POST lots optional detail strings consistently allow null`` () =
+    use stream = File.OpenRead openapiPath
+    let mutable diagnostic = Unchecked.defaultof<OpenApiDiagnostic>
+    let document = OpenApiStreamReader().Read(stream, &diagnostic)
+    Assert.Empty diagnostic.Errors
+
+    let detailSchema =
+        document.Paths.["/lots"].Operations.[OperationType.Post].RequestBody.Content.["application/json"].Schema
+            .Properties.["details"].Items
+
+    Assert.True(detailSchema.Properties.["premiumCategory"].Nullable, "premiumCategory must allow null")
+
+    Assert.True(
+        detailSchema.Properties.["inspectionResultCategory"].Nullable,
+        "inspectionResultCategory must allow null"
+    )

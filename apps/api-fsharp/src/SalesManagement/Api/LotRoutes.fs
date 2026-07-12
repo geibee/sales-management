@@ -1,6 +1,7 @@
 module SalesManagement.Api.LotRoutes
 
 open System
+open System.Text.Json
 open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.Caching.Memory
@@ -219,19 +220,26 @@ let private respondCreateLot (lot: InventoryLot) (lotNumberStr: string) (outcome
     | Error 409 -> duplicateLotResponse lotNumberStr
     | Error _ -> internalLotErrorResponse
 
-let private bindCreateRequest (ctx: HttpContext) : Task<Result<CreateLotRequest, exn>> = task {
+let private bindCreateRequest (ctx: HttpContext) : Task<Result<CreateLotRequest, ValidationError list>> = task {
     try
-        let! dto = ctx.BindJsonAsync<CreateLotRequest>()
-        return Ok dto
+        ctx.Request.EnableBuffering()
+        use! document = JsonDocument.ParseAsync(ctx.Request.Body)
+        ctx.Request.Body.Position <- 0L
+
+        match validateCreateLotRequiredProperties document.RootElement with
+        | _ :: _ as errors -> return Error errors
+        | [] ->
+            let! dto = ctx.BindJsonAsync<CreateLotRequest>()
+            return Ok dto
     with ex ->
-        return Error ex
+        return Error [ { Field = "body"; Message = ex.Message } ]
 }
 
 let private parseCreateLot (ctx: HttpContext) : Task<Result<InventoryLot, DomainError>> = task {
     let! parsed = bindCreateRequest ctx
 
     match parsed with
-    | Error ex -> return Error(ValidationFailed [ { Field = "body"; Message = ex.Message } ])
+    | Error errors -> return Error(ValidationFailed errors)
     | Ok dto ->
         match validateCreateLotRequest dto with
         | Error errors -> return Error(ValidationFailed errors)

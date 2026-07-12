@@ -125,6 +125,68 @@ type LotErrorHandlingTests(fixture: AuthOffFixture) =
     [<Fact>]
     [<Trait("Category", "LotErrorHandling")>]
     [<Trait("Category", "Integration")>]
+    member _.``POST /lots validates a null required detail string before duplicate detection``() = task {
+        use client = fixture.NewClient()
+        let! lotId = createManufacturingLot client
+        let parts = lotId.Split('-')
+
+        let body =
+            sprintf
+                """{
+                    "lotNumber": {"year": %s, "location": "%s", "seq": %s},
+                    "divisionCode": 1, "departmentCode": 1, "sectionCode": 1,
+                    "processCategory": 1, "inspectionCategory": 1, "manufacturingCategory": 1,
+                    "details": [
+                        {"itemCategory": "general", "premiumCategory": null, "productCategoryCode": "v",
+                         "lengthSpecLower": 1.0, "thicknessSpecLower": 1.0, "thicknessSpecUpper": 2.0,
+                         "qualityGrade": null, "count": 1, "quantity": 1.0, "inspectionResultCategory": null}
+                    ]
+                }"""
+                parts.[0]
+                parts.[1]
+                parts.[2]
+
+        let! resp = postJson client "/lots" body
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode)
+        let! text = readBody resp
+        let root = parseJson text
+        Assert.Equal("validation-error", root.GetProperty("type").GetString())
+    }
+
+    [<Fact>]
+    [<Trait("Category", "LotErrorHandling")>]
+    [<Trait("Category", "Integration")>]
+    member _.``POST /lots validates a missing required detail property before duplicate detection``() = task {
+        use client = fixture.NewClient()
+        let! lotId = createManufacturingLot client
+        let parts = lotId.Split('-')
+
+        let body =
+            sprintf
+                """{
+                    "lotNumber": {"year": %s, "location": "%s", "seq": %s},
+                    "divisionCode": 1, "departmentCode": 1, "sectionCode": 1,
+                    "processCategory": 1, "inspectionCategory": 1, "manufacturingCategory": 1,
+                    "details": [
+                        {"itemCategory": "general", "premiumCategory": null, "productCategoryCode": "v",
+                         "lengthSpecLower": 1.0, "thicknessSpecLower": 1.0,
+                         "qualityGrade": "A", "count": 1, "quantity": 1.0, "inspectionResultCategory": null}
+                    ]
+                }"""
+                parts.[0]
+                parts.[1]
+                parts.[2]
+
+        let! resp = postJson client "/lots" body
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode)
+        let! text = readBody resp
+        let root = parseJson text
+        Assert.Equal("validation-error", root.GetProperty("type").GetString())
+    }
+
+    [<Fact>]
+    [<Trait("Category", "LotErrorHandling")>]
+    [<Trait("Category", "Integration")>]
     member _.``GET /lots/{id} response includes version field``() = task {
         use client = fixture.NewClient()
         let! lotId = createManufacturingLot client

@@ -12,7 +12,8 @@ Stop フック (`.claude/scripts/sarif-to-lessons.py`) が `apps/api-fsharp/ci-r
 - 追加・更新の履歴は本ファイルの git log で追跡する (別途の実行ログは持たない)
 
 <!-- lessons:begin -->
-- `OWASP ZAP.100000` — 最終検出 2026-05-01 / 直近 311件: A Client Error response code was returned by the server: 400 → 対応: API 側の修正か zap-rules.tsv でのルール調整かを判断
-- `OWASP ZAP.10049` — 最終検出 2026-05-01 / 直近 9件: Non-Storable Content: 400 → 対応: API 側の修正か zap-rules.tsv でのルール調整かを判断
-- `OWASP ZAP.10104` — 最終検出 2026-05-01 / 直近 5件: User Agent Fuzzer: <p>Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search → 対応: API 側の修正か zap-rules.tsv でのルール調整かを判断
+- `OWASP ZAP.100000` — 最終検出 2026-07-08 / 直近 311件: A Client Error response code was returned by the server: 400 → 対応: API 側の修正か zap-rules.tsv でのルール調整かを判断
+- `OWASP ZAP.10049` — 最終検出 2026-07-08 / 直近 9件: Non-Storable Content: 400 → 対応: API 側の修正か zap-rules.tsv でのルール調整かを判断
+- `OWASP ZAP.10104` — 最終検出 2026-07-08 / 直近 5件: User Agent Fuzzer: <p>Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search → 対応: API 側の修正か zap-rules.tsv でのルール調整かを判断
+- `Schemathesis.skipped` — 最終検出 2026-07-08 / 直近 11件: POST /lots: No examples in schema → 対応: openapi.yaml のスキーマ制約・examples と API バリデーション実装のどちらが正か判断して修正。恒常的な誤検知は schemathesis-hooks.py で除外
 <!-- lessons:end -->
