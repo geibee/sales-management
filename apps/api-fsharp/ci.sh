@@ -3,10 +3,14 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# shellcheck source=scripts/artifact-filenames.sh
+source scripts/artifact-filenames.sh
+
 RESULTS_DIR="./ci-results"
 SARIF_DIR="$RESULTS_DIR/sarif"
 mkdir -p "$RESULTS_DIR" "$SARIF_DIR"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+FILENAME_TIMESTAMP=$(artifact_filename_timestamp "$TIMESTAMP")
 
 echo "=== Jaeger 起動チェック ==="
 # --max-time 3 で短期失敗。listen はあるが応答がない (詰まっている) 状態でも 3 秒で抜ける。
@@ -44,7 +48,7 @@ if ! command -v scc >/dev/null 2>&1; then
     echo "scc が見つかりません (インストール: https://github.com/boyter/scc)" >&2
     exit 1
 fi
-scc --by-file --format json src/ > "$RESULTS_DIR/scc_${TIMESTAMP}.json"
+scc --by-file --format json src/ > "$RESULTS_DIR/scc_${FILENAME_TIMESTAMP}.json"
 
 echo "=== テスト + カバレッジ ==="
 rm -rf coverage
