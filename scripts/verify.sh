@@ -247,11 +247,12 @@ verify_frontend() {
   command -v pnpm >/dev/null 2>&1 \
     || fail "pnpm が見つかりません (fail-closed: frontend 変更は pnpm なしで合格にできない)"
 
-  # TypeScript の禁止パターン検査 (.ast-grep/rules/。issue #9 Tier2-18)。
+  # TypeScript / GitHub Actions YAML の禁止パターン検査 (.ast-grep/rules/。issue #9 Tier2-18)。
   # F# 側の同種ルールは Architecture/SourceRuleTests.fs (backend ゲート) が担う
   command -v ast-grep >/dev/null 2>&1 \
     || fail "ast-grep が見つかりません (fail-closed: 禁止パターン検査なしで合格にできない)"
-  ast-grep scan
+  # .github は hidden directory 扱いのため、workflow ルールも走るよう明示的に含める。
+  ast-grep scan --no-ignore hidden
   log "ast-grep: OK"
 
   pushd apps/frontend >/dev/null
