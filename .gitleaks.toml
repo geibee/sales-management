@@ -7,12 +7,10 @@ useDefault = true
 description = "ダミー値・サンプル設定の許可"
 paths = [
     '''.*\.gitleaks\.toml''',
-    '''.*docker-compose\.yml''',
-    '''.*launchSettings\.json''',
-    '''.*appsettings.*\.json''',
 ]
 regexes = [
     '''Password=app''',
     '''Username=app''',
     '''Host=localhost;Port=5432;Database=sales_management;Username=app;Password=app''',
+    '''dev-only-signing-key-do-not-use-in-production-please''',
 ]
