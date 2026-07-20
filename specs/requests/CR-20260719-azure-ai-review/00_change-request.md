@@ -1,0 +1,100 @@
+# 改修依頼書 — GitHub public PRのAzure AIレビュー
+
+## メタ情報
+
+| 項目 | 記入 |
+| --- | --- |
+| 依頼ID | `CR-20260719-azure-ai-review` |
+| トラック | **A: 新しい権限・非同期状態・人間承認を追加するため** |
+| 状態 | approved / implementing |
+| 承認日 | 2026-07-19 |
+
+本書は`specs/README.md`で全依頼に必須とされる合意記録である。実装完了後は凍結するため、runtime contractや運用値の恒久的なSource of Truthにはしない。
+
+## 1. 目的
+
+GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI reviewと修正提案を行う。結果はAzure Reposのprivate Pull Requestで人間が確認し、人間がmergeした変更だけをGitHub public `main`へ反映する。
+
+## 2. スコープ
+
+含むもの:
+
+- `verify`成功後の非同期dispatch
+- GitHub public `main`のAzure Reposへのfast-forward同期
+- GitHub Pull Request対象commitの限定branchへの取込み
+- AI reviewと修正案をAzure Repos Pull Requestへ集約する処理
+- 人間merge後の最終verify、競合確認、GitHubへのforceなし反映
+- OIDC、Managed Identity、GitHub Appによるmachine-to-machine認証
+
+含まないもの:
+
+- GitHub repository全体の常時mirror
+- `verify`失敗・取消・skip時のAI review
+- AI、worker、controllerによる自己承認またはmerge
+- force push、branch policy bypass、個人PAT/SSH credential
+- 実provider未選定段階のadapter、response Schema、state machine実装
+
+## 3. 受入基準
+
+| ID | Given | When | Then |
+| --- | --- | --- | --- |
+| AAR-AC-01 | GitHub Pull Requestの`verify`が成功 | dispatchが実行される | 対象repository、Pull Request、SHAを再検証したrequestだけをAzureへ通知する |
+| AAR-AC-02 | `verify`がfailure、cancelled、skipped | workflowが完了 | Azureへの通知とAI reviewを開始しない |
+| AAR-AC-03 | Azure Repos上の修正を人間が承認・merge | promotionを実行 | 最終verifyとexpected baseが一致するときだけforceなしでGitHubへ反映する |
+| AAR-AC-04 | GitHub `main`がexpected baseから進行 | promotionを実行 | 自動mergeまたはforce pushをせず停止する |
+| AAR-AC-05 | 同一requestが重複または順序逆転 | controllerが処理 | 同じ副作用を重複させず、base未到達なら待機する |
+
+## 4. 権限と信頼境界
+
+- GitHub Actions dispatchはGitHub API readとService Bus queue sendだけを持つ。
+- privileged dispatchはPull Request code、artifact、cache、title/bodyを実行入力にしない。
+- AI workerはGitHub/Azure Reposのwrite credentialを持たない。
+- repository操作、人間承認の検証、public反映はtrusted controllerが担当する。
+- AI outputは未信頼データとして扱い、実provider接続時に形式・path・line・sizeを検証する。
+- public repositoryにはAzureの具体的なsubscription/tenant/client/principal/project/repository IDやresource名を記録しない。
+
+## 5. 確定事項
+
+- 最終Source of TruthはGitHub public `main`。
+- 同期対象base branchは当初`main`だけ。
+- Azure Reposで最低1名の人間が承認する。requestor、AI、controllerの自己承認は禁止。
+- Azure Reposで人間mergeした後、GitHubへ直接pushする。ただしforceは使用しない。
+- external resource変更はPhaseごとにplan、費用、rollbackを提示して個別承認を得る。
+- GitHub ActionsからAzureへはOIDC workload identity federationを使用する。
+- dispatchのkill switchは実consumer完成後の別承認まで無効にする。
+
+## 6. 現段階で固定しないもの
+
+- 未実装consumerの物理JSON Schema
+- `review-result`、`promotion-request`のfield構成
+- Codex、Claude Code、OpenCode、Kiroのprovider adapter interface
+- retry、retention、監視間隔等の具体値
+- Container Apps Job、state store、controllerの最終構成
+
+これらは実装対象Phaseの開始時に、実際のAPI・SDK・障害モデルを確認して仕様化する。
+
+## 7. 未決事項
+
+| ID | 論点 | 決定時期 |
+| --- | --- | --- |
+| Q-01 | Azure DevOpsを操作する管理identityとorganizationへの登録方法 | consumer/controller実装前 |
+| Q-02 | 最初に接続するAI provider | AI review実装前 |
+| Q-03 | Publisher GitHub Appとmain rulesetの構成 | promotion実装前 |
+| Q-04 | retention、通知、DLQ/reconciliationの具体値 | shadow rollout前 |
+
+## 8. 変更履歴
+
+| 日付 | 内容 |
+| --- | --- |
+| 2026-07-19 | 全体方針、Source of Truth、人間承認、force禁止を承認 |
+| 2026-07-20 | Phase 2 Azure dispatch基盤をprivate IaCで適用・read-back |
+| 2026-07-20 | 将来Schema、fake adapter、予測テストを削除し、実装時追加へ変更。public/private情報境界を明文化 |
+
+## 品質ゲート化対応表
+
+| 仕様項目 | 現在のゲート | 将来のゲート |
+| --- | --- | --- |
+| AAR-AC-01/02 | `actionlint`、`shellcheck`、workflow review | consumer実装後のlive dispatch integration |
+| AAR-AC-03/04 | 未実装 | promotion実装時のGit E2Eと権限negative test |
+| AAR-AC-05 | 未実装 | state実装時のduplicate/reorder/stale test |
+| credential混入 | repository共通`gitleaks` | image/log/Key Vault検査 |

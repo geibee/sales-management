@@ -1,0 +1,4 @@
+# 特権workflowと秘密情報検査の変更はrepository ownerのレビューを必須にする。
+/.github/workflows/ai-review-dispatch.yml @geibee
+/.github/CODEOWNERS @geibee
+/.gitleaks.toml @geibee

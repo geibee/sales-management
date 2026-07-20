@@ -1,0 +1,262 @@
+# default branch 上の固定コードだけで、成功した verify の参照情報を Azure へ通知する。
+# PR code、先行 workflow の artifact/cache、PR title/body は読み込まない。
+name: AI review dispatch
+
+on:
+  workflow_run:
+    workflows: [verify]
+    types: [completed]
+
+permissions:
+  actions: read
+  pull-requests: read
+  id-token: write
+
+concurrency:
+  group: ai-review-dispatch-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    if: >-
+      ${{
+        vars.AI_REVIEW_DISPATCH_ENABLED == 'true' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.repository.id == 1226183236 &&
+        (
+          github.event.workflow_run.event == 'pull_request' ||
+          (
+            github.event.workflow_run.event == 'push' &&
+            github.event.workflow_run.head_branch == 'main'
+          )
+        )
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      AZURE_TENANT_ID: ${{ secrets.AI_REVIEW_AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AI_REVIEW_DISPATCH_CLIENT_ID }}
+      AI_REVIEW_SERVICE_BUS_NAMESPACE: ${{ secrets.AI_REVIEW_SERVICE_BUS_NAMESPACE }}
+      AI_REVIEW_SERVICE_BUS_QUEUE: ${{ secrets.AI_REVIEW_SERVICE_BUS_QUEUE }}
+      WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+    steps:
+      - name: GitHub API で再検証して Service Bus へ送信
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          readonly repository_api="https://api.github.com/repos/geibee/sales-management"
+          readonly expected_repository_id="1226183236"
+          readonly api_version="2022-11-28"
+
+          [[ "$WORKFLOW_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$AZURE_TENANT_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]
+          [[ "$AZURE_CLIENT_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]
+          [[ "$AI_REVIEW_SERVICE_BUS_NAMESPACE" =~ ^[a-z0-9][a-z0-9-]{4,48}[a-z0-9]$ ]]
+          [[ "$AI_REVIEW_SERVICE_BUS_QUEUE" =~ ^[A-Za-z0-9._~-]{1,260}$ ]]
+
+          dispatch_tmp_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$dispatch_tmp_dir"' EXIT
+          readonly run_file="$dispatch_tmp_dir/workflow-run.json"
+          readonly associated_prs_file="$dispatch_tmp_dir/associated-pull-requests.json"
+          readonly pr_file="$dispatch_tmp_dir/pull-request.json"
+          readonly message_file="$dispatch_tmp_dir/message.json"
+          readonly oidc_file="$dispatch_tmp_dir/github-oidc.json"
+          readonly token_request_file="$dispatch_tmp_dir/token-request.txt"
+          readonly token_file="$dispatch_tmp_dir/azure-token.json"
+          chmod 700 "$dispatch_tmp_dir"
+
+          github_api_get() {
+            curl --fail-with-body --silent --show-error --retry 3 \
+              --header "Authorization: Bearer $GITHUB_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: $api_version" \
+              "$1"
+          }
+
+          github_api_get "$repository_api/actions/runs/$WORKFLOW_RUN_ID" >"$run_file"
+          jq -e \
+            --argjson run_id "$WORKFLOW_RUN_ID" \
+            --argjson repository_id "$expected_repository_id" '
+              .id == $run_id and
+              .run_attempt >= 1 and .run_attempt <= 100 and
+              .name == "verify" and
+              .path == ".github/workflows/verify.yml" and
+              .conclusion == "success" and
+              (.event == "push" or .event == "pull_request") and
+              .repository.id == $repository_id and
+              .repository.owner.login == "geibee" and
+              .repository.name == "sales-management"
+            ' "$run_file" >/dev/null
+
+          occurred_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          readonly occurred_at
+          event_name="$(jq -er '.event' "$run_file")"
+          readonly event_name
+
+          case "$event_name" in
+            push)
+              jq -e '
+                .head_branch == "main" and
+                (.head_sha | test("^[0-9a-f]{40}$"))
+              ' "$run_file" >/dev/null
+              jq -c --arg occurred_at "$occurred_at" '
+                {
+                  schemaVersion: 1,
+                  eventType: "base-sync-request",
+                  occurredAt: $occurred_at,
+                  github: {
+                    repository: {
+                      id: .repository.id,
+                      owner: .repository.owner.login,
+                      name: .repository.name
+                    },
+                    workflowRun: {
+                      id: .id,
+                      attempt: .run_attempt,
+                      workflowName: .name,
+                      event: .event,
+                      conclusion: .conclusion
+                    },
+                    sourceRef: "refs/heads/main",
+                    verifiedCommitSha: .head_sha
+                  }
+                }
+              ' "$run_file" >"$message_file"
+              message_id="$(jq -r '
+                "base-sync-\(.github.repository.id)-\(.github.verifiedCommitSha)"
+              ' "$message_file")"
+              ;;
+            pull_request)
+              verified_head_sha="$(jq -er '
+                .head_sha
+                | select(type == "string" and test("^[0-9a-f]{40}$"))
+              ' "$run_file")"
+              readonly verified_head_sha
+              github_api_get \
+                "$repository_api/commits/$verified_head_sha/pulls?per_page=100" \
+                >"$associated_prs_file"
+              pull_request_number="$(jq -er \
+                --argjson repository_id "$expected_repository_id" \
+                --arg verified_head_sha "$verified_head_sha" '
+                  [
+                    .[]
+                    | select(
+                        .state == "open" and
+                        .base.repo.id == $repository_id and
+                        .base.ref == "main" and
+                        .head.sha == $verified_head_sha
+                      )
+                  ]
+                  | select(length == 1)
+                  | .[0].number
+                  | select(type == "number" and . >= 1)
+                ' "$associated_prs_file")"
+              readonly pull_request_number
+              [[ "$pull_request_number" =~ ^[1-9][0-9]*$ ]]
+              github_api_get "$repository_api/pulls/$pull_request_number" >"$pr_file"
+              jq -e \
+                --slurpfile run "$run_file" \
+                --argjson repository_id "$expected_repository_id" \
+                --argjson pull_request_number "$pull_request_number" '
+                  .number == $pull_request_number and
+                  .state == "open" and
+                  .base.repo.id == $repository_id and
+                  .base.ref == "main" and
+                  (.base.sha | test("^[0-9a-f]{40}$")) and
+                  (.head.sha | test("^[0-9a-f]{40}$")) and
+                  (.head.ref | type) == "string" and
+                  (.head.ref | utf8bytelength) >= 1 and
+                  (.head.ref | utf8bytelength) <= 255 and
+                  .head.sha == $run[0].head_sha
+                ' "$pr_file" >/dev/null
+              jq -c \
+                --slurpfile run "$run_file" \
+                --arg occurred_at "$occurred_at" '
+                  $run[0] as $workflow |
+                  {
+                    schemaVersion: 1,
+                    eventType: "review-request",
+                    occurredAt: $occurred_at,
+                    github: {
+                      repository: {
+                        id: $workflow.repository.id,
+                        owner: $workflow.repository.owner.login,
+                        name: $workflow.repository.name
+                      },
+                      pullRequestNumber: .number,
+                      workflowRun: {
+                        id: $workflow.id,
+                        attempt: $workflow.run_attempt,
+                        workflowName: $workflow.name,
+                        event: $workflow.event,
+                        conclusion: $workflow.conclusion
+                      },
+                      base: {ref: "refs/heads/main", sha: .base.sha},
+                      head: {ref: .head.ref, sha: .head.sha},
+                      verifiedHeadSha: $workflow.head_sha
+                    }
+                  }
+                ' "$pr_file" >"$message_file"
+              message_id="$(jq -r '
+                "review-\(.github.repository.id)-\(.github.pullRequestNumber)-\(.github.head.sha)-\(.github.workflowRun.attempt)"
+              ' "$message_file")"
+              ;;
+            *)
+              echo "対象外の verify event です: $event_name" >&2
+              exit 1
+              ;;
+          esac
+          readonly message_id
+
+          oidc_url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api%3A%2F%2FAzureADTokenExchange"
+          readonly oidc_url
+          curl --fail-with-body --silent --show-error --retry 3 \
+            --header "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$oidc_url" >"$oidc_file"
+          oidc_token="$(jq -er '.value | select(type == "string" and length > 0)' "$oidc_file")"
+          readonly oidc_token
+
+          jq -nr \
+            --arg client_id "$AZURE_CLIENT_ID" \
+            --arg client_assertion "$oidc_token" \
+            --arg client_assertion_type "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" \
+            --arg grant_type "client_credentials" \
+            --arg scope "https://servicebus.azure.net/.default" '
+              $ARGS.named
+              | to_entries
+              | map("\(.key | @uri)=\(.value | @uri)")
+              | join("&")
+            ' >"$token_request_file"
+          curl --fail-with-body --silent --show-error --retry 3 \
+            --header "Content-Type: application/x-www-form-urlencoded" \
+            --data-binary "@$token_request_file" \
+            "https://login.microsoftonline.com/$AZURE_TENANT_ID/oauth2/v2.0/token" \
+            >"$token_file"
+          access_token="$(jq -er '
+            .access_token | select(type == "string" and length > 0)
+          ' "$token_file")"
+          readonly access_token
+
+          broker_properties="$(jq -cn --arg message_id "$message_id" '
+            {MessageId: $message_id, ContentType: "application/json"}
+          ')"
+          readonly broker_properties
+          service_bus_url="https://${AI_REVIEW_SERVICE_BUS_NAMESPACE}.servicebus.windows.net/${AI_REVIEW_SERVICE_BUS_QUEUE}/messages?timeout=60"
+          readonly service_bus_url
+          response_code="$(curl --silent --show-error --retry 5 --retry-all-errors \
+            --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer $access_token" \
+            --header "Content-Type: application/json; charset=utf-8" \
+            --header "BrokerProperties: $broker_properties" \
+            --data-binary "@$message_file" \
+            "$service_bus_url")"
+          readonly response_code
+          if [[ "$response_code" != "201" ]]; then
+            echo "Service Bus send が失敗しました (HTTP $response_code)" >&2
+            exit 1
+          fi
+          echo "Service Bus へ送信しました: $message_id"
