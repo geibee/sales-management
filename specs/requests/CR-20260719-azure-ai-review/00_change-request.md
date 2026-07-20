@@ -77,7 +77,7 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 
 | ID | 論点 | 決定時期 |
 | --- | --- | --- |
-| Q-01 | Azure DevOpsを操作する管理identityとorganizationへの登録方法 | consumer/controller実装前 |
+| Q-01 | controller用Managed Identityをorganizationへ明示登録し、対象repositoryだけに最小権限を付与する | 決定済み。Phase 4適用前に人間が登録 |
 | Q-02 | 最初に接続するAI provider | AI review実装前 |
 | Q-03 | Publisher GitHub Appとmain rulesetの構成 | promotion実装前 |
 | Q-04 | retention、通知、DLQ/reconciliationの具体値 | shadow rollout前 |
@@ -89,6 +89,7 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | 2026-07-19 | 全体方針、Source of Truth、人間承認、force禁止を承認 |
 | 2026-07-20 | Phase 2 Azure dispatch基盤をprivate IaCで適用・read-back |
 | 2026-07-20 | 将来Schema、fake adapter、予測テストを削除し、実装時追加へ変更。public/private情報境界を明文化 |
+| 2026-07-21 | Phase 3 consumerを適用し、GitHubからTable保存までlive integrationを確認。Phase 4のcontroller identity方針を確定 |
 
 ## 品質ゲート化対応表
 
