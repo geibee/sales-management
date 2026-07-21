@@ -2,8 +2,8 @@
 
 - 作成日: 2026-07-15
 - 最終更新日: 2026-07-21
-- 状態: Phase 4完了。Phase 5AのPull Request head importをprivate IaCで実装中。kill switchは有効
-- 次の作業: Phase 5Aをレビュー・適用し、open GitHub Pull Requestで限定branch取込みを確認する
+- 状態: Phase 5A完了。Phase 5BのAzure Pipeline方式を承認済み。kill switchは有効
+- 次の作業: private IaCにClaude/Kiro review Pipelineを追加し、Azure Repos Pull Request作成まで確認する
 
 ## 0. 次セッションの開始位置
 
@@ -14,7 +14,7 @@
 5. Azure の具体的な resource 名、tenant/client/subscription ID、Azure DevOps の project/repository ID、deployment 履歴は private infrastructure repository を正とする。public repository へ複製しない。
 6. `AI_REVIEW_DISPATCH_ENABLED` はPhase 3の実接続確認後に`true`へ変更済み。異常時は最初に`false`へ戻す。
 7. Azure resource、identity、repository policy、課金設定を変更するときは、対象・費用・rollback を提示して別途承認を得る。
-8. Phase 4は適用済み。Phase 5AはPR headの限定branch取込み、Phase 5BはClaude/KiroのAI reviewとAzure PR作成として分離する。
+8. Phase 5Aは適用済み。Phase 5Bはprivate IaCのtrusted PipelineでClaude/KiroのreviewとAzure PR作成を行う。
 
 ## 1. 目的
 
@@ -24,8 +24,10 @@ GitHub public repository の Pull Request に対して既存の決定的な `ver
 GitHub public PR
   → GitHub Actions verify
   → 成功時だけ Azure Service Bus へ通知
-  → Azure Repos に対象 branch / PR を作成
-  → AI review / 修正提案
+  → Azure Repos に対象 branch を作成
+  → private IaC の Azure Pipeline を branch 更新で起動
+  → Claude / Kiro review
+  → 固定 Pipeline step が Azure Repos PR を作成
   → 人間が Azure Repos PR をレビューして merge
   → 最終 verify と競合確認
   → GitHub public main へ force なしで反映
@@ -38,7 +40,7 @@ GitHub public PR
 - GitHub Actions の `verify` 成功を AI review の開始条件にする。
 - GitHub public `main` は Azure Repos の review 対象 base branch へ fast-forward で同期する。
 - PR head は対象 Pull Request の処理時にだけ Azure Repos の限定 branch へ取り込む。repository 全体の常時 mirror はしない。
-- AI process に GitHub/Azure Repos の write credential、merge 権限、policy bypass 権限を渡さない。
+- AI process に GitHub/Azure Repos のcredentialを渡さない。Azure Repos PR作成用tokenは固定Pipeline stepだけに渡す。
 - GitHub Actions と Azure の間は OIDC workload identity federation を使用し、長期 client secret を置かない。
 - GitHub へ反映するときは force push を使用しない。想定 base から進んでいたら停止する。
 - Git commit SHA は対象 commit、重複、stale result、競合の識別に使う。信頼の暗号学的証明には使わない。
@@ -125,38 +127,26 @@ GitHub public Pull Requestの`verify`成功後に送る。
 確認済みである。JSON Schemaは、異なる言語・repository間でnative typeだけではdriftを検出できないと
 確認した場合に追加する。
 
-Phase 5Bではprivate側に次の内部contractを追加する。別のJSON Schema fileは作らず、同じGo moduleのnative
-typeをproducer/consumerで共有する。
-
-- `review-work`: PR番号、base/head SHA、固定規則で作ったAzure source/target refだけをAI Jobへ通知する。
-- provider result state: provider名、summary、findingだけをTableへ保存し、raw responseやpromptを保存しない。
-- `review-result-ready`: 両providerの結果がTableへ揃ったことと同じPR/base/head/refだけをPR controllerへ通知する。
+Phase 5Bでは追加のqueue message、Table state、Go contractを作らない。Phase 5Aが作成するimmutableな
+`github-pr/<Pull Request番号>/<full-head-sha>` branchの更新をAzure Pipelineのrepository resource triggerが
+受ける。trigger refとcommitはAzure Pipelinesのruntime変数として渡され、private IaCのdefault branchにある
+trusted YAMLが処理する。
 
 `promotion-request`はproducer/consumer未実装なので、現時点では物理contractを固定しない。
 
-## 6. AI provider adapterと未信頼出力検証
+## 6. Claude/Kiro reviewと未信頼出力の扱い
 
-最初に実接続するproviderはClaudeとKiroの2つに決定した。Claudeは非対話のMessages API、KiroはCLIの
-headless modeを使う。いずれもsource treeのread/searchだけを許可し、write、任意shell実行、network拡張、
-Azure Repos操作を許可しない。ClaudeはAzure Managed IdentityをAnthropic Workload Identity Federationへ
-接続する構成を第一候補とし、Kiroは公式headless modeが要求するAPI keyをsecret storeから実行時だけ渡す。
+最初に実接続するproviderはClaudeとKiroの2つに決定した。両方をAzure Pipelineの非対話CLIとして実行する。
+AI processはcheckout directoryの外で起動し、private側の固定promptとbase/head間の`git diff`だけを標準入力で
+渡す。public repositoryに置かれたagent設定、hook、skillは読み込ませない。Claudeは全toolを無効化し、Kiroは
+toolを事前承認しない。provider credentialは各provider stepだけにsecret variableとして渡す。
 
 CodexとOpenCodeは今回の実装対象に含めず、実接続時までinterfaceを固定しない。
 
-Phase 5Bでは次だけを実装し、未選定provider向けの共通frameworkは作らない。
-
-- Claude/Kiroの実provider responseを受けるprovider別adapter
-- provider固有形式から最小共通findingへの変換
-- malformed、oversize、path traversal、存在しないpath/lineの拒否
-- credentialや任意commandをcontrollerへ渡さない境界
-- 同じruntime validatorを通す少数の境界例（malformed、oversize、不正path/line）の検証
-
-共通findingは`level`（error/warning）、変更fileのrepository相対path、head側line、message、任意suggestionだけと
-する。providerごとに20件、正規化済みresult 48 KiBを上限とし、findingは人間向け表示だけに使う。voteや
-自動merge条件へ変換しない。
-
-この検証は「設定作業を守るため」ではなく、AIがPull Requestごとに返す未信頼データをAzure Pull Requestの
-説明へ渡さないために必要である。インフラ全体をTDD対象にはせず、毎回通る小さな未信頼入力境界に限定する。
+review結果は共通JSONへ変換せず、provider名を見出しにしたplain MarkdownとしてAzure Pull Request説明へ
+掲載する。AI出力をcommand、Git ref、path、vote、自動merge条件へ変換しないため、provider別adapter、JSON
+Schema、finding validatorは作らない。出力はPipelineの一時fileに書き、固定stepが文字列としてAzure DevOps
+CLIへ渡す。Claude/Kiroのどちらかが失敗した場合はPull Requestを作成せずPipelineを失敗させる。
 
 ## 7. Machine-to-machine認証
 
@@ -189,8 +179,8 @@ Service Bus向けEntra access token
 | 2 | GitHub `workflow_run` dispatch、OIDC、Service Bus Sender基盤 | 完了 |
 | 3 | Service Bus consumerとstate、実messageのintegration test | 完了。live dispatch、Job成功、保存ログ、queue/DLQ空を確認 |
 | 4 | GitHub `main`からAzure mapped baseへのfast-forward同期 | 完了。Managed Identity権限、Job適用、branch新規作成、SHA一致、queue/DLQ空を確認 |
-| 5A | Pull Request headの限定branch import | private実装中。provider credentialやAzure PR権限は不要 |
-| 5B | Claude/Kiro adapter、AI review、Azure PR作成 | 最小内部contractの承認待ち |
+| 5A | Pull Request headの限定branch import | 完了。provider credentialやAzure PR権限は不要 |
+| 5B | trusted Azure Pipeline、Claude/Kiro review、Azure PR作成 | 方式承認済み、private実装中 |
 | 6 | AI fix proposal、credential-less verify、Azure人間承認 | 未着手 |
 | 7 | Azure人間merge後のGitHub promotion | 未着手 |
 | 8 | shadow rollout、監視、DLQ/reconciliation、費用上限 | 未着手 |
@@ -212,6 +202,7 @@ Phase 2時点ではconsumerが未実装でworkflow変更頻度も低かったた
 
 - 現行consumer用の独立JSON Schema fixture test（workflowの固定`jq`とGo native typeで境界を検証するため未追加）
 - 未選定providerのfake adapter test
+- Claude/Kiro出力の共通Schema・adapter test
 - 将来のreview/promotion state machineを模倣するunit test
 - workflow本文を文字列検索するだけの専用Python test
 
@@ -221,14 +212,18 @@ Phase 3/4で実施した検査:
 - Git同期: 恒久test fileは追加せず、一時bare repositoryでbranch作成、fast-forward、no-op、stale、
   分岐停止を手動確認
 
-将来追加する検査:
+Phase 5Bで実施する検査:
 
-- provider接続時: 実adapterのmalformed/oversize/path/line test
-- promotion実装時: 人間承認対象SHA、policy、expected base、force禁止のtest
+- trusted YAMLとinline shellのreview・静的検査
+- trigger branch、checkout SHA、source/target、token受渡しの初回live確認
+- Claude/Kiroの終了codeとAzure Repos Pull Requestのsource/target read-back
+
+promotion実装時には、人間承認対象SHA、policy、expected base、force禁止を高影響の決定的境界として検証する。
 
 ## 10. 未決事項と承認ゲート
 
 - Claude model、Kiro default model、1 review当たりのbudget・timeout上限
+- provider secretの発行・rotationとAzure Pipeline secret variableの設定
 - Azure Repos branch policyと人間承認の実測方法
 - GitHub Publisher Appとmain rulesetの最小権限構成
 - retention、監視、通知、DLQ/reconciliationの具体値
@@ -281,7 +276,7 @@ Job成功、queue/DLQ空を確認した。
 ## 14. Phase 5A Pull Request head import
 
 Phase 5Aは既存controller identityの権限内で次だけを行い、Azure Pull Request作成やAI provider呼出しを
-含めない。
+含めない。実装はprivate IaCの`main`へmerge済みである。
 
 - GitHub取得元は、検証済みPull Request番号から作る`refs/pull/<number>/head`に固定する。
 - messageのhead branch名は表示用metadataに留め、Git refやcommandを生成しない。
@@ -291,11 +286,14 @@ Phase 5Aは既存controller identityの権限内で次だけを行い、Azure Pu
 - branch未作成なら通常push、同一SHAならno-op、異なるSHAがあれば停止する。force pushは使用しない。
 - push後にremote refを読み戻し、検証済みhead SHAとの完全一致を確認してからmessageを完了する。
 
-Phase 5BではClaude/Kiroをcontrollerとは別のone-shot Jobで実行する。AI JobのManaged IdentityはAzure Repos
-Readだけを持ち、write、PR操作、merge、policy bypassを持たない。provider出力はcontrollerへ渡す前に
-malformed、oversize、path traversal、存在しないpath/lineを拒否する。fake adapterや未選定provider用の
-共通化は追加しない。
+Phase 5Bではprivate IaCのdefault branchにtrusted Azure Pipeline YAMLを置く。Azure Reposの
+staging repositoryをrepository resourceとして宣言し、
+`github-pr/*`更新時はtrigger commitを、review baseは`github-main`をcheckoutする。Pipelineはtrigger refが
+`github-pr/<番号>/<full-head-sha>`であり、`Build.SourceVersion`と末尾SHAとcheckout HEADが一致することを
+固定shellで確認する。
 
-AI Jobはproviderごとの検証済み結果をTableへ保存し、両方が揃ったことだけをService BusでPR controllerへ
-通知する。PR controllerはprovider credentialを持たず、Table結果とGit refを再検証して、限定branchから
-`github-main`へのAzure Pull Requestを作る。同一source/targetのactive Pull Requestは再利用する。
+AI processはcheckout directoryの外で起動し、Claude/Kiroには固定prompt、`git diff`、各provider credential
+だけを渡す。Azure DevOpsの`System.AccessToken`はAI stepへ渡さず、最後の固定stepだけへ渡す。このstepが限定branch
+から`github-main`へのactive Pull Requestを検索し、無ければ作成、あれば同じPull Requestの説明を更新する。
+自動完了、vote、merge、policy bypassは行わない。追加のContainer Apps Job、Service Bus queue、Table、Go
+adapter/controllerは作らない。
