@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | 対象 | GitHub `verify`完了からService Bus受信、Git取込み、Azure PipelineによるAI reviewまで |
-| 状態 | Phase 5A complete / Phase 5B Pipeline方式 approved |
+| 状態 | Phase 5A・5B complete / Phase 6設計承認待ち |
 
 ## 1. トリガ
 
@@ -103,6 +103,8 @@ consumerは契約違反messageをDLQへ隔離する。Table保存、Azure DevOps
 Phase 5B Pipelineでは、trigger/ref/SHA不一致、ClaudeまたはKiroの失敗、Azure PR作成失敗のいずれもrunを
 失敗させる。AI出力は一時fileにだけ保存し、失敗時に副作用を続行しない。Pipelineの再実行時は同じ
 source/targetのactive Pull Requestを検索して再利用し、同一Pull Requestを重複作成しない。
+default Claudeによるlive runでAzure Repos Pull Request作成後のsource/target/status read-backまで確認し、
+Phase 5Bを完了した。
 
 DLQの定期reconciliation、correlation IDを用いた通知、retentionの最終値は未実装であり、shadow rollout前に
 実測した負荷・障害影響・費用を提示して承認する。
