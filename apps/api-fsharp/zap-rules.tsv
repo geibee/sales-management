@@ -7,3 +7,20 @@
 #   text/csv を「想定外」とフラグする。/lots/export は CSV ファイルダウンロード専用
 #   エンドポイントなので、この URL に限り抑止する。
 100001	IGNORE	.*/lots/export.*
+
+# 10106 "HTTP Only Site":
+#   nightly は TLS 終端のない localhost 上で API をスキャンするため、被検体 URL に限り抑止する。
+#   本番の HTTPS 強制や TLS 設定を評価するゲートではない。
+10106	IGNORE	http://localhost:5000/.*
+
+# 40014 "Cross Site Scripting (Persistent)":
+#   /lots/export は text/csv + Content-Disposition: attachment のダウンロードであり、
+#   ブラウザが HTML として実行する文脈を持たない。CSV 数式インジェクションは
+#   LotCsvExportTests の全トリガ文字テストで別途検証している。
+40014	IGNORE	.*/lots/export.*
+
+# 6 "Path Traversal":
+#   POST /lots の location はロット番号を構成する DB 識別子であり、ファイルパスや
+#   テンプレートの解決には使わない。パス風の文字列を 200 で保存する挙動を
+#   ファイルアクセス成功と推測する低 confidence の誤検知なので、作成 URL に限り抑止する。
+6	IGNORE	.*/lots$
