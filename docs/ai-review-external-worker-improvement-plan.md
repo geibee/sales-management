@@ -223,7 +223,7 @@ promotion実装時には、人間承認対象SHA、policy、expected base、forc
 ## 10. 未決事項と承認ゲート
 
 - Claude model、Kiro default model、1 review当たりのbudget・timeout上限
-- provider secretの発行・rotationとAzure Pipeline secret variableの設定
+- provider secretの発行・rotationとAzure Key Vault連携Variable Groupの設定
 - Azure Repos branch policyと人間承認の実測方法
 - GitHub Publisher Appとmain rulesetの最小権限構成
 - retention、監視、通知、DLQ/reconciliationの具体値
@@ -297,3 +297,12 @@ AI processはcheckout directoryの外で起動し、Claude/Kiroには固定promp
 から`github-main`へのactive Pull Requestを検索し、無ければ作成、あれば同じPull Requestの説明を更新する。
 自動完了、vote、merge、policy bypassは行わない。追加のContainer Apps Job、Service Bus queue、Table、Go
 adapter/controllerは作らない。
+
+provider credentialはAzure Pipelineへ直接保存せず、Azure Key Vaultに保存する。PipelineはWorkload Identity
+Federationのservice connectionでKey Vault連携Variable Groupから実行時に取得し、各providerのstepだけへ
+環境変数として渡す。`github-main`の必須branch policyはcontrollerのbase同期を止めるため現Phaseでは設定せず、
+人間承認の強制方法はpromotion Phaseでbase同期branchとの分離を含めて決定する。
+
+2026-07-21にprivate IaCからKey Vault、service connection専用managed identity、Vault限定の読取りroleを
+適用した。provider API keyの登録、Workload Identity Federation service connection、Key Vault連携
+Variable Groupの設定は人間のcredential設定作業として残っている。
