@@ -5,8 +5,8 @@
 | 項目 | 記入 |
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
-| 対象 | GitHub `verify`完了からService Bus通知まで |
-| 状態 | Phase 2 implementing |
+| 対象 | GitHub `verify`完了からService Bus受信、base同期まで |
+| 状態 | Phase 4 complete / Phase 5以降は未実装 |
 
 ## 1. トリガ
 
@@ -56,46 +56,53 @@ dispatchはevent payloadだけを信用せず、job単位の`GITHUB_TOKEN`でGit
 
 ## 4. 配信特性
 
-Service Busはat-least-onceとして扱い、重複と順序逆転を正常系として想定する。ただしconsumerとstateが未実装のため、具体的な冪等キー、retry、DLQ、reconciliationはPhase 3で実装と同時に確定する。
+Service Busはat-least-onceとして扱い、重複と順序逆転を正常系として想定する。Phase 3/4では次を実装した。
+
+- producerが内容から決定的な`MessageId`を生成し、consumerがmessage本文との対応を再検証する。
+- `MessageId`をTable Storageの一意なRowKeyとして保存し、再配信時のconflictを保存済みとして扱う。
+- 保存後もbase同期をbranchの実状態から再判定し、保存とpushの間で停止しても同じpushを重複させない。
+- 契約違反messageは理由を付けてDLQへ移し、Table保存またはbase同期の一時失敗はsettleせず再配信に任せる。
+- queueのmax deliveryは5、message TTLは1日とし、Job executionは同時に1つまでとする。
+- base同期ではbranch未作成、同一SHA、fast-forward、順序逆転した古いrequest、分岐を区別し、force pushしない。
 
 最低限の意味は次のとおりとする。
 
 - 同一workflow run/attemptの再配信で同じ副作用を重複させない。
 - 古いPull Request headの結果を新しいheadへ適用しない。
-- base syncよりreviewが先に届いた場合、forceや別baseで続行しない。
+- base syncよりreviewが先に届いた場合、forceや別baseで続行しない。このPR import順序制御はPhase 5で実装する。
 - non-fast-forwardは自動解消しない。
 
-## 5. 物理contractを固定する時期
+## 5. 現在の物理contract
 
-現段階ではproducerが1つでconsumerが未実装なので、workflow内の固定`jq`式をmessageの実体とし、独立JSON Schema、fixture、Python validatorを置かない。
+producerはworkflow内の固定`jq`式、consumerはGoのnative typeをmessage contractとして使用する。Phase 3で
+`base-sync-request`と`review-request`のdecode、必須field、repository、workflow、SHA、`MessageId`対応を
+consumerに実装し、実際のGitHub dispatchからService Bus受信・保存まで確認した。
 
-Phase 3でconsumerを作るときに次を行う。
-
-1. `base-sync-request`と`review-request`をconsumerのnative typeとして定義する。
-2. workflowから送った実messageをdeserializeするintegration testを作る。
-3. native typeだけではpublic/private repository間のdriftを検出できない場合に限り、2種類のJSON Schemaを追加する。
-4. Schemaを追加する場合は、producerとconsumerの双方が同じSchemaを実行時またはCIで利用する。Schema自身を試すだけのfixture testにはしない。
+producerが1つ、consumerが1つでnative typeによる検証で境界を守れるため、独立JSON Schema、fixture、
+Python validatorは追加していない。今後追加するのは、producer/consumerが増えてnative typeだけでは
+public/private repository間のdriftを検出できなくなった場合に限る。その場合もSchema自身を試すだけの
+fixture testにはせず、producerとconsumerの双方が同じSchemaを利用する。
 
 未実装の`review-result`と`promotion-request`は、それぞれのproducer/consumer実装時までfieldを固定しない。
 
 ## 6. 失敗時の扱い
 
-現在のdispatchはGitHub API、OIDC token exchange、Service Bus sendのtimeout/HTTP errorでjobを失敗させる。既存`verify`の結論は変更しない。
+dispatchはGitHub API、OIDC token exchange、Service Bus sendのtimeout/HTTP errorでjobを失敗させる。
+既存`verify`の結論は変更しない。
 
-consumer実装後は次を追加する。
+consumerは契約違反messageをDLQへ隔離する。Table保存、Azure DevOps token取得、Git同期、message完了の
+いずれかが失敗した場合は成功扱いにせず、settleされなかったmessageをService Busのdelivery上限内で
+再配信する。base同期は再配信時もbranchの実状態から安全に再判定する。
 
-- transportの一時障害だけを対象にした上限付きretry
-- malformedまたは認可不一致messageの隔離
-- DLQとreconciliation
-- correlation IDを用いた通知
-
-具体的な回数・時間は負荷と費用を確認してPhase 3で承認する。
+DLQの定期reconciliation、correlation IDを用いた通知、retentionの最終値は未実装であり、shadow rollout前に
+実測した負荷・障害影響・費用を提示して承認する。
 
 ## 品質ゲート化対応表
 
-| ID | 現在 | consumer実装後 |
+| ID | 現在の実装・確認 | 将来 |
 | --- | --- | --- |
-| AAR-EVT-01/02 | `actionlint`、`shellcheck`、workflow review | 実Service Bus messageのintegration test |
-| 発生源再検証 | 固定workflowのcode review、過去の実workflow runを使ったAPI read-back | consumer実装時の実message integration test |
-| duplicate/reorder/stale | 未実装 | stateを含むconsumer test |
-| DLQ/reconciliation | 未実装 | Azure PoC integration test |
+| AAR-EVT-01/02 | `actionlint`、`shellcheck`、workflow review、実Service Bus dispatch | PR import後のend-to-end確認 |
+| 発生源再検証 | 固定workflowのcode review、過去runのAPI read-back、実messageのconsumer受信 | provider接続時の入力境界確認 |
+| duplicate | `MessageId`とTable RowKey。実message再送で保存済み扱いを確認 | 追加なし。契約変更時だけ再確認 |
+| reorder/stale | 一時bare repositoryで各Git状態を確認し、実環境でbase branch作成とSHA一致を確認 | PR import順序制御はPhase 5 |
+| DLQ/reconciliation | 契約違反DLQとdelivery上限を実装。適用後queue/DLQ空を確認 | 定期reconciliationと通知はshadow rollout前 |
