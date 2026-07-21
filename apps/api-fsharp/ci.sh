@@ -151,7 +151,11 @@ if [ "$ZAP_ENABLED" = "1" ]; then
     #   - addon は headless Firefox + geckodriver を起動するが、aarch64 WSL2 では
     #     marionette ポート読込失敗で 4 連続ハング → スキャン全体を巻き込んで exit=3
     #   - addon ごと外すことで Selenium 経路を完全に避ける
+    # GitHub-hosted runner の UID は ZAP イメージ内ユーザーと一致しない。
+    # ホスト UID:GID で実行しないと 0755 の ci-results にレポートを作成できない。
     docker run --rm --network host \
+        --user "$(id -u):$(id -g)" \
+        -e HOME=/tmp \
         -v "$PWD/openapi.yaml:/zap/openapi.yaml:ro" \
         -v "$PWD/$RESULTS_DIR:/zap/wrk:rw" \
         ghcr.io/zaproxy/zaproxy:stable \
