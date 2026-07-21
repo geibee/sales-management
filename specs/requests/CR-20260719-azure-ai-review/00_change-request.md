@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | トラック | **A: 新しい権限・非同期状態・人間承認を追加するため** |
-| 状態 | approved / Phase 4 complete |
+| 状態 | approved / Phase 5A complete / Phase 5B Pipeline方式 approved |
 | 承認日 | 2026-07-19 |
 
 本書は`specs/README.md`で全依頼に必須とされる合意記録である。実装完了後は凍結するため、runtime contractや運用値の恒久的なSource of Truthにはしない。
@@ -48,9 +48,9 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 
 - GitHub Actions dispatchはGitHub API readとService Bus queue sendだけを持つ。
 - privileged dispatchはPull Request code、artifact、cache、title/bodyを実行入力にしない。
-- AI workerはGitHub/Azure Reposのwrite credentialを持たない。
-- repository操作、人間承認の検証、public反映はtrusted controllerが担当する。
-- AI outputは未信頼データとして扱い、実provider接続時に形式・path・line・sizeを検証する。
+- AI review stepはGitHub/Azure Reposのcredentialを持たない。
+- Azure Repos Pull Request作成は、AI processと分離したtrusted Pipeline stepが担当する。
+- AI outputは未信頼のMarkdown文字列として扱い、実行、Git操作、vote、自動merge条件へ使用しない。
 - public repositoryにはAzureの具体的なsubscription/tenant/client/principal/project/repository IDやresource名を記録しない。
 
 ## 5. 確定事項
@@ -66,7 +66,8 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 ## 6. 現段階で固定しないもの
 
 - 現行producer/consumer間の独立JSON Schema（workflowの固定`jq`とconsumerのGo native typeを正とする）
-- `review-work`と`review-result-ready`はPhase 5B承認差分を正とする。`promotion-request`のfield構成は固定しない
+- Phase 5B用の`review-work`、`review-result-ready`、provider結果Schema（Azure branch更新を直接triggerにするため作らない）
+- `promotion-request`のfield構成
 - Codex、OpenCodeのprovider adapter interface
 - retry、retention、監視間隔等の具体値
 - Container Apps Job、state store、controllerの最終構成
@@ -94,12 +95,13 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | 2026-07-21 | 非同期・非機能仕様をPhase 4完了状態へ同期し、Phase 5以降の未実装範囲と分離 |
 | 2026-07-21 | Phase 5をPR head importの5AとAI review/Azure PR作成の5Bに分離し、ClaudeとKiroを選定 |
 | 2026-07-21 | Phase 5Bの読取専用AI Job、provider結果state、PR controller間の最小contractを起案 |
+| 2026-07-21 | 前項の過剰な内部contractを撤回。trusted Azure Pipelineがbranch更新を直接受け、Claude/Kiro review後に固定stepでAzure PRを作る方式を承認 |
 
 ## 品質ゲート化対応表
 
 | 仕様項目 | 現在のゲート | 将来のゲート |
 | --- | --- | --- |
-| AAR-AC-01/02 | `actionlint`、`shellcheck`、workflow review、live dispatch integration | PR import後のend-to-end確認 |
+| AAR-AC-01/02 | `actionlint`、`shellcheck`、workflow review、live dispatch integration | Azure PipelineからPR作成までのend-to-end確認 |
 | AAR-AC-03/04 | 未実装 | promotion実装時のGit E2Eと権限negative test |
-| AAR-AC-05 | base同期のduplicate/reorder/staleは実装・手動Gitシナリオ確認済み | review-request順序制御はPhase 5 |
-| credential混入 | repository共通`gitleaks`、image/logとtoken受渡しのreview | provider接続時のcredential境界確認 |
+| AAR-AC-05 | base同期とPR head取込みのduplicate/reorder/staleを実装・手動Gitシナリオ確認済み | Azure PRの同一source/target再利用をlive確認 |
+| credential混入 | repository共通`gitleaks`、image/logとtoken受渡しのreview | provider secretを各AI step、`System.AccessToken`をPR作成stepだけに渡すことを確認 |
