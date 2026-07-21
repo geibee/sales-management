@@ -2,8 +2,8 @@
 
 - 作成日: 2026-07-15
 - 最終更新日: 2026-07-21
-- 状態: Phase 5Aのlive branch importとPhase 5B Pipeline自動起動を確認済み。Claude subscription OAuthへの切替と設定を完了。kill switchは有効
-- 次の作業: 新しいhead SHAでOAuth版Pipelineを起動し、Claude/Kiro reviewとAzure Repos Pull Request作成を確認する
+- 状態: Phase 5Aのlive branch importとPhase 5B Pipeline自動起動を確認済み。Claude認証をOAuth経路へ固定したPipelineをprivate mainへ反映済み。kill switchは有効
+- 次の作業: 新しいhead SHAでOAuth経路固定版Pipelineを起動し、Claude/Kiro reviewとAzure Repos Pull Request作成を確認する
 
 ## 0. 次セッションの開始位置
 
@@ -314,5 +314,6 @@ connection、Key Vault連携Variable Groupの設定とPipeline resource認可も
 deployment漏れを検出した。Phase 5A対応imageへ更新後、限定branch作成とrepository resource triggerによる
 Pipeline自動起動を確認した。最初のrunはClaude CLIで失敗したが、CLIの診断がreview fileに隠れていたため、
 private Pipelineへ固定prefix・行数・文字数制限付きの失敗診断を追加した。診断で無効なConsole API keyを確認し、
-Claude CLIをsubscription OAuth tokenとsafe modeで実行する構成へ変更した。新しいhead SHAで再実行し、
-Claude/Kiroの終了codeとAzure Repos Pull Requestのsource/target read-backを確認すればPhase 5Bを完了できる。
+Claude CLIをsubscription OAuth tokenとsafe modeで実行する構成へ変更した。さらにAPI key系環境変数を除去し、
+秘密値を出さずにOAuth認証方式を事前確認する構成をprivate mainへ反映した。新しいhead SHAで再実行し、Claude/Kiroの
+終了codeとAzure Repos Pull Requestのsource/target read-backを確認すればPhase 5Bを完了できる。
