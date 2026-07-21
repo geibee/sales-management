@@ -5,8 +5,8 @@
 | 項目 | 記入 |
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
-| 対象 | GitHub `verify`完了からService Bus受信、base同期まで |
-| 状態 | Phase 4 complete / Phase 5A implementing |
+| 対象 | GitHub `verify`完了からService Bus受信、Git取込み、AI review結果通知まで |
+| 状態 | Phase 4 complete / Phase 5A implemented locally / Phase 5B contract approval pending |
 
 ## 1. トリガ
 
@@ -84,7 +84,40 @@ Python validatorは追加していない。今後追加するのは、producer/c
 public/private repository間のdriftを検出できなくなった場合に限る。その場合もSchema自身を試すだけの
 fixture testにはせず、producerとconsumerの双方が同じSchemaを利用する。
 
-未実装の`review-result`と`promotion-request`は、それぞれのproducer/consumer実装時までfieldを固定しない。
+Phase 5Bではprivate IaC内のproducer/consumerが増えるため、独立JSON Schemaではなく、同じGo packageの
+native typeを正として次の2種類を追加する。queue messageへproviderのraw response、finding本文、credentialを
+含めない。
+
+### `review-work`
+
+PR head取込み完了後にdispatch controllerがAI Jobへ送る。
+
+- `schemaVersion`: `1`
+- `eventType`: `review-work`
+- `occurredAt`
+- `github.repositoryId`、`github.pullRequestNumber`、`github.baseSha`、`github.headSha`
+- `azureRepos.sourceRef`: `refs/heads/github-pr/<number>/<full-head-sha>`
+- `azureRepos.targetRef`: `refs/heads/github-main`
+
+`MessageId`はrepository ID、Pull Request番号、head SHAから決定的に生成する。AI Jobはref形式、base/head SHA、
+Azure Reposのremote refを再検証し、messageからrepository URLや任意refを受け取らない。
+
+### `review-result-ready`
+
+Claude/Kiro両方の検証済み結果をTableへ保存した後、AI JobがPR controllerへ送る。
+
+- `schemaVersion`: `1`
+- `eventType`: `review-result-ready`
+- `occurredAt`
+- `github.repositoryId`、`github.pullRequestNumber`、`github.baseSha`、`github.headSha`
+- `azureRepos.sourceRef`、`azureRepos.targetRef`
+- `providers`: 常に`claude`と`kiro`
+
+`MessageId`はreview-workと同じidentityから決定的に生成する。PR controllerはTableから両providerの正規化済み
+結果を取得して再検証し、Azure Reposのsource/headとtarget/baseが一致する場合だけPull Requestを作成する。
+同じsource/targetのactive Pull Requestがあれば再利用し、重複作成しない。
+
+`promotion-request`はproducer/consumer実装時までfieldを固定しない。
 
 ## 6. 失敗時の扱い
 
@@ -119,3 +152,31 @@ consumerは`review-request`を保存した後、次の順で処理する。
 5. push後のremote refがhead SHAと一致した場合だけService Bus messageを完了する。
 
 Azure Pull Requestの作成、AI review、古いAzure Pull Requestの整理はPhase 5Bで扱う。
+
+## Phase 5B AI reviewとAzure Pull Request
+
+1. dispatch controllerが限定branch作成後に`review-work`を送信する。stale no-opでは送信しない。
+2. Azure Repos Read-only identityのone-shot AI Jobがsource/baseを再取得し、同じ差分をClaudeとKiroへ渡す。
+3. ClaudeはMessages APIのstructured output、Kiroはheadless modeのJSON-only responseを使う。
+4. provider別adapterは`summary`と`findings`だけへ正規化し、providerごとにTableへ保存する。
+5. 両providerが揃った場合だけ`review-result-ready`を送る。再配信時は保存済みproviderを再実行しない。
+6. PR controllerは結果とGit refを再検証し、限定branchから`github-main`へのAzure Pull Requestを1件作る。
+
+両providerを必須とし、片方だけの結果ではPull Requestを作らない。provider失敗はwork messageをsettleせず
+再配信に任せ、delivery上限到達後はDLQで人間が確認する。
+
+### provider結果の最小contractと上限
+
+- provider: `claude`または`kiro`
+- summary: UTF-8、2,000 byte以下
+- findings: providerごとに最大20件
+- finding: `level`（`error`または`warning`）、repository相対`path`、1始まりの`line`、`message`、任意の`suggestion`
+- messageは2,000 byte以下、suggestionは4,000 byte以下、provider result全体は48 KiB以下
+- pathはhead側の変更fileに含まれ、path traversalでなく、lineはhead側実fileの範囲内でなければならない
+
+raw provider response、prompt、provider credentialは永続化しない。PR説明へ出す文字列はcontrol characterを
+拒否し、Markdownとしてescapeする。このfindingは人間向け情報であり、自動merge、vote、品質gateには使わない。
+
+初期上限はdiff 512 KiB、Claude出力4,096 token・5分、Kiro headless 15分、Job全体25分とする。Claude modelは
+構成値で明示し、Kiroは契約accountのdefault modelを使う。上限超過は切り詰めて続行せず失敗とし、課金と精度の
+実測後に変更する。

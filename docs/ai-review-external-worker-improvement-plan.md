@@ -125,7 +125,14 @@ GitHub public Pull Requestの`verify`成功後に送る。
 確認済みである。JSON Schemaは、異なる言語・repository間でnative typeだけではdriftを検出できないと
 確認した場合に追加する。
 
-`review-result`と`promotion-request`はproducerもconsumerも未実装なので、現時点では物理contractを固定しない。
+Phase 5Bではprivate側に次の内部contractを追加する。別のJSON Schema fileは作らず、同じGo moduleのnative
+typeをproducer/consumerで共有する。
+
+- `review-work`: PR番号、base/head SHA、固定規則で作ったAzure source/target refだけをAI Jobへ通知する。
+- provider result state: provider名、summary、findingだけをTableへ保存し、raw responseやpromptを保存しない。
+- `review-result-ready`: 両providerの結果がTableへ揃ったことと同じPR/base/head/refだけをPR controllerへ通知する。
+
+`promotion-request`はproducer/consumer未実装なので、現時点では物理contractを固定しない。
 
 ## 6. AI provider adapterと未信頼出力検証
 
@@ -136,15 +143,20 @@ Azure Repos操作を許可しない。ClaudeはAzure Managed IdentityをAnthropi
 
 CodexとOpenCodeは今回の実装対象に含めず、実接続時までinterfaceを固定しない。
 
-したがって現在はadapterを置かない。最初のproviderを実接続するときに次を同時に実装する。
+Phase 5Bでは次だけを実装し、未選定provider向けの共通frameworkは作らない。
 
 - Claude/Kiroの実provider responseを受けるprovider別adapter
 - provider固有形式から最小共通findingへの変換
 - malformed、oversize、path traversal、存在しないpath/lineの拒否
 - credentialや任意commandをcontrollerへ渡さない境界
-- 実responseを匿名化したfixtureとadapter unit test
+- 同じruntime validatorを通す少数の境界例（malformed、oversize、不正path/line）の検証
 
-この検証は「設定作業を守るため」ではなく、AIが毎回返す未信頼データを副作用へ渡さないために必要である。必要になるのはprovider接続時であり、現在ではない。
+共通findingは`level`（error/warning）、変更fileのrepository相対path、head側line、message、任意suggestionだけと
+する。providerごとに20件、正規化済みresult 48 KiBを上限とし、findingは人間向け表示だけに使う。voteや
+自動merge条件へ変換しない。
+
+この検証は「設定作業を守るため」ではなく、AIがPull Requestごとに返す未信頼データをAzure Pull Requestの
+説明へ渡さないために必要である。インフラ全体をTDD対象にはせず、毎回通る小さな未信頼入力境界に限定する。
 
 ## 7. Machine-to-machine認証
 
@@ -178,7 +190,7 @@ Service Bus向けEntra access token
 | 3 | Service Bus consumerとstate、実messageのintegration test | 完了。live dispatch、Job成功、保存ログ、queue/DLQ空を確認 |
 | 4 | GitHub `main`からAzure mapped baseへのfast-forward同期 | 完了。Managed Identity権限、Job適用、branch新規作成、SHA一致、queue/DLQ空を確認 |
 | 5A | Pull Request headの限定branch import | private実装中。provider credentialやAzure PR権限は不要 |
-| 5B | Claude/Kiro adapter、AI review、Azure PR作成 | provider決定済み。実装・credential設定前 |
+| 5B | Claude/Kiro adapter、AI review、Azure PR作成 | 最小内部contractの承認待ち |
 | 6 | AI fix proposal、credential-less verify、Azure人間承認 | 未着手 |
 | 7 | Azure人間merge後のGitHub promotion | 未着手 |
 | 8 | shadow rollout、監視、DLQ/reconciliation、費用上限 | 未着手 |
@@ -216,7 +228,7 @@ Phase 3/4で実施した検査:
 
 ## 10. 未決事項と承認ゲート
 
-- Claude/Kiroのmodel、1 review当たりのbudget・timeout上限
+- Claude model、Kiro default model、1 review当たりのbudget・timeout上限
 - Azure Repos branch policyと人間承認の実測方法
 - GitHub Publisher Appとmain rulesetの最小権限構成
 - retention、監視、通知、DLQ/reconciliationの具体値
@@ -283,3 +295,7 @@ Phase 5BではClaude/Kiroをcontrollerとは別のone-shot Jobで実行する。
 Readだけを持ち、write、PR操作、merge、policy bypassを持たない。provider出力はcontrollerへ渡す前に
 malformed、oversize、path traversal、存在しないpath/lineを拒否する。fake adapterや未選定provider用の
 共通化は追加しない。
+
+AI Jobはproviderごとの検証済み結果をTableへ保存し、両方が揃ったことだけをService BusでPR controllerへ
+通知する。PR controllerはprovider credentialを持たず、Table結果とGit refを再検証して、限定branchから
+`github-main`へのAzure Pull Requestを作る。同一source/targetのactive Pull Requestは再利用する。
