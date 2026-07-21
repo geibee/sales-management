@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | トラック | **A: 新しい権限・非同期状態・人間承認を追加するため** |
-| 状態 | approved / implementing |
+| 状態 | approved / Phase 4 complete |
 | 承認日 | 2026-07-19 |
 
 本書は`specs/README.md`で全依頼に必須とされる合意記録である。実装完了後は凍結するため、runtime contractや運用値の恒久的なSource of Truthにはしない。
@@ -61,11 +61,11 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 - Azure Reposで人間mergeした後、GitHubへ直接pushする。ただしforceは使用しない。
 - external resource変更はPhaseごとにplan、費用、rollbackを提示して個別承認を得る。
 - GitHub ActionsからAzureへはOIDC workload identity federationを使用する。
-- dispatchのkill switchは実consumer完成後の別承認まで無効にする。
+- dispatchのkill switchは実consumer完成とlive sendの別承認まで無効にする。2026-07-21に承認後、有効化済み。
 
 ## 6. 現段階で固定しないもの
 
-- 未実装consumerの物理JSON Schema
+- 現行producer/consumer間の独立JSON Schema（workflowの固定`jq`とconsumerのGo native typeを正とする）
 - `review-result`、`promotion-request`のfield構成
 - Codex、Claude Code、OpenCode、Kiroのprovider adapter interface
 - retry、retention、監視間隔等の具体値
@@ -91,12 +91,13 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | 2026-07-20 | 将来Schema、fake adapter、予測テストを削除し、実装時追加へ変更。public/private情報境界を明文化 |
 | 2026-07-21 | Phase 3 consumerを適用し、GitHubからTable保存までlive integrationを確認。Phase 4のcontroller identity方針を確定 |
 | 2026-07-21 | Phase 4を適用し、GitHub `main`からAzure Repos mapped baseへの実同期、SHA一致、queue/DLQ空を確認 |
+| 2026-07-21 | 非同期・非機能仕様をPhase 4完了状態へ同期し、Phase 5以降の未実装範囲と分離 |
 
 ## 品質ゲート化対応表
 
 | 仕様項目 | 現在のゲート | 将来のゲート |
 | --- | --- | --- |
-| AAR-AC-01/02 | `actionlint`、`shellcheck`、workflow review | consumer実装後のlive dispatch integration |
+| AAR-AC-01/02 | `actionlint`、`shellcheck`、workflow review、live dispatch integration | PR import後のend-to-end確認 |
 | AAR-AC-03/04 | 未実装 | promotion実装時のGit E2Eと権限negative test |
-| AAR-AC-05 | 未実装 | state実装時のduplicate/reorder/stale test |
-| credential混入 | repository共通`gitleaks` | image/log/Key Vault検査 |
+| AAR-AC-05 | base同期のduplicate/reorder/staleは実装・手動Gitシナリオ確認済み | review-request順序制御はPhase 5 |
+| credential混入 | repository共通`gitleaks`、image/logとtoken受渡しのreview | provider接続時のcredential境界確認 |

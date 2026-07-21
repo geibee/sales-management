@@ -188,11 +188,11 @@ Service Bus向けEntra access token
 - repository共通の`gitleaks`: credential混入検査
 - `scripts/verify.sh`: 既存品質ゲートへの非干渉確認
 
-Phase 2では、実際の過去workflow runをGitHub APIから読み、`pull_requests`が空でもhead SHAからPull Requestを解決できることを変更時に手動確認する。consumer未実装でworkflow変更頻度も低いため、この確認を模倣する専用mock testは常設しない。
+Phase 2時点ではconsumerが未実装でworkflow変更頻度も低かったため、実際の過去workflow runをGitHub APIから読み、`pull_requests`が空でもhead SHAからPull Requestを解決できることを変更時に手動確認した。この確認を模倣する専用mock testは常設しない。
 
 現在は追加しない検査:
 
-- 未実装consumerのJSON Schema fixture test
+- 現行consumer用の独立JSON Schema fixture test（workflowの固定`jq`とGo native typeで境界を検証するため未追加）
 - 未選定providerのfake adapter test
 - 将来のreview/promotion state machineを模倣するunit test
 - workflow本文を文字列検索するだけの専用Python test
@@ -237,8 +237,8 @@ repositoryだけで管理する。
 - `actionlint`、`shellcheck`、`scripts/verify.sh`が成功する。
 - public差分にAzureの具体的なID・resource名・credentialが含まれない。
 - workflowがPR code、artifact、cacheをprivileged jobへ取り込まない。
-- kill switchを有効化していない。
-- 実consumerとlive sendはPhase 3の別承認事項として残っている。
+- 当時、kill switchを有効化していない。
+- 当時、実consumerとlive sendをPhase 3の別承認事項として残していた。
 
 この節はPhase 2完了時点のhistorical gateであり、Phase 3の別承認・実接続確認は完了している。
 
