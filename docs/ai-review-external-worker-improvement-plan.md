@@ -2,8 +2,8 @@
 
 - 作成日: 2026-07-15
 - 最終更新日: 2026-07-21
-- 状態: Phase 3 の実consumerとlive dispatchを適用し、GitHubからTable保存まで実接続確認済み。kill switchは有効
-- 次の作業: Phase 4のfast-forward同期実装をprivate IaCでレビューし、Azure DevOpsの最小権限を設定する
+- 状態: Phase 4 のfast-forward同期を適用し、GitHub `main`からAzure Reposへの実同期まで確認済み。kill switchは有効
+- 次の作業: Phase 5のPull Request import境界を決め、最初に接続するAI providerを選定する
 
 ## 0. 次セッションの開始位置
 
@@ -14,6 +14,7 @@
 5. Azure の具体的な resource 名、tenant/client/subscription ID、Azure DevOps の project/repository ID、deployment 履歴は private infrastructure repository を正とする。public repository へ複製しない。
 6. `AI_REVIEW_DISPATCH_ENABLED` はPhase 3の実接続確認後に`true`へ変更済み。異常時は最初に`false`へ戻す。
 7. Azure resource、identity、repository policy、課金設定を変更するときは、対象・費用・rollback を提示して別途承認を得る。
+8. Phase 4は適用済み。次はPR importのbranch/ref対応と、最初のAI providerの実API・SDK・課金・credential境界を確認してからPhase 5を仕様化する。
 
 ## 1. 目的
 
@@ -170,7 +171,7 @@ Service Bus向けEntra access token
 | 1 | public/private情報境界と最小message項目の合意 | 完了 |
 | 2 | GitHub `workflow_run` dispatch、OIDC、Service Bus Sender基盤 | 完了 |
 | 3 | Service Bus consumerとstate、実messageのintegration test | 完了。live dispatch、Job成功、保存ログ、queue/DLQ空を確認 |
-| 4 | GitHub `main`からAzure mapped baseへのfast-forward同期 | private実装commit済み。Azure DevOps権限設定・レビュー・適用前 |
+| 4 | GitHub `main`からAzure mapped baseへのfast-forward同期 | 完了。Managed Identity権限、Job適用、branch新規作成、SHA一致、queue/DLQ空を確認 |
 | 5 | Pull Request import、最初の実provider adapter、AI review | 未着手 |
 | 6 | AI fix proposal、credential-less verify、Azure人間承認 | 未着手 |
 | 7 | Azure人間merge後のGitHub promotion | 未着手 |
@@ -209,7 +210,6 @@ Phase 3/4で実施した検査:
 
 ## 10. 未決事項と承認ゲート
 
-- Azure DevOpsを操作するcontroller Managed Identityのorganization登録、license、repository最小権限の適用
 - 最初に接続するAI providerと実adapter interface
 - Azure Repos branch policyと人間承認の実測方法
 - GitHub Publisher Appとmain rulesetの最小権限構成
@@ -242,13 +242,13 @@ repositoryだけで管理する。
 
 この節はPhase 2完了時点のhistorical gateであり、Phase 3の別承認・実接続確認は完了している。
 
-## 13. Phase 3完了とPhase 4開始位置
+## 13. Phase 3/4完了とPhase 5開始位置
 
 Phase 3ではprivate infrastructure repositoryのGo consumer、ACR、Table Storage、Container Apps Jobを
 適用した。成功済みGitHub `main` verifyを1回だけ再実行し、OIDC dispatch、Service Bus受信、Job実行、
 Table保存ログ、queue/DLQが空になるところまで確認した。
 
-Phase 4のprivate実装は次の境界を持つ。
+Phase 4は次の境界で実装・適用した。
 
 - 同期元はGitHub public `main`、同期先はAzure Reposの固定mapped base branch。
 - messageの検証済みSHAが現在のGitHub `main`履歴にあることを再確認する。
@@ -256,6 +256,10 @@ Phase 4のprivate実装は次の境界を持つ。
 - Azure側だけのcommitまたは分岐を検出したら停止し、force pushしない。
 - Azure DevOps向け短期tokenはManaged Identityで取得し、fileやlogへ保存しない。
 
-次はprivate実装のPull Requestレビュー後、controller Managed IdentityをAzure DevOps organizationへ明示追加し、
-対象repositoryだけの`Read`、`Contribute`、`Create branch`を付与する。license費用と`Force push`、
-PR完了、policy bypassが許可されていないことを確認してからimage更新とJob適用へ進む。
+controller Managed Identityのorganization登録と対象repositoryの最小権限を人間が確認し、image更新とJob適用後、
+成功済みGitHub `main` verifyを再実行した。Azure mapped base branchの新規作成、GitHub `main`とのSHA一致、
+Job成功、queue/DLQ空を確認した。
+
+Phase 5では、GitHub Pull RequestのheadをAzure Repos上のreview branchへ取り込む規則とAzure PRの対応関係を
+先に決める。その後、選定した最初のAI providerだけを実接続する。未選定providerのfake adapterや汎用Schemaは
+先行実装せず、実際に毎回返る未信頼出力を副作用へ渡す境界にだけ必要な検証を追加する。
