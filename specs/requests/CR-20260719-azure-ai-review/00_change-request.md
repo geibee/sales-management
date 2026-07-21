@@ -66,8 +66,8 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 ## 6. 現段階で固定しないもの
 
 - 現行producer/consumer間の独立JSON Schema（workflowの固定`jq`とconsumerのGo native typeを正とする）
-- `review-result`、`promotion-request`のfield構成
-- Codex、Claude Code、OpenCode、Kiroのprovider adapter interface
+- `review-work`と`review-result-ready`はPhase 5B承認差分を正とする。`promotion-request`のfield構成は固定しない
+- Codex、OpenCodeのprovider adapter interface
 - retry、retention、監視間隔等の具体値
 - Container Apps Job、state store、controllerの最終構成
 
@@ -78,7 +78,7 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | ID | 論点 | 決定時期 |
 | --- | --- | --- |
 | Q-01 | controller用Managed Identityをorganizationへ明示登録し、対象repositoryだけに最小権限を付与する | 完了。Phase 4適用前に人間が登録・権限確認 |
-| Q-02 | 最初に接続するAI provider | AI review実装前 |
+| Q-02 | 最初に接続するAI provider | 完了。ClaudeとKiroを選定 |
 | Q-03 | Publisher GitHub Appとmain rulesetの構成 | promotion実装前 |
 | Q-04 | retention、通知、DLQ/reconciliationの具体値 | shadow rollout前 |
 
@@ -92,6 +92,8 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | 2026-07-21 | Phase 3 consumerを適用し、GitHubからTable保存までlive integrationを確認。Phase 4のcontroller identity方針を確定 |
 | 2026-07-21 | Phase 4を適用し、GitHub `main`からAzure Repos mapped baseへの実同期、SHA一致、queue/DLQ空を確認 |
 | 2026-07-21 | 非同期・非機能仕様をPhase 4完了状態へ同期し、Phase 5以降の未実装範囲と分離 |
+| 2026-07-21 | Phase 5をPR head importの5AとAI review/Azure PR作成の5Bに分離し、ClaudeとKiroを選定 |
+| 2026-07-21 | Phase 5Bの読取専用AI Job、provider結果state、PR controller間の最小contractを起案 |
 
 ## 品質ゲート化対応表
 
