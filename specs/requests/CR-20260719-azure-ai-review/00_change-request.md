@@ -58,7 +58,8 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 - 最終Source of TruthはGitHub public `main`。
 - 同期対象base branchは当初`main`だけ。
 - Azure Reposで最低1名の人間が承認する。requestor、AI、controllerの自己承認は禁止。
-- Azure Reposで人間mergeした後、GitHubへ直接pushする。ただしforceは使用しない。
+- Azure Reposで人間mergeした後、固定promotion処理がGitHub promotion Pull Requestを作成する。GitHub Actionsの
+  verify成功後に人間がmergeし、force pushは使用しない。
 - external resource変更はPhaseごとにplan、費用、rollbackを提示して個別承認を得る。
 - GitHub ActionsからAzureへはOIDC workload identity federationを使用する。
 - dispatchのkill switchは実consumer完成とlive sendの別承認まで無効にする。2026-07-21に承認後有効化し、
@@ -80,7 +81,7 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | ID | 論点 | 決定時期 |
 | --- | --- | --- |
 | Q-01 | controller用Managed Identityをorganizationへ明示登録し、対象repositoryだけに最小権限を付与する | 完了。Phase 4適用前に人間が登録・権限確認 |
-| Q-02 | 最初に接続するAI provider | 完了。ClaudeとKiroを選定 |
+| Q-02 | 最初に接続するAI provider | 完了。対応providerはClaudeとKiro、1 runでは一方だけを選択し、defaultはClaude |
 | Q-03 | Publisher GitHub Appとmain rulesetの構成 | promotion実装前 |
 | Q-04 | retention、通知、DLQ/reconciliationの具体値 | shadow rollout前 |
 

@@ -142,11 +142,12 @@ trusted YAMLが処理する。
 対応providerはClaudeとKiroだが、1回のreviewでは一方だけをAzure Pipelineの非対話CLIとして実行する。
 Pipeline variable `AI_REVIEW_PROVIDER`未設定時はClaude、`kiro`を明示した場合だけKiroを選択し、それ以外は
 fail-closedで拒否する。Kiro API keyは未登録のため、現時点のlive実行はClaudeだけを対象とする。
-AI processはcheckout directoryの外で起動し、private側の固定promptとbase/head間の`git diff`だけを標準入力で
-渡す。public repositoryに置かれたagent設定、hook、skillは読み込ませない。Claudeは全toolを無効化し、Kiroは
-toolを事前承認しない。Claudeはsubscription OAuthを読めるsafe modeで非対話実行する。provider credentialは
-選択したprovider stepだけにsecret variableとして渡す。Claudeは最新Sonnetへ追随する`sonnet` alias、Kiroは
-version固定を避けるAuto model routingを使用する。
+AI processはcheckout directoryの外に作る、`.git`もcredentialも無い一時copyで起動し、private側の固定promptと
+base/head間の`git diff`だけを標準入力で渡す。public repositoryに置かれたagent設定、hook、skillは読み込ませない。
+Claudeは`Read/Edit/Write/Glob/Grep`だけを許可し、Kiroは`read/glob/grep/write`のpathを一時copy内へ限定する。
+shell、Git、web、MCP、外部directoryの操作は許可しない。Claudeはsubscription OAuthを読めるsafe modeで
+非対話実行する。provider credentialは選択したprovider stepだけにsecret variableとして渡す。Claudeは最新Sonnetへ
+追随する`sonnet` alias、Kiroはversion固定を避けるAuto model routingを使用する。
 
 CodexとOpenCodeは今回の実装対象に含めず、実接続時までinterfaceを固定しない。
 
@@ -322,15 +323,17 @@ staging repositoryをrepository resourceとして宣言し、
 固定shellで確認する。
 
 AI processはcheckout directoryの外で起動し、選択したproviderには固定prompt、`git diff`、そのproviderの
-credentialだけを渡す。Azure DevOpsの`System.AccessToken`はAI stepへ渡さず、最後の固定stepだけへ渡す。このstepが限定branch
-から`github-main`へのactive Pull Requestを検索し、無ければ作成、あれば同じPull Requestの説明を更新する。
+credentialだけを渡す。Azure DevOpsの`System.AccessToken`はAI stepへ渡さず、最後の固定stepだけへ渡す。
+Phase 5Bの初回live確認では、このstepが限定branchから`github-main`へのPull Requestを作成した。Phase 6適用後の
+現在は、AI修正案を`ai-fix/<番号>/<head SHA>/<provider>`、人間review targetを
+`review-target/<番号>/<base SHA>`として分離し、両branch間のactive Pull Requestを作成または更新する。
 自動完了、vote、merge、policy bypassは行わない。追加のContainer Apps Job、Service Bus queue、Table、Go
 adapter/controllerは作らない。
 
 provider credentialはAzure Pipelineへ直接保存せず、Azure Key Vaultに保存する。PipelineはWorkload Identity
-Federationのservice connectionでKey Vault連携Variable Groupから実行時に取得し、各providerのstepだけへ
-環境変数として渡す。`github-main`の必須branch policyはcontrollerのbase同期を止めるため現Phaseでは設定せず、
-人間承認の強制方法はpromotion Phaseでbase同期branchとの分離を含めて決定する。
+Federationのservice connectionでKey Vault連携Variable Groupから実行時に取得し、選択したproviderのstepだけへ
+環境変数として渡す。`github-main`にはcontrollerのbase同期を止めるbranch policyを設定しない。Phase 6では
+`review-target/`を分離し、最低1名の人間承認とno-fast-forward限定policyを設定済みである。
 
 2026-07-21にprivate IaCからKey Vault、service connection専用managed identity、Vault限定の読取りroleを
 適用した。Claude subscription OAuth tokenの登録、Workload Identity Federation service connection、
