@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | トラック | **A: 新しい権限・非同期状態・人間承認を追加するため** |
-| 状態 | approved / Phase 5A complete / Phase 5B Pipeline方式 approved |
+| 状態 | approved / Phase 5A・5B complete / Phase 6設計承認・live review中 |
 | 承認日 | 2026-07-19 |
 
 本書は`specs/README.md`で全依頼に必須とされる合意記録である。実装完了後は凍結するため、runtime contractや運用値の恒久的なSource of Truthにはしない。
@@ -58,10 +58,12 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 - 最終Source of TruthはGitHub public `main`。
 - 同期対象base branchは当初`main`だけ。
 - Azure Reposで最低1名の人間が承認する。requestor、AI、controllerの自己承認は禁止。
-- Azure Reposで人間mergeした後、GitHubへ直接pushする。ただしforceは使用しない。
+- Azure Reposで人間mergeした後、固定promotion処理がGitHub promotion Pull Requestを作成する。GitHub Actionsの
+  verify成功後に人間がmergeし、force pushは使用しない。
 - external resource変更はPhaseごとにplan、費用、rollbackを提示して個別承認を得る。
 - GitHub ActionsからAzureへはOIDC workload identity federationを使用する。
-- dispatchのkill switchは実consumer完成とlive sendの別承認まで無効にする。2026-07-21に承認後、有効化済み。
+- dispatchのkill switchは実consumer完成とlive sendの別承認まで無効にする。2026-07-21に承認後有効化し、
+  Phase 5Bのlive確認完了後は開発中の追加課金を避けるため再び無効化した。
 
 ## 6. 現段階で固定しないもの
 
@@ -79,7 +81,7 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | ID | 論点 | 決定時期 |
 | --- | --- | --- |
 | Q-01 | controller用Managed Identityをorganizationへ明示登録し、対象repositoryだけに最小権限を付与する | 完了。Phase 4適用前に人間が登録・権限確認 |
-| Q-02 | 最初に接続するAI provider | 完了。ClaudeとKiroを選定 |
+| Q-02 | 最初に接続するAI provider | 完了。対応providerはClaudeとKiro、1 runでは一方だけを選択し、defaultはClaude |
 | Q-03 | Publisher GitHub Appとmain rulesetの構成 | promotion実装前 |
 | Q-04 | retention、通知、DLQ/reconciliationの具体値 | shadow rollout前 |
 
@@ -96,6 +98,9 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | 2026-07-21 | Phase 5をPR head importの5AとAI review/Azure PR作成の5Bに分離し、ClaudeとKiroを選定 |
 | 2026-07-21 | Phase 5Bの読取専用AI Job、provider結果state、PR controller間の最小contractを起案 |
 | 2026-07-21 | 前項の過剰な内部contractを撤回。trusted Azure Pipelineがbranch更新を直接受け、Claude/Kiro review後に固定stepでAzure PRを作る方式を承認 |
+| 2026-07-21 | default Claude reviewからAzure Repos Pull Request作成後read-backまでlive確認し、Phase 5Bを完了。開発中はkill switchを無効化 |
+| 2026-07-22 | Phase 6のAI修正案branchとreview targetの分離、軽量境界検証、人間1名承認、no-fast-forward限定、Azure側full verify省略を承認 |
+| 2026-07-22 | Phase 6のprivate実装とbranch policy設定を完了し、分離targetへのlive Pull Request作成とpolicy適用を確認。人間reviewを開始 |
 
 ## 品質ゲート化対応表
 

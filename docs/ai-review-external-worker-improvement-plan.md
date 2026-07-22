@@ -1,9 +1,9 @@
 # AI レビュー・外部 worker 改善計画
 
 - 作成日: 2026-07-15
-- 最終更新日: 2026-07-21
-- 状態: Phase 5A完了。Phase 5BのAzure Pipeline方式を承認済み。kill switchは有効
-- 次の作業: private IaCにClaude/Kiro review Pipelineを追加し、Azure Repos Pull Request作成まで確認する
+- 最終更新日: 2026-07-22
+- 状態: Phase 5A/5B完了。Phase 6は設計承認、private実装、review targetの人間承認policy設定、初回live PR作成まで完了し、人間reviewで検出したpublic文書ドリフトを訂正中。追加課金を止めるためkill switchは`false`
+- 次の作業: Phase 6のpublic文書訂正を再度live reviewし、人間承認後にAzure Reposへno-fast-forward mergeする
 
 ## 0. 次セッションの開始位置
 
@@ -12,9 +12,10 @@
 3. `git status --short --branch` と `git log -1 --oneline` で作業状態を確認する。
 4. public 側では `.github/workflows/ai-review-dispatch.yml` だけが実行コードであることを確認する。
 5. Azure の具体的な resource 名、tenant/client/subscription ID、Azure DevOps の project/repository ID、deployment 履歴は private infrastructure repository を正とする。public repository へ複製しない。
-6. `AI_REVIEW_DISPATCH_ENABLED` はPhase 3の実接続確認後に`true`へ変更済み。異常時は最初に`false`へ戻す。
+6. `AI_REVIEW_DISPATCH_ENABLED` はPhase 5Bのlive確認後に`false`へ戻した。live canaryを行うときだけ明示的に`true`へ変更する。
 7. Azure resource、identity、repository policy、課金設定を変更するときは、対象・費用・rollback を提示して別途承認を得る。
-8. Phase 5Aは適用済み。Phase 5Bはprivate IaCのtrusted PipelineでClaude/KiroのreviewとAzure PR作成を行う。
+8. Phase 5Aのconsumer imageを適用し、限定branch作成とPhase 5B Pipelineの自動起動までlive確認済みである。最初のprovider実行で無効なClaude Console API keyを検出し、subscription OAuthへ切替済みである。
+9. Pipeline resource認可のための初回手動実行は、`refs/heads/main`を許可対象外として停止した。これは限定branch以外を処理しないfail-closedの正常動作である。
 
 ## 1. 目的
 
@@ -29,8 +30,9 @@ GitHub public PR
   → Claude / Kiro review
   → 固定 Pipeline step が Azure Repos PR を作成
   → 人間が Azure Repos PR をレビューして merge
-  → 最終 verify と競合確認
-  → GitHub public main へ force なしで反映
+  → 固定promotion処理がGitHub public promotion PRを作成
+  → GitHub ActionsでAI修正後の最終verifyと競合確認
+  → 人間がGitHub public mainへmerge
 ```
 
 ## 2. 確定している設計原則
@@ -43,6 +45,7 @@ GitHub public PR
 - AI process に GitHub/Azure Repos のcredentialを渡さない。Azure Repos PR作成用tokenは固定Pipeline stepだけに渡す。
 - GitHub Actions と Azure の間は OIDC workload identity federation を使用し、長期 client secret を置かない。
 - GitHub へ反映するときは force push を使用しない。想定 base から進んでいたら停止する。
+- AI修正後のapplication full verifyはGitHub promotion Pull Requestだけで実行し、Azure stagingでは重複実行しない。
 - Git commit SHA は対象 commit、重複、stale result、競合の識別に使う。信頼の暗号学的証明には使わない。
 
 ## 3. 公開情報とprivate情報の境界
@@ -134,19 +137,24 @@ trusted YAMLが処理する。
 
 `promotion-request`はproducer/consumer未実装なので、現時点では物理contractを固定しない。
 
-## 6. Claude/Kiro reviewと未信頼出力の扱い
+## 6. 単一provider reviewと未信頼出力の扱い
 
-最初に実接続するproviderはClaudeとKiroの2つに決定した。両方をAzure Pipelineの非対話CLIとして実行する。
-AI processはcheckout directoryの外で起動し、private側の固定promptとbase/head間の`git diff`だけを標準入力で
-渡す。public repositoryに置かれたagent設定、hook、skillは読み込ませない。Claudeは全toolを無効化し、Kiroは
-toolを事前承認しない。provider credentialは各provider stepだけにsecret variableとして渡す。
+対応providerはClaudeとKiroだが、1回のreviewでは一方だけをAzure Pipelineの非対話CLIとして実行する。
+Pipeline variable `AI_REVIEW_PROVIDER`未設定時はClaude、`kiro`を明示した場合だけKiroを選択し、それ以外は
+fail-closedで拒否する。Kiro API keyは未登録のため、現時点のlive実行はClaudeだけを対象とする。
+AI processはcheckout directoryの外に作る、`.git`もcredentialも無い一時copyで起動し、private側の固定promptと
+base/head間の`git diff`だけを標準入力で渡す。public repositoryに置かれたagent設定、hook、skillは読み込ませない。
+Claudeは`Read/Edit/Write/Glob/Grep`だけを許可し、Kiroは`read/glob/grep/write`のpathを一時copy内へ限定する。
+shell、Git、web、MCP、外部directoryの操作は許可しない。Claudeはsubscription OAuthを読めるsafe modeで
+非対話実行する。provider credentialは選択したprovider stepだけにsecret variableとして渡す。Claudeは最新Sonnetへ
+追随する`sonnet` alias、Kiroはversion固定を避けるAuto model routingを使用する。
 
 CodexとOpenCodeは今回の実装対象に含めず、実接続時までinterfaceを固定しない。
 
 review結果は共通JSONへ変換せず、provider名を見出しにしたplain MarkdownとしてAzure Pull Request説明へ
 掲載する。AI出力をcommand、Git ref、path、vote、自動merge条件へ変換しないため、provider別adapter、JSON
 Schema、finding validatorは作らない。出力はPipelineの一時fileに書き、固定stepが文字列としてAzure DevOps
-CLIへ渡す。Claude/Kiroのどちらかが失敗した場合はPull Requestを作成せずPipelineを失敗させる。
+CLIへ渡す。選択したproviderが失敗した場合はPull Requestを作成せずPipelineを失敗させる。
 
 ## 7. Machine-to-machine認証
 
@@ -179,11 +187,33 @@ Service Bus向けEntra access token
 | 2 | GitHub `workflow_run` dispatch、OIDC、Service Bus Sender基盤 | 完了 |
 | 3 | Service Bus consumerとstate、実messageのintegration test | 完了。live dispatch、Job成功、保存ログ、queue/DLQ空を確認 |
 | 4 | GitHub `main`からAzure mapped baseへのfast-forward同期 | 完了。Managed Identity権限、Job適用、branch新規作成、SHA一致、queue/DLQ空を確認 |
-| 5A | Pull Request headの限定branch import | 完了。provider credentialやAzure PR権限は不要 |
-| 5B | trusted Azure Pipeline、Claude/Kiro review、Azure PR作成 | 方式承認済み、private実装中 |
-| 6 | AI fix proposal、credential-less verify、Azure人間承認 | 未着手 |
+| 5A | Pull Request headの限定branch import | 完了。live branch作成とSHA固定を確認済み |
+| 5B | trusted Azure Pipeline、単一provider review、Azure PR作成 | 完了。default Claude review、PR #16作成、source/target/status read-backをlive確認済み |
+| 6 | AI fix proposal、軽量境界検証、Azure人間承認 | 設計承認、private実装、policy設定、初回live PR作成まで完了。人間reviewの指摘を訂正中 |
 | 7 | Azure人間merge後のGitHub promotion | 未着手 |
 | 8 | shadow rollout、監視、DLQ/reconciliation、費用上限 | 未着手 |
+
+### Phase 6の承認済み構成
+
+`github-main`はGitHub public `main`の同期専用branchとして維持し、人間mergeのtargetにはしない。Pull Request
+ごとに検証済みbase SHAから`review-target/<PR番号>/<base SHA>`を作り、Azure Reposの人間承認先とする。
+AI修正案は検証済みhead SHAから作る分離worktreeだけで編集し、
+`ai-fix/<PR番号>/<head SHA>/<provider>`へ固定stepがpushする。AI process自身にはGitHub/Azure Repos token、
+Git push、shell、network toolを渡さず、repository内fileの読取り・編集だけを許可する。
+
+AI proposal Pipelineの固定stepだけへ`System.AccessToken`を渡し、deterministicなsource/target branchと
+Azure Repos Pull Requestを作成または更新する。AI出力とAI修正差分はどちらも未信頼とする。
+固定stepはimport sourceとmirror baseのSHA不変、AI commitのparent、保護path、symlink、push後refを検証するが、
+applicationのbuild/testは実行しない。Azure Reposは人間review用の隔離領域であり、Azure merge後の同一成果物を
+Phase 7のGitHub promotion Pull Requestでも検証すると二重実行になるためである。
+
+`review-target/` prefixには最低1名のblocking approval、PR作成者のvoteを数えない、source更新時にvoteをresetする
+policyと、no-fast-forwardだけを許可するmerge strategy policyを設定する。Azure側のbuild validationは設定しない。
+PipelineはPRの作成・更新までとし、自動完了、merge、policy bypassを行わない。
+PR #16はPhase 5Bのlive証跡としてmergeせず、Phase 6の分離target PRを確認後にabandonする。Phase 7だけが、
+人間merge済みのreview targetと承認対象SHAを再検証してimmutableなGitHub promotion branchと`main`向けPull
+Requestを作る。promotion Pull Requestで既存`scripts/verify.sh`を一度実行し、成功後にだけ人間がpublic
+`main`へmergeする。promotion branchはAI review dispatchから除外し、再帰起動を防ぐ。
 
 ## 9. 自動テストを追加する基準
 
@@ -212,18 +242,18 @@ Phase 3/4で実施した検査:
 - Git同期: 恒久test fileは追加せず、一時bare repositoryでbranch作成、fast-forward、no-op、stale、
   分岐停止を手動確認
 
-Phase 5Bで実施する検査:
+Phase 5Bで実施した検査:
 
 - trusted YAMLとinline shellのreview・静的検査
 - trigger branch、checkout SHA、source/target、token受渡しの初回live確認
-- Claude/Kiroの終了codeとAzure Repos Pull Requestのsource/target read-back
+- Claudeの終了codeとAzure Repos Pull Requestのsource/target/status read-back
 
 promotion実装時には、人間承認対象SHA、policy、expected base、force禁止を高影響の決定的境界として検証する。
 
 ## 10. 未決事項と承認ゲート
 
 - Claude model、Kiro default model、1 review当たりのbudget・timeout上限
-- provider secretの発行・rotationとAzure Key Vault連携Variable Groupの設定
+- provider secretのrotation手順
 - Azure Repos branch policyと人間承認の実測方法
 - GitHub Publisher Appとmain rulesetの最小権限構成
 - retention、監視、通知、DLQ/reconciliationの具体値
@@ -240,9 +270,9 @@ private IaC repositoryで次を適用し、read-backを確認済みである。
 - queue-scopeの`Azure Service Bus Data Sender`
 - local/SAS authentication無効化
 
-GitHub repository secrets 4件とkill switch用repository variableは設定済みである。Phase 3の実接続確認後、
-kill switchは`true`へ変更した。具体的なID、resource名、deployment結果はprivate infrastructure
-repositoryだけで管理する。
+GitHub repository secrets 4件とkill switch用repository variableは設定済みである。Phase 3の実接続確認後に
+kill switchを`true`へ変更し、Phase 5Bのlive確認完了後は開発中の追加課金を避けるため`false`へ戻した。
+具体的なID、resource名、deployment結果はprivate infrastructure repositoryだけで管理する。
 
 ## 12. Phase 2の完了条件
 
@@ -292,17 +322,33 @@ staging repositoryをrepository resourceとして宣言し、
 `github-pr/<番号>/<full-head-sha>`であり、`Build.SourceVersion`と末尾SHAとcheckout HEADが一致することを
 固定shellで確認する。
 
-AI processはcheckout directoryの外で起動し、Claude/Kiroには固定prompt、`git diff`、各provider credential
-だけを渡す。Azure DevOpsの`System.AccessToken`はAI stepへ渡さず、最後の固定stepだけへ渡す。このstepが限定branch
-から`github-main`へのactive Pull Requestを検索し、無ければ作成、あれば同じPull Requestの説明を更新する。
+AI processはcheckout directoryの外で起動し、選択したproviderには固定prompt、`git diff`、そのproviderの
+credentialだけを渡す。Azure DevOpsの`System.AccessToken`はAI stepへ渡さず、最後の固定stepだけへ渡す。
+Phase 5Bの初回live確認では、このstepが限定branchから`github-main`へのPull Requestを作成した。Phase 6適用後の
+現在は、AI修正案を`ai-fix/<番号>/<head SHA>/<provider>`、人間review targetを
+`review-target/<番号>/<base SHA>`として分離し、両branch間のactive Pull Requestを作成または更新する。
 自動完了、vote、merge、policy bypassは行わない。追加のContainer Apps Job、Service Bus queue、Table、Go
 adapter/controllerは作らない。
 
 provider credentialはAzure Pipelineへ直接保存せず、Azure Key Vaultに保存する。PipelineはWorkload Identity
-Federationのservice connectionでKey Vault連携Variable Groupから実行時に取得し、各providerのstepだけへ
-環境変数として渡す。`github-main`の必須branch policyはcontrollerのbase同期を止めるため現Phaseでは設定せず、
-人間承認の強制方法はpromotion Phaseでbase同期branchとの分離を含めて決定する。
+Federationのservice connectionでKey Vault連携Variable Groupから実行時に取得し、選択したproviderのstepだけへ
+環境変数として渡す。`github-main`にはcontrollerのbase同期を止めるbranch policyを設定しない。Phase 6では
+`review-target/`を分離し、最低1名の人間承認とno-fast-forward限定policyを設定済みである。
 
 2026-07-21にprivate IaCからKey Vault、service connection専用managed identity、Vault限定の読取りroleを
-適用した。provider API keyの登録、Workload Identity Federation service connection、Key Vault連携
-Variable Groupの設定は人間のcredential設定作業として残っている。
+適用した。Claude subscription OAuth tokenの登録、Workload Identity Federation service connection、
+Key Vault連携Variable Groupの設定とPipeline resource認可も完了している。Kiro API keyは未登録であり、Kiroを
+明示的に有効化する場合だけ追加する。認可時の初回手動実行は、trigger branchが
+`refs/heads/main`であったため意図どおり停止した。
+
+同日のcanaryでは、Phase 4 imageがreview requestを保存するだけでPhase 5A branch importを実行しないという
+deployment漏れを検出した。Phase 5A対応imageへ更新後、限定branch作成とrepository resource triggerによる
+Pipeline自動起動を確認した。最初のrunはClaude CLIで失敗したが、CLIの診断がreview fileに隠れていたため、
+private Pipelineへ固定prefix・行数・文字数制限付きの失敗診断を追加した。診断で無効なConsole API keyを確認し、
+Claude CLIをsubscription OAuth tokenとsafe modeで実行する構成へ変更した。さらにAPI key系環境変数を除去し、
+秘密値を出さずにOAuth認証方式を事前確認する構成をprivate mainへ反映した。review providerは同時実行せず、
+未指定時はClaudeだけを使う構成へ変更した。新しいhead SHAでClaudeの終了codeとAzure Repos Pull Requestの
+作成まで到達したが、Azure CLIのTSV配列出力を1行として読む自己検証の不具合でrunが停止した。Pull Requestの
+3項目を行配列として読む修正をprivate mainへ反映した。再実行時にはAnthropic側の一時障害による403が1回
+発生したが、同じClaude Code versionとOAuth経路で再実行して成功した。Azure Repos Pull Request #16の作成と
+source/target/status read-backまで確認し、Phase 5Bを完了した。
