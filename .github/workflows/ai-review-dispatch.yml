@@ -24,7 +24,10 @@ jobs:
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.repository.id == 1226183236 &&
         (
-          github.event.workflow_run.event == 'pull_request' ||
+          (
+            github.event.workflow_run.event == 'pull_request' &&
+            !startsWith(github.event.workflow_run.head_branch, 'ai-promotion/')
+          ) ||
           (
             github.event.workflow_run.event == 'push' &&
             github.event.workflow_run.head_branch == 'main'
@@ -173,6 +176,12 @@ jobs:
                   (.head.ref | utf8bytelength) <= 255 and
                   .head.sha == $run[0].head_sha
                 ' "$pr_file" >/dev/null
+              pull_request_head_ref="$(jq -er '.head.ref' "$pr_file")"
+              readonly pull_request_head_ref
+              if [[ "$pull_request_head_ref" == ai-promotion/* ]]; then
+                echo "promotion Pull RequestはAI review dispatch対象外です。"
+                exit 0
+              fi
               jq -c \
                 --slurpfile run "$run_file" \
                 --arg occurred_at "$occurred_at" '

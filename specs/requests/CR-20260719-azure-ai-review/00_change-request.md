@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | トラック | **A: 新しい権限・非同期状態・人間承認を追加するため** |
-| 状態 | approved / Phase 5A・5B complete / Phase 6設計承認・live review中 |
+| 状態 | approved / Phase 5A・5B・6 complete / Phase 7設計approved・実装中 |
 | 承認日 | 2026-07-19 |
 
 本書は`specs/README.md`で全依頼に必須とされる合意記録である。実装完了後は凍結するため、runtime contractや運用値の恒久的なSource of Truthにはしない。
@@ -69,7 +69,7 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 
 - 現行producer/consumer間の独立JSON Schema（workflowの固定`jq`とconsumerのGo native typeを正とする）
 - Phase 5B用の`review-work`、`review-result-ready`、provider結果Schema（Azure branch更新を直接triggerにするため作らない）
-- `promotion-request`のfield構成
+- `promotion-request`のfield構成（Phase 7はAzure branch triggerを使う承認案のため、採用時もmessageを追加しない）
 - Codex、OpenCodeのprovider adapter interface
 - retry、retention、監視間隔等の具体値
 - Container Apps Job、state store、controllerの最終構成
@@ -82,7 +82,7 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | --- | --- | --- |
 | Q-01 | controller用Managed Identityをorganizationへ明示登録し、対象repositoryだけに最小権限を付与する | 完了。Phase 4適用前に人間が登録・権限確認 |
 | Q-02 | 最初に接続するAI provider | 完了。対応providerはClaudeとKiro、1 runでは一方だけを選択し、defaultはClaude |
-| Q-03 | Publisher GitHub Appとmain rulesetの構成 | promotion実装前 |
+| Q-03 | Publisher GitHub App、Key Vault署名、promotion Pipelineの構成 | 完了。Appは対象repository限定、Contents/Pull requests/Workflows write、bypassなし。permission粒度で分離できないreview/mergeは固定Pipelineが呼ばず、main rulesetは変更しない |
 | Q-04 | retention、通知、DLQ/reconciliationの具体値 | shadow rollout前 |
 
 ## 8. 変更履歴
@@ -101,12 +101,15 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | 2026-07-21 | default Claude reviewからAzure Repos Pull Request作成後read-backまでlive確認し、Phase 5Bを完了。開発中はkill switchを無効化 |
 | 2026-07-22 | Phase 6のAI修正案branchとreview targetの分離、軽量境界検証、人間1名承認、no-fast-forward限定、Azure側full verify省略を承認 |
 | 2026-07-22 | Phase 6のprivate実装とbranch policy設定を完了し、分離targetへのlive Pull Request作成とpolicy適用を確認。人間reviewを開始 |
+| 2026-07-22 | Phase 6の文書訂正を人間1名が承認し、policy bypassなしのno-fast-forward merge、merge parentを確認。旧設計・旧headのPRをabandonしてPhase 6を完了 |
+| 2026-07-22 | Phase 7のAzure merge検証、Key Vault sign-only GitHub App認証、immutable promotion PR、再帰除外を設計案として起案。未承認のため外部権限と実装は未変更 |
+| 2026-07-22 | Phase 7設計を承認。kill switch無効のままpromotion再帰除外をpublic mainへbootstrap反映してから外部権限を有効化する順序を確定 |
 
 ## 品質ゲート化対応表
 
 | 仕様項目 | 現在のゲート | 将来のゲート |
 | --- | --- | --- |
 | AAR-AC-01/02 | `actionlint`、`shellcheck`、workflow review、live dispatch integration | Azure PipelineからPR作成までのend-to-end確認 |
-| AAR-AC-03/04 | 未実装 | promotion実装時のGit E2Eと権限negative test |
+| AAR-AC-03/04 | Phase 7設計承認済み、実装中 | shellcheck/Bicep公式検査、初回live runのstale/duplicate/force禁止/read-back。専用mock testは追加しない |
 | AAR-AC-05 | base同期とPR head取込みのduplicate/reorder/staleを実装・手動Gitシナリオ確認済み | Azure PRの同一source/target再利用をlive確認 |
 | credential混入 | repository共通`gitleaks`、image/logとtoken受渡しのreview | provider secretを各AI step、`System.AccessToken`をPR作成stepだけに渡すことを確認 |
