@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | 対象 | GitHub `verify`完了からService Bus受信、Git取込み、Azure PipelineによるAI reviewまで |
-| 状態 | Phase 5A・5B complete / Phase 6設計承認・live review中 |
+| 状態 | Phase 5A・5B・6 complete / Phase 7設計approved・実装中 |
 
 ## 1. トリガ
 
@@ -89,7 +89,8 @@ Phase 5BはPhase 5Aが作成したAzure branch更新をAzure Pipelineのreposito
 Azure Pipelinesが提供する`Build.SourceBranch`と`Build.SourceVersion`を使用し、private IaCのdefault branchに
 あるtrusted YAMLが固定規則と照合する。
 
-`promotion-request`はproducer/consumer実装時までfieldを固定しない。
+Phase 7はAzure `review-target/*` branch更新をtrusted Pipelineが直接受け、
+`promotion-request`、Service Bus queue、consumer stateを追加しない。
 
 ## 6. 失敗時の扱い
 
@@ -152,3 +153,22 @@ AI review、修正案とAzure Pull Requestの作成はPhase 5B/6のtrusted Pipel
 Pull Request説明の文字列としてだけ使用し、shell、Git ref、path、vote、自動完了、merge、policy bypassへ
 変換しない。選択したproviderが失敗した場合はPull Requestを作成しない。結果Schema、provider adapter、
 result queue、Table state、専用PR controllerは作らない。
+
+## Phase 7 GitHub promotion
+
+この設計は2026-07-22に人間承認済みである。private実装と外部権限は、public再帰除外のbootstrap反映後に変更する。
+
+1. 別のtrusted Pipelineが`review-target/<Pull Request番号>/<base SHA>`更新を受ける。branch初回作成はno-op、
+   2 parentのmerge commitだけを処理する。
+2. `System.AccessToken`を持つ固定検証stepが、completed Azure PR、source/target/merge SHA、no-fast-forward、
+   policy bypassなし、blocking policy成功、人間vote、merge parentをAzure APIからread-backする。
+3. source branch形式から元GitHub PR番号、検証済みhead SHA、providerを復元し、proposal SHAが検証済みhead自身、
+   またはそのheadを唯一のparentとする1 commitであることを確認する。
+4. GitHub App installation token取得後、元GitHub PRのopen状態とbase/head SHA、現在の`main` SHAを再確認する。
+   Azure review時のbase/headから進んでいれば、branch作成やforceをせず停止する。
+5. 固定stepだけがimmutableな`ai-promotion/<Pull Request番号>/<Azure merge SHA>`を通常pushし、同じbranchと
+   `main`向けPull Requestを冪等に作成または再利用する。AI出力、元PRのtitle/body、Azure PR説明は実行入力や
+   promotion PR説明に使用しない。
+6. promotion Pull Requestは既存GitHub Actions `verify`を実行する。GitHub APIでhead branch、Publisher Appの
+   Bot user ID、head repositoryを照合できた場合だけAI review dispatchから除外し、prefixだけを名乗る通常PRは
+   除外しない。verifyと既存main rulesetを通過後も、mergeは人間だけが行う。
