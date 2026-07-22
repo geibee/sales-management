@@ -72,3 +72,5 @@ message、Table、log、source treeへ含めない。AI processはcheckout direc
 Phase 7のGitHub App private keyはPipeline secretとして読ませず、Azure Key Vaultへsign/verify専用keyとして
 importする。publisher専用identityはkey scopeのKey Vault Crypto Userだけを持ち、provider secretを読めない。
 installation tokenは対象repository、Contents/Pull requests/Workflows writeへdown-scopeし、1 run内だけで使う。
+promotionの再帰除外はbranch prefixだけを信用せず、repository variableに設定したPublisher AppのBot user IDと
+head repositoryをGitHub APIのPull Request情報で照合する。

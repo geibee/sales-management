@@ -104,6 +104,7 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | 2026-07-22 | Phase 6の文書訂正を人間1名が承認し、policy bypassなしのno-fast-forward merge、merge parentを確認。旧設計・旧headのPRをabandonしてPhase 6を完了 |
 | 2026-07-22 | Phase 7のAzure merge検証、Key Vault sign-only GitHub App認証、immutable promotion PR、再帰除外を設計案として起案。未承認のため外部権限と実装は未変更 |
 | 2026-07-22 | Phase 7設計を承認。kill switch無効のままpromotion再帰除外をpublic mainへbootstrap反映してから外部権限を有効化する順序を確定 |
+| 2026-07-22 | branch prefixだけではcontributorがAI reviewを回避できるため、promotion除外をPublisher AppのBot user IDとhead repositoryのGitHub API照合へ変更 |
 
 ## 品質ゲート化対応表
 

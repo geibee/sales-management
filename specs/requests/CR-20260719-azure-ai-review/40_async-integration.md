@@ -169,5 +169,6 @@ result queue、Table state、専用PR controllerは作らない。
 5. 固定stepだけがimmutableな`ai-promotion/<Pull Request番号>/<Azure merge SHA>`を通常pushし、同じbranchと
    `main`向けPull Requestを冪等に作成または再利用する。AI出力、元PRのtitle/body、Azure PR説明は実行入力や
    promotion PR説明に使用しない。
-6. promotion Pull Requestは既存GitHub Actions `verify`を実行するが、AI review dispatchから除外する。
-   verifyと既存main rulesetを通過後も、mergeは人間だけが行う。
+6. promotion Pull Requestは既存GitHub Actions `verify`を実行する。GitHub APIでhead branch、Publisher Appの
+   Bot user ID、head repositoryを照合できた場合だけAI review dispatchから除外し、prefixだけを名乗る通常PRは
+   除外しない。verifyと既存main rulesetを通過後も、mergeは人間だけが行う。

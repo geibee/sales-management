@@ -24,10 +24,7 @@ jobs:
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.repository.id == 1226183236 &&
         (
-          (
-            github.event.workflow_run.event == 'pull_request' &&
-            !startsWith(github.event.workflow_run.head_branch, 'ai-promotion/')
-          ) ||
+          github.event.workflow_run.event == 'pull_request' ||
           (
             github.event.workflow_run.event == 'push' &&
             github.event.workflow_run.head_branch == 'main'
@@ -41,6 +38,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AI_REVIEW_DISPATCH_CLIENT_ID }}
       AI_REVIEW_SERVICE_BUS_NAMESPACE: ${{ secrets.AI_REVIEW_SERVICE_BUS_NAMESPACE }}
       AI_REVIEW_SERVICE_BUS_QUEUE: ${{ secrets.AI_REVIEW_SERVICE_BUS_QUEUE }}
+      AI_REVIEW_PUBLISHER_BOT_USER_ID: ${{ vars.AI_REVIEW_PUBLISHER_BOT_USER_ID }}
       WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
     steps:
       - name: GitHub API で再検証して Service Bus へ送信
@@ -179,8 +177,21 @@ jobs:
               pull_request_head_ref="$(jq -er '.head.ref' "$pr_file")"
               readonly pull_request_head_ref
               if [[ "$pull_request_head_ref" == ai-promotion/* ]]; then
-                echo "promotion Pull RequestはAI review dispatch対象外です。"
-                exit 0
+                if [[ ! "$AI_REVIEW_PUBLISHER_BOT_USER_ID" =~ ^[1-9][0-9]*$ ]]; then
+                  echo "AI_REVIEW_PUBLISHER_BOT_USER_IDが設定されていません。" >&2
+                  exit 1
+                fi
+                if jq -e \
+                  --argjson publisher_bot_user_id "$AI_REVIEW_PUBLISHER_BOT_USER_ID" \
+                  --argjson repository_id "$expected_repository_id" '
+                    .user.type == "Bot" and
+                    .user.id == $publisher_bot_user_id and
+                    .head.repo.id == $repository_id
+                  ' "$pr_file" >/dev/null; then
+                  echo "Publisher GitHub Appが作成したpromotion Pull RequestはAI review dispatch対象外です。"
+                  exit 0
+                fi
+                echo "ai-promotion/ branchですがPublisher GitHub App作成ではないため通常reviewを続行します。"
               fi
               jq -c \
                 --slurpfile run "$run_file" \
