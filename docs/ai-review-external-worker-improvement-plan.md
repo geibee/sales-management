@@ -2,8 +2,8 @@
 
 - 作成日: 2026-07-15
 - 最終更新日: 2026-07-22
-- 状態: Phase 5A/5B完了。Phase 6はAI修正案とreview targetをprivate branchへ実装済みで、Azure側full verifyを行わない構成へ設計訂正中。開発中の追加課金を止めるためkill switchは`false`
-- 次の作業: Phase 6の訂正commitをprivate/publicへpushしてmergeし、review targetの人間承認policyを設定してlive確認する
+- 状態: Phase 5A/5B完了。Phase 6は設計承認、private実装、review targetの人間承認policy設定、初回live PR作成まで完了し、人間reviewで検出したpublic文書ドリフトを訂正中。追加課金を止めるためkill switchは`false`
+- 次の作業: Phase 6のpublic文書訂正を再度live reviewし、人間承認後にAzure Reposへno-fast-forward mergeする
 
 ## 0. 次セッションの開始位置
 
@@ -188,7 +188,7 @@ Service Bus向けEntra access token
 | 4 | GitHub `main`からAzure mapped baseへのfast-forward同期 | 完了。Managed Identity権限、Job適用、branch新規作成、SHA一致、queue/DLQ空を確認 |
 | 5A | Pull Request headの限定branch import | 完了。live branch作成とSHA固定を確認済み |
 | 5B | trusted Azure Pipeline、単一provider review、Azure PR作成 | 完了。default Claude review、PR #16作成、source/target/status read-backをlive確認済み |
-| 6 | AI fix proposal、軽量境界検証、Azure人間承認 | 設計承認済み。private branchへ実装済み、重複full verify削除の訂正中 |
+| 6 | AI fix proposal、軽量境界検証、Azure人間承認 | 設計承認、private実装、policy設定、初回live PR作成まで完了。人間reviewの指摘を訂正中 |
 | 7 | Azure人間merge後のGitHub promotion | 未着手 |
 | 8 | shadow rollout、監視、DLQ/reconciliation、費用上限 | 未着手 |
 

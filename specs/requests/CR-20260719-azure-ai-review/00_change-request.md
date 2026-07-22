@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | トラック | **A: 新しい権限・非同期状態・人間承認を追加するため** |
-| 状態 | approved / Phase 5A・5B complete / Phase 6設計承認待ち |
+| 状態 | approved / Phase 5A・5B complete / Phase 6設計承認・live review中 |
 | 承認日 | 2026-07-19 |
 
 本書は`specs/README.md`で全依頼に必須とされる合意記録である。実装完了後は凍結するため、runtime contractや運用値の恒久的なSource of Truthにはしない。
@@ -98,6 +98,8 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | 2026-07-21 | Phase 5Bの読取専用AI Job、provider結果state、PR controller間の最小contractを起案 |
 | 2026-07-21 | 前項の過剰な内部contractを撤回。trusted Azure Pipelineがbranch更新を直接受け、Claude/Kiro review後に固定stepでAzure PRを作る方式を承認 |
 | 2026-07-21 | default Claude reviewからAzure Repos Pull Request作成後read-backまでlive確認し、Phase 5Bを完了。開発中はkill switchを無効化 |
+| 2026-07-22 | Phase 6のAI修正案branchとreview targetの分離、軽量境界検証、人間1名承認、no-fast-forward限定、Azure側full verify省略を承認 |
+| 2026-07-22 | Phase 6のprivate実装とbranch policy設定を完了し、分離targetへのlive Pull Request作成とpolicy適用を確認。人間reviewを開始 |
 
 ## 品質ゲート化対応表
 

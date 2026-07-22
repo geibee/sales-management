@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | 対象 | 認証、権限分離、既存verifyへの非干渉、公開情報 |
-| 状態 | approved / Phase 5A・5B complete / Phase 6設計承認待ち |
+| 状態 | approved / Phase 5A・5B complete / Phase 6設計承認・live review中 |
 
 ## 1. 現段階で必須の要求
 
@@ -34,8 +34,8 @@
 
 ## 3. 数値を今決めない理由
 
-consumer、state store、Container Apps Job、base同期、PR importはPoC実装済みだが、AI provider、
-review Pipeline、promotion、継続運用は未実装である。初回実接続だけでは処理時間、retry回数、retention日数、
+consumer、state store、Container Apps Job、base同期、PR import、単一providerのreview Pipeline、Azure人間承認
+targetはPoC実装済みだが、promotionと継続運用は未実装である。初回実接続だけでは処理時間、retry回数、retention日数、
 費用上限の最終値を決める根拠が不足するため、Phaseごとに実測可能になった時点で障害影響と費用を提示して決定する。
 
 ただし次の安全条件は件数や負荷に依存しないため、先に固定する。
