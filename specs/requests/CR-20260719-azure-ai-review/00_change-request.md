@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | トラック | **A: 新しい権限・非同期状態・人間承認を追加するため** |
-| 状態 | approved / Phase 5A・5B・6 complete / Phase 7 bootstrap complete・初回live確認待ち |
+| 状態 | approved / Phase 5A・5B・6 complete / Phase 7設計approved・実装中 |
 | 承認日 | 2026-07-19 |
 
 本書は`specs/README.md`で全依頼に必須とされる合意記録である。実装完了後は凍結するため、runtime contractや運用値の恒久的なSource of Truthにはしない。
@@ -105,13 +105,12 @@ GitHub public Pull Requestの既存`verify`が成功した後にAzure上でAI re
 | 2026-07-22 | Phase 7のAzure merge検証、Key Vault sign-only GitHub App認証、immutable promotion PR、再帰除外を設計案として起案。未承認のため外部権限と実装は未変更 |
 | 2026-07-22 | Phase 7設計を承認。kill switch無効のままpromotion再帰除外をpublic mainへbootstrap反映してから外部権限を有効化する順序を確定 |
 | 2026-07-22 | branch prefixだけではcontributorがAI reviewを回避できるため、promotion除外をPublisher AppのBot user IDとhead repositoryのGitHub API照合へ変更 |
-| 2026-08-01 | Phase 7のprivate実装と外部設定を完了。再帰除外を含むpublic mainのbase同期、SHA一致、queue/DLQ空を確認し、kill switchを無効へ復帰。初回promotion canary待ち |
 
 ## 品質ゲート化対応表
 
 | 仕様項目 | 現在のゲート | 将来のゲート |
 | --- | --- | --- |
 | AAR-AC-01/02 | `actionlint`、`shellcheck`、workflow review、live dispatch integration | Azure PipelineからPR作成までのend-to-end確認 |
-| AAR-AC-03/04 | Phase 7実装・bootstrap完了 | 初回live runのstale/duplicate/force禁止/read-back。専用mock testは追加しない |
+| AAR-AC-03/04 | Phase 7設計承認済み、実装中 | shellcheck/Bicep公式検査、初回live runのstale/duplicate/force禁止/read-back。専用mock testは追加しない |
 | AAR-AC-05 | base同期とPR head取込みのduplicate/reorder/staleを実装・手動Gitシナリオ確認済み | Azure PRの同一source/target再利用をlive確認 |
 | credential混入 | repository共通`gitleaks`、image/logとtoken受渡しのreview | provider secretを各AI step、`System.AccessToken`をPR作成stepだけに渡すことを確認 |

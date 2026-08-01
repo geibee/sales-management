@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | 対象 | GitHub `verify`完了からService Bus受信、Git取込み、Azure PipelineによるAI reviewまで |
-| 状態 | Phase 5A・5B・6 complete / Phase 7 bootstrap complete・初回live確認待ち |
+| 状態 | Phase 5A・5B・6 complete / Phase 7設計approved・実装中 |
 
 ## 1. トリガ
 
