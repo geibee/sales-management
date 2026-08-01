@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | 対象 | 認証、権限分離、既存verifyへの非干渉、公開情報 |
-| 状態 | approved / Phase 5A・5B・6 complete / Phase 7設計approved・実装中 |
+| 状態 | approved / Phase 5A・5B・6 complete / Phase 7 bootstrap complete・初回live確認待ち |
 
 ## 1. 現段階で必須の要求
 
