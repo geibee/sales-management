@@ -1,9 +1,9 @@
 # AI レビュー・外部 worker 改善計画
 
 - 作成日: 2026-07-15
-- 最終更新日: 2026-07-22
-- 状態: Phase 5A/5B/6完了。Phase 7設計承認済み、実装中。追加課金を止めるためkill switchは`false`
-- 次の作業: promotion再帰除外をpublic mainへbootstrap反映後、private IaC、Publisher GitHub App、promotion Pipelineを実装する
+- 最終更新日: 2026-08-01
+- 状態: Phase 5A/5B/6完了。Phase 7実装中。外部設定とbootstrap同期を終え、初回promotionのlive確認待ち。追加課金を止めるためkill switchは`false`
+- 次の作業: docs-only canaryを通常のAI reviewとAzure人間mergeへ通し、GitHub promotion Pull Request作成と再帰dispatch除外を確認する
 
 ## 0. 次セッションの開始位置
 
@@ -16,6 +16,7 @@
 7. Azure resource、identity、repository policy、課金設定を変更するときは、対象・費用・rollback を提示して別途承認を得る。
 8. Phase 5Aのconsumer imageを適用し、限定branch作成とPhase 5B Pipelineの自動起動までlive確認済みである。最初のprovider実行で無効なClaude Console API keyを検出し、subscription OAuthへ切替済みである。
 9. Pipeline resource認可のための初回手動実行は、`refs/heads/main`を許可対象外として停止した。これは限定branch以外を処理しないfail-closedの正常動作である。
+10. Phase 7の外部設定とbootstrap同期は完了している。初回promotion canary以外ではkill switchを`false`に保つ。
 
 ## 1. 目的
 
@@ -190,7 +191,7 @@ Service Bus向けEntra access token
 | 5A | Pull Request headの限定branch import | 完了。live branch作成とSHA固定を確認済み |
 | 5B | trusted Azure Pipeline、単一provider review、Azure PR作成 | 完了。default Claude review、PR #16作成、source/target/status read-backをlive確認済み |
 | 6 | AI fix proposal、軽量境界検証、Azure人間承認 | 完了。AI変更なしの最終headを人間が承認し、policy bypassなしのno-fast-forward mergeをlive確認 |
-| 7 | Azure人間merge後のGitHub promotion | 設計承認済み。再帰除外をpublic branchへ実装中、private実装とPublisher GitHub App設定は未着手 |
+| 7 | Azure人間merge後のGitHub promotion | 実装中。private実装、Publisher GitHub App、署名identity、Pipeline、再帰除外、bootstrap同期まで完了。初回live確認待ち |
 | 8 | shadow rollout、監視、DLQ/reconciliation、費用上限 | 未着手 |
 
 ### Phase 6の承認済み構成
@@ -266,6 +267,12 @@ public `main`を自動変更しないため未mergeのpromotion PRとbranchは�
    connection、GitHub App installationを有効化する。
 4. 初回promotionをlive確認し、promotion PRのverify成功後もAI review dispatchがskipされることを確認する。
 5. 通常のAI reviewを再開するときだけkill switchを`true`にする。
+
+2026-08-01に再帰除外を含むpublic default branch、Publisher GitHub App設定、署名専用identity、service
+connection、promotion Pipelineをread-backした。kill switchを一時的に有効化して成功済み`main` verifyを再実行し、
+base同期Job成功、GitHub `main`とAzure mapped baseのSHA一致、queue/DLQ空を確認してから`false`へ戻した。
+既存のreview targetは元GitHub Pull Requestがすでにclosedであるためpromotion対象にせず、新しいopen canaryで
+初回promotionの成功系と再帰dispatch除外を確認する。
 
 ## 9. 自動テストを追加する基準
 
