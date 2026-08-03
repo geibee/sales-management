@@ -34,6 +34,9 @@ let parseJson (body: string) : JsonElement =
     use doc = JsonDocument.Parse body
     doc.RootElement.Clone()
 
+/// モデルが失敗を予測した際に、実 API のレスポンスが予測と矛盾するかを返す。
+let contradictsExpectedFailure (resp: HttpResponseMessage) : bool = resp.IsSuccessStatusCode
+
 let withHeaders (headers: (string * string) list) (req: HttpRequestMessage) : HttpRequestMessage =
     for (k, v) in headers do
         req.Headers.TryAddWithoutValidation(k, v) |> ignore

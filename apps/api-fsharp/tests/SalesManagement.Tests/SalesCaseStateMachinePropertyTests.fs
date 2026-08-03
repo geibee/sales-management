@@ -120,7 +120,7 @@ let private runAgainstModel
                 modelState <- nextState
                 version <- actualVersion
             | None ->
-                if isSuccess resp.StatusCode then
+                if contradictsExpectedFailure resp then
                     failwithf "モデルは失敗だが HTTP は %A。状態=%A, コマンド=%A" resp.StatusCode modelState cmd
 
                 let actualState = parseStatus actualStatus

@@ -186,8 +186,8 @@ type LotStateMachinePropertyTests(fixture: AuthOffFixture) =
                         modelState <- nextState
                         version <- newVersion
                     | Error _ ->
-                        if resp.StatusCode = HttpStatusCode.OK then
-                            failwithf "モデルはErrorだがHTTPは200。状態=%A, コマンド=%A" modelState cmd
+                        if contradictsExpectedFailure resp then
+                            failwithf "モデルはErrorだがHTTPは成功 (%A)。状態=%A, コマンド=%A" resp.StatusCode modelState cmd
             })
                 .GetAwaiter()
                 .GetResult()
