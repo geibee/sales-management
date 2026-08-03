@@ -1,9 +1,9 @@
 # AI レビュー・外部 worker 改善計画
 
 - 作成日: 2026-07-15
-- 最終更新日: 2026-08-01
-- 状態: Phase 5A/5B/6完了。Phase 7実装中。外部設定とbootstrap同期を終え、初回promotionのlive確認待ち。追加課金を止めるためkill switchは`false`
-- 次の作業: docs-only canaryを通常のAI reviewとAzure人間mergeへ通し、GitHub promotion Pull Request作成と再帰dispatch除外を確認する
+- 最終更新日: 2026-08-03
+- 状態: Phase 5A/5B/6/7完了。初回promotion、再帰dispatch除外、人間merge後のbase再同期をlive確認済み。通常運用開始まではkill switchを`false`に保つ
+- 次の作業: Phase 8のshadow rollout、監視、DLQ/reconciliation、費用上限を設計し、人間承認を得る
 
 ## 0. 次セッションの開始位置
 
@@ -12,11 +12,11 @@
 3. `git status --short --branch` と `git log -1 --oneline` で作業状態を確認する。
 4. public 側では `.github/workflows/ai-review-dispatch.yml` だけが実行コードであることを確認する。
 5. Azure の具体的な resource 名、tenant/client/subscription ID、Azure DevOps の project/repository ID、deployment 履歴は private infrastructure repository を正とする。public repository へ複製しない。
-6. `AI_REVIEW_DISPATCH_ENABLED` はPhase 5Bのlive確認後に`false`へ戻した。live canaryを行うときだけ明示的に`true`へ変更する。
+6. `AI_REVIEW_DISPATCH_ENABLED` はPhase 7のlive確認後に`false`へ戻した。通常のAI reviewまたは承認済みlive確認を行うときだけ明示的に`true`へ変更する。
 7. Azure resource、identity、repository policy、課金設定を変更するときは、対象・費用・rollback を提示して別途承認を得る。
 8. Phase 5Aのconsumer imageを適用し、限定branch作成とPhase 5B Pipelineの自動起動までlive確認済みである。最初のprovider実行で無効なClaude Console API keyを検出し、subscription OAuthへ切替済みである。
 9. Pipeline resource認可のための初回手動実行は、`refs/heads/main`を許可対象外として停止した。これは限定branch以外を処理しないfail-closedの正常動作である。
-10. Phase 7の外部設定とbootstrap同期は完了している。初回promotion canary以外ではkill switchを`false`に保つ。
+10. Phase 7は初回promotion canary、再帰dispatch除外、人間merge、merge後base同期まで完了している。Phase 8の運用条件を承認するまではkill switchを`false`に保つ。
 
 ## 1. 目的
 
@@ -136,7 +136,8 @@ Phase 5Bでは追加のqueue message、Table state、Go contractを作らない�
 受ける。trigger refとcommitはAzure Pipelinesのruntime変数として渡され、private IaCのdefault branchにある
 trusted YAMLが処理する。
 
-`promotion-request`はproducer/consumer未実装なので、現時点では物理contractを固定しない。
+`promotion-request`はPhase 7で採用しなかった。Azureの限定branch更新をtrusted Pipelineが直接受けるため、
+producer/consumerや物理message contractを追加しない。
 
 ## 6. 単一provider reviewと未信頼出力の扱い
 
@@ -191,7 +192,7 @@ Service Bus向けEntra access token
 | 5A | Pull Request headの限定branch import | 完了。live branch作成とSHA固定を確認済み |
 | 5B | trusted Azure Pipeline、単一provider review、Azure PR作成 | 完了。default Claude review、PR #16作成、source/target/status read-backをlive確認済み |
 | 6 | AI fix proposal、軽量境界検証、Azure人間承認 | 完了。AI変更なしの最終headを人間が承認し、policy bypassなしのno-fast-forward mergeをlive確認 |
-| 7 | Azure人間merge後のGitHub promotion | 実装中。private実装、Publisher GitHub App、署名identity、Pipeline、再帰除外、bootstrap同期まで完了。初回live確認待ち |
+| 7 | Azure人間merge後のGitHub promotion | 完了。人間承認済みAzure mergeからPublisher Appがpublic PRを作成し、verify、再帰dispatch除外、人間merge、base再同期までlive確認 |
 | 8 | shadow rollout、監視、DLQ/reconciliation、費用上限 | 未着手 |
 
 ### Phase 6の承認済み構成
@@ -272,7 +273,14 @@ public `main`を自動変更しないため未mergeのpromotion PRとbranchは�
 connection、promotion Pipelineをread-backした。kill switchを一時的に有効化して成功済み`main` verifyを再実行し、
 base同期Job成功、GitHub `main`とAzure mapped baseのSHA一致、queue/DLQ空を確認してから`false`へ戻した。
 既存のreview targetは元GitHub Pull Requestがすでにclosedであるためpromotion対象にせず、新しいopen canaryで
-初回promotionの成功系と再帰dispatch除外を確認する。
+初回promotionの成功系と再帰dispatch除外を確認対象とした。
+
+2026-08-03にdocs-only canaryをdefault Claude review、Azure人間承認、policy bypassなしのmergeへ通した。
+固定promotion Pipelineは人間承認対象とmerge parentを再検証し、Publisher Appとしてpublic Pull Request #29を
+作成した。public verify成功後、kill switchを有効にしたlive確認でも、Bot user IDとhead repositoryが一致する
+promotion Pull RequestをService Bus送信前に正常終了させ、再帰reviewが起動しないことを確認した。人間merge後の
+public `main` verifyも成功し、`base-sync-request`によってAzure mapped baseが同じcommitへ更新されたことを
+read-backした。最後にkill switchを`false`へ戻し、Phase 7を完了した。
 
 ## 9. 自動テストを追加する基準
 
@@ -315,8 +323,6 @@ Phase 7でも専用mock testは追加せず、private repository既存の`bash s
 
 - Claude model、Kiro default model、1 review当たりのbudget・timeout上限
 - provider secretのrotation手順
-- Azure Repos branch policyと人間承認の実測方法
-- Phase 7のPublisher GitHub App作成、Key Vault key import、service connection設定の実作業
 - retention、監視、通知、DLQ/reconciliationの具体値
 
 これらは対象Phaseの実装直前に、実際のservice/API仕様を基に決める。先行してSchema、fake、数値閾値を固定しない。

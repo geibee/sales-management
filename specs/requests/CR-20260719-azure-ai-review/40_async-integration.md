@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | 対象 | GitHub `verify`完了からService Bus受信、Git取込み、Azure PipelineによるAI reviewまで |
-| 状態 | Phase 5A・5B・6 complete / Phase 7設計approved・実装中 |
+| 状態 | Phase 5A・5B・6・7 complete |
 
 ## 1. トリガ
 
@@ -118,7 +118,7 @@ DLQの定期reconciliation、correlation IDを用いた通知、retentionの最�
 | AAR-EVT-01/02 | `actionlint`、`shellcheck`、workflow review、実Service Bus dispatch、PR importからPipeline起動までのlive確認 | 追加なし。contract変更時だけ再確認 |
 | 発生源再検証 | 固定workflowのcode review、過去runのAPI read-back、実messageのconsumer受信、Pipelineのtrigger ref/SHA/checkout HEAD一致をlive確認 | 追加なし。trigger変更時だけ再確認 |
 | duplicate | `MessageId`とTable RowKey。実message再送で保存済み扱いを確認 | 追加なし。契約変更時だけ再確認 |
-| reorder/stale | 一時bare repositoryで各Git状態を確認し、実環境でbase branch、PR branch、Azure PRのsource/target/statusをread-back | promotion実装時にexpected baseを確認 |
+| reorder/stale | 一時bare repositoryで各Git状態を確認し、実環境でbase branch、PR branch、Azure PRのsource/target/status、promotionのexpected baseとmerge parentをread-back | contract変更時だけ再確認 |
 | DLQ/reconciliation | 契約違反DLQとdelivery上限を実装。適用後queue/DLQ空を確認 | 定期reconciliationと通知はshadow rollout前 |
 
 ## Phase 5A review-request処理
@@ -172,3 +172,8 @@ result queue、Table state、専用PR controllerは作らない。
 6. promotion Pull Requestは既存GitHub Actions `verify`を実行する。GitHub APIでhead branch、Publisher Appの
    Bot user ID、head repositoryを照合できた場合だけAI review dispatchから除外し、prefixだけを名乗る通常PRは
    除外しない。verifyと既存main rulesetを通過後も、mergeは人間だけが行う。
+
+2026-08-03に初回live promotionを完了した。人間承認済みAzure mergeからPublisher Appがpublic Pull Requestを
+作成し、verify成功と人間mergeを確認した。kill switchを有効にした再確認では、promotion Pull Requestを
+Bot user IDとhead repositoryで識別し、Service Busへ送信する前に正常終了した。merge後のpublic `main`は
+`base-sync-request`でAzure mapped baseへ同期し、SHA一致をread-backしてからkill switchを無効へ戻した。
