@@ -23,6 +23,7 @@
     <Compile Include="SmartConstructorTests.fs" />
     <Compile Include="LotRepositoryRoundTripTests.fs" />
     <Compile Include="LotPropertyTests.fs" />
+    <Compile Include="StateMachineResponseTests.fs" />
     <Compile Include="LotStateMachinePropertyTests.fs" />
     <Compile Include="SalesCaseStateMachinePropertyTests.fs" />
     <Compile Include="SalesCasePropertyTests.fs" />
