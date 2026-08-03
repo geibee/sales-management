@@ -6,7 +6,7 @@
 | --- | --- |
 | 依頼ID | `CR-20260719-azure-ai-review` |
 | 対象 | 認証、権限分離、既存verifyへの非干渉、公開情報 |
-| 状態 | approved / Phase 5A・5B・6 complete / Phase 7設計approved・実装中 |
+| 状態 | approved / Phase 5A・5B・6・7 complete |
 
 ## 1. 現段階で必須の要求
 
@@ -18,7 +18,7 @@
 | AAR-NFR-04 | privileged workflowはPull Request code、artifact、cache、title/bodyを実行入力にしない |
 | AAR-NFR-05 | token、private key、provider credentialをmessage、artifact、log、永続fileへ記録しない |
 | AAR-NFR-06 | public repositoryへAzureの具体的なsubscription/tenant/client/principal/project/repository ID、resource名、deployment outputを記録しない |
-| AAR-NFR-07 | kill switchは実consumer完成とlive send承認まで無効にする。Phase 5B live確認後の開発中は追加課金を避けるため無効に戻す |
+| AAR-NFR-07 | kill switchは実consumer完成とlive send承認まで無効にする。Phase 7 live確認後はPhase 8の運用条件を承認するまで追加課金を避けるため無効に戻す |
 
 ## 2. Phase 5以降のcomponent実装時の要求
 
@@ -35,8 +35,9 @@
 ## 3. 数値を今決めない理由
 
 consumer、state store、Container Apps Job、base同期、PR import、単一providerのreview Pipeline、Azure人間承認
-targetはPoC実装済みだが、promotionと継続運用は未実装である。初回実接続だけでは処理時間、retry回数、retention日数、
-費用上限の最終値を決める根拠が不足するため、Phaseごとに実測可能になった時点で障害影響と費用を提示して決定する。
+target、GitHub promotionはPoC実装と初回live確認を完了したが、継続運用条件は未決定である。単一canaryだけでは
+処理時間、retry回数、retention日数、費用上限の最終値を決める根拠が不足するため、shadow rolloutの実測値と
+障害影響・費用を提示して決定する。
 
 ただし次の安全条件は件数や負荷に依存しないため、先に固定する。
 
@@ -57,7 +58,7 @@ targetはPoC実装済みだが、promotionと継続運用は未実装である�
 | consumerとbase同期 | Go公式tool、digest固定image build、手動Gitシナリオ、live dispatchとSHA read-back |
 | Phase 5B Pipeline | YAMLとinline shellのreview、trigger/ref/SHA確認、live runとAzure PR source/target/status read-back。完了済み |
 | Phase 6人間承認 | 最低1名のblocking approval、no-fast-forward、policy bypassなし、merge commit parentをlive read-back。完了済み |
-| Phase 7 promotion | 設計承認済み。shellcheck/Bicep公式検査と初回live stale/duplicate/read-backを実施し、専用mock testは作らない |
+| Phase 7 promotion | shellcheck/Bicep公式検査、初回live promotion、expected base・merge parent・Bot作成者のread-back、再帰dispatch除外、人間merge、base再同期を確認済み。専用mock testは作らない |
 | public情報境界 | Pull Request diffでAzure識別子・resource名を確認 |
 
 ClaudeとKiroのcredentialはAzure Pipeline secret variableとして選択したprovider stepだけへ渡し、controller、
