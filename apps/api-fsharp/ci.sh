@@ -158,6 +158,7 @@ if [ "$ZAP_ENABLED" = "1" ]; then
         -e HOME=/tmp \
         -v "$PWD/openapi.yaml:/zap/openapi.yaml:ro" \
         -v "$PWD/$RESULTS_DIR:/zap/wrk:rw" \
+        -w /zap/wrk \
         ghcr.io/zaproxy/zaproxy:stable \
         zap-api-scan.py \
             -t /zap/openapi.yaml \

@@ -10,4 +10,5 @@ setup() {
   [[ "$zap_block" == *'--user "$(id -u):$(id -g)"'* ]]
   [[ "$zap_block" == *'-e HOME=/tmp'* ]]
   [[ "$zap_block" == *'-v "$PWD/$RESULTS_DIR:/zap/wrk:rw"'* ]]
+  [[ "$zap_block" == *'-w /zap/wrk'* ]]
 }

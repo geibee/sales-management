@@ -25,6 +25,18 @@ test("RoleBadge shows '未認証' when no token is configured", async ({ page })
 });
 
 test("Guard hides the lot creation form for unauthenticated users", async ({ page }) => {
+  // backend-lifecycle E2E では実 API の認証が無効なため Guard は permissive になる。
+  // このテスト固有の認証 ON 応答を固定し、/auth/config の応答タイミングに依存せず
+  // 「認証 ON + JWT なし」の拒否動作を検証する。
+  await page.route("**/api/auth/config", async (route) => {
+    await route.fulfill({
+      json: {
+        enabled: true,
+        authority: "https://idp.example/realms/e2e",
+        audience: "sales-management-api",
+      },
+    });
+  });
   await page.goto("/lots/new");
   await expect(page.getByText("作成には operator 以上のロールが必要です")).toBeVisible();
 });
