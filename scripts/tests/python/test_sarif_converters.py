@@ -94,7 +94,7 @@ def test_lint_警告行を位置情報つきで変換する(load_script, tmp_pat
 
 def test_zap_riskcode_を_SARIF_level_にマップする(load_script):
     mod = load_script(ZAP)
-    assert mod.risk_to_level(3) == "error"
+    assert mod.risk_to_level(3) == "warning"
     assert mod.risk_to_level("2") == "warning"
     assert mod.risk_to_level(1) == "warning"
     assert mod.risk_to_level(0) == "note"
@@ -141,6 +141,25 @@ def test_zap_不正な_JSON_は失敗(load_script, tmp_path, set_argv):
     src.write_text("{broken")
     set_argv(str(src), str(tmp_path / "out.sarif"))
     assert mod.main() == 1
+
+
+def test_zap_レポート未生成は実行異常の_error_SARIF_にする(load_script, tmp_path, set_argv):
+    mod = load_script(ZAP)
+    log = tmp_path / "zap.out"
+    dst = tmp_path / "out.sarif"
+    log.write_text("permission denied\nreport was not generated\n")
+    set_argv("--execution-error", str(log), str(dst))
+
+    assert mod.main() == 0
+    run = read_sarif(dst)["runs"][0]
+    assert run["results"] == [
+        {
+            "ruleId": "ZAP.execution",
+            "level": "error",
+            "message": {"text": "permission denied\nreport was not generated\n"},
+        }
+    ]
+    assert run["tool"]["driver"]["rules"][0]["id"] == "ZAP.execution"
 
 
 # ---------------------------------------------------------------- sarif-merge

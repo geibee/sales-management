@@ -141,9 +141,18 @@ fi
 if [ "$ZAP_ENABLED" = "1" ]; then
     echo "=== DAST (OWASP ZAP) ==="
     set +e
+    ZAP_WRK="$RESULTS_DIR/zap-wrk"
+    ZAP_IMAGE="ghcr.io/zaproxy/zaproxy:2.17.0@sha256:8d387b1a63e3425beef4846e39719f5af2a787753af2d8b6558c6257d7a577a2"
+    mkdir -p "$RESULTS_DIR/zap-wrk"
+    chmod 0777 "$RESULTS_DIR/zap-wrk"
+    rm -f "$RESULTS_DIR/zap-report.json" "$RESULTS_DIR/zap-report.html" \
+        "$RESULTS_DIR/zap-report.md" "$RESULTS_DIR/zap.out" \
+        "$SARIF_DIR/zap.sarif" \
+        "$ZAP_WRK/zap-report.json" "$ZAP_WRK/zap-report.html" \
+        "$ZAP_WRK/zap-report.md"
     # zap-api-scan.py は -c で渡す config を /zap/wrk/ から読むので、
-    # mount される RESULTS_DIR にコピーしてから渡す
-    cp zap-rules.tsv "$RESULTS_DIR/zap-rules.tsv"
+    # ZAP 専用の書込領域にコピーしてから渡す
+    cp zap-rules.tsv "$ZAP_WRK/zap-rules.tsv"
     # `-addonuninstall domxss`: DOM XSS addon を起動時に削除する。
     #   - 当 API は JSON のみを返すバックエンド (application/json / problem+json)。
     #     DOM XSS はブラウザが HTML をレンダーする層の問題で、JSON エンドポイント
@@ -151,15 +160,14 @@ if [ "$ZAP_ENABLED" = "1" ]; then
     #   - addon は headless Firefox + geckodriver を起動するが、aarch64 WSL2 では
     #     marionette ポート読込失敗で 4 連続ハング → スキャン全体を巻き込んで exit=3
     #   - addon ごと外すことで Selenium 経路を完全に避ける
-    # GitHub-hosted runner の UID は ZAP イメージ内ユーザーと一致しない。
-    # ホスト UID:GID で実行しないと 0755 の ci-results にレポートを作成できない。
+    # イメージ既定の zap ユーザーで動かす。ホスト UID を --user で注入すると、
+    # ZAP のホームにある addon / 設定を読めず起動に失敗するため変更しない。
+    # コンテナへ書込許可するのは専用の zap-wrk のみ。
     docker run --rm --network host \
-        --user "$(id -u):$(id -g)" \
-        -e HOME=/tmp \
         -v "$PWD/openapi.yaml:/zap/openapi.yaml:ro" \
-        -v "$PWD/$RESULTS_DIR:/zap/wrk:rw" \
+        -v "$PWD/$RESULTS_DIR/zap-wrk:/zap/wrk:rw" \
         -w /zap/wrk \
-        ghcr.io/zaproxy/zaproxy:stable \
+        "$ZAP_IMAGE" \
         zap-api-scan.py \
             -t /zap/openapi.yaml \
             -f openapi \
@@ -168,8 +176,14 @@ if [ "$ZAP_ENABLED" = "1" ]; then
             -J zap-report.json \
             -c zap-rules.tsv \
             -z "-config api.disablekey=true -addonuninstall domxss" \
-            -l WARN
-    ZAP_EXIT=$?
+            -T 5 \
+            -l WARN 2>&1 | tee "$RESULTS_DIR/zap.out"
+    ZAP_EXIT=${PIPESTATUS[0]}
+    for report in zap-report.json zap-report.html zap-report.md; do
+        if [ -f "$ZAP_WRK/$report" ]; then
+            mv "$ZAP_WRK/$report" "$RESULTS_DIR/$report"
+        fi
+    done
     set -e
 else
     echo "=== DAST (OWASP ZAP) — SKIPPED (ZAP_ENABLED=0) ==="
@@ -177,6 +191,7 @@ else
     ZAP_EXIT=0
     # 古い zap.sarif が SARIF マージに混ざらないように削除
     rm -f "$RESULTS_DIR/sarif/zap.sarif" "$RESULTS_DIR/zap-report.json" "$RESULTS_DIR/zap-report.html" "$RESULTS_DIR/zap-report.md"
+    echo "ZAP_ENABLED=0 のためスキップ" > "$RESULTS_DIR/zap.out"
 fi
 
 if [ "$SCHEMATHESIS_ENABLED" = "1" ]; then
@@ -189,7 +204,9 @@ if [ "$SCHEMATHESIS_ENABLED" = "1" ]; then
     # - --checks all: 既知の全チェック (status_code_conformance, response_schema_conformance, ...) を有効化
     # - -n 200 / --seed 42: 反復可能性のため固定 seed + 上限 200 例
     # - --request-timeout 2.0: API 個別呼び出しの上限秒 (旧 --hypothesis-deadline=2000 相当)
-    # --user host UID:GID で root 所有を避ける (host の ci-results 直下に書く)
+    # --user host UID:GID で root 所有を避ける (host の ci-results 直下に書く)。
+    # 作業ディレクトリは /tmp とし、実行時キャッシュ .schemathesis を mount 先へ
+    # 作ろうとして権限エラーになるのを防ぐ。
     docker run --rm --network host \
         --user "$(id -u):$(id -g)" \
         -e HOME=/tmp \
@@ -197,8 +214,8 @@ if [ "$SCHEMATHESIS_ENABLED" = "1" ]; then
         -v "$PWD/schemathesis-hooks.py:/app/schemathesis-hooks.py:ro" \
         -v "$PWD/$RESULTS_DIR:/app/ci-results:rw" \
         -e SCHEMATHESIS_HOOKS=/app/schemathesis-hooks.py \
-        -w /app \
-        schemathesis/schemathesis:stable \
+        -w /tmp \
+        schemathesis/schemathesis:4.24.3@sha256:dd1ebf7519958c34c276a65c20f9f2f808dbefb06c86163eb284ff5674c6a9f3 \
         run /app/openapi.yaml \
             --url http://localhost:5000 \
             --checks all \
@@ -226,7 +243,14 @@ fi
 
 if [ "$ZAP_ENABLED" = "1" ]; then
     echo "=== ZAP → SARIF 変換 ==="
-    python3 scripts/zap-to-sarif.py ci-results/zap-report.json ci-results/sarif/zap.sarif
+    if [ -f ci-results/zap-report.json ]; then
+        python3 scripts/zap-to-sarif.py ci-results/zap-report.json ci-results/sarif/zap.sarif
+    else
+        echo "ZAP JSON レポートが生成されませんでした。実行ログ:" >&2
+        cat ci-results/zap.out >&2
+        python3 scripts/zap-to-sarif.py \
+            --execution-error ci-results/zap.out ci-results/sarif/zap.sarif
+    fi
 fi
 
 if [ "$SCHEMATHESIS_ENABLED" = "1" ]; then
@@ -286,10 +310,17 @@ if errors:
     sys.exit(1)
 PY
 
-if [ $ZAP_EXIT -ne 0 ]; then
-    echo "DAST: 脆弱性が検出されました (exit=$ZAP_EXIT)"
-    echo "レポート: $RESULTS_DIR/zap-report.html"
+if [ "$ZAP_EXIT" -ne 0 ] && [ "$ZAP_EXIT" -ne 2 ]; then
+    case "$ZAP_EXIT" in
+        1) echo "DAST: FAIL 判定の脆弱性が検出されました (exit=1)" ;;
+        3) echo "DAST: ZAP の実行異常です (exit=3)" ;;
+        *) echo "DAST: ZAP の予期しない終了コードです (exit=$ZAP_EXIT)" ;;
+    esac
+    echo "実行ログ: $RESULTS_DIR/zap.out"
     exit 1
+fi
+if [ "$ZAP_EXIT" -eq 2 ]; then
+    echo "DAST: WARN を記録しました (exit=2、ゲート成功)"
 fi
 
 # Schemathesis は既知検出のトリアージ完了に伴い error 昇格 (issue #9 Tier2-15)。
