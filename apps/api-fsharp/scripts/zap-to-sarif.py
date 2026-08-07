@@ -3,6 +3,7 @@
 
 使い方:
     python3 scripts/zap-to-sarif.py <input.json> <output.sarif>
+    python3 scripts/zap-to-sarif.py --execution-error <log> <output.sarif>
 
 ZAP JSON 構造:
     site[].alerts[] に各アラートが入る。riskcode (0=Info, 1=Low, 2=Medium, 3=High)
@@ -13,18 +14,65 @@ import pathlib
 import sys
 
 
+INFORMATION_URI = "https://www.zaproxy.org/"
+
+
 def risk_to_level(riskcode: str | int) -> str:
     code = int(riskcode) if str(riskcode).isdigit() else 0
-    if code >= 3:
-        return "error"
     if code >= 1:
+        # ZAP の FAIL/WARN 判定は zap-api-scan.py の終了コードを正とする。
+        # risk が High でもルール設定が WARN なら nightly を失敗させず、
+        # SARIF / LESSONS で継続管理する。
         return "warning"
     return "note"
 
 
+def write_execution_error(log_path: pathlib.Path, dst: pathlib.Path) -> int:
+    try:
+        log = log_path.read_text(errors="replace")
+    except OSError as e:
+        log = f"ZAP の実行ログを読み取れません: {e}"
+
+    # SARIF と Actions の表示を壊さず、原因調査に必要な末尾を残す。
+    excerpt = log[-4000:] if log else "ZAP レポートが生成されませんでした。"
+    sarif = {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": "OWASP ZAP",
+                    "informationUri": INFORMATION_URI,
+                    "rules": [{
+                        "id": "ZAP.execution",
+                        "name": "ZAP execution failure",
+                        "shortDescription": {"text": "ZAP の実行またはレポート生成に失敗"},
+                    }],
+                }
+            },
+            "results": [{
+                "ruleId": "ZAP.execution",
+                "level": "error",
+                "message": {"text": excerpt},
+            }],
+        }],
+    }
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(json.dumps(sarif, indent=2, ensure_ascii=False))
+    print(f"[zap-to-sarif] wrote execution error: {dst}")
+    return 0
+
+
 def main() -> int:
+    if len(sys.argv) == 4 and sys.argv[1] == "--execution-error":
+        return write_execution_error(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3]))
+
     if len(sys.argv) != 3:
-        print(f"usage: {sys.argv[0]} <input.json> <output.sarif>", file=sys.stderr)
+        print(
+            f"usage: {sys.argv[0]} <input.json> <output.sarif> | "
+            f"{sys.argv[0]} --execution-error <log> <output.sarif>",
+            file=sys.stderr,
+        )
         return 2
 
     src = pathlib.Path(sys.argv[1])
@@ -78,7 +126,7 @@ def main() -> int:
                 "driver": {
                     "name": "OWASP ZAP",
                     "version": str(data.get("@version", "")),
-                    "informationUri": "https://www.zaproxy.org/",
+                    "informationUri": INFORMATION_URI,
                     "rules": list(rules.values()),
                 }
             },

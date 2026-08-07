@@ -5,10 +5,12 @@
 #
 # - push 時の軽量ゲートは verify.yml → scripts/verify.sh
 # - Pact Broker / Jaeger は runner に無いので ci.sh 側の判定で自動スキップされる
-# - 失敗時は ci-nightly ラベル付き Issue に起票 (既存 open Issue があればコメント追記)
+# - PR は関連パスの変更時だけ重量ジョブを実行し、結果集約を必須チェックにする
+# - schedule / workflow_dispatch の失敗時だけ ci-nightly Issue に通知する
 name: nightly
 
 on:
+  pull_request:
   schedule:
     - cron: "0 18 * * *" # 03:00 JST
   workflow_dispatch:
@@ -24,11 +26,52 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
+  scope:
+    name: nightly 対象判定
+    runs-on: ubuntu-latest
+    outputs:
+      heavy: ${{ steps.classify.outputs.heavy }}
+      e2e: ${{ steps.classify.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: 変更パスを分類
+        id: classify
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # shellcheck source=scripts/lib/nightly-scope.sh
+          source scripts/lib/nightly-scope.sh
+          NEED_NIGHTLY_HEAVY=0
+          NEED_NIGHTLY_E2E=0
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+            classify_nightly_paths <<<"$changed"
+            printf 'nightly scope: heavy=%s e2e=%s\nchanged paths:\n%s\n' \
+              "$NEED_NIGHTLY_HEAVY" "$NEED_NIGHTLY_E2E" "$changed"
+          else
+            # schedule / workflow_dispatch / 明示的な push 起動は常に全実行する。
+            NEED_NIGHTLY_HEAVY=1
+            NEED_NIGHTLY_E2E=1
+          fi
+
+          {
+            echo "heavy=$NEED_NIGHTLY_HEAVY"
+            echo "e2e=$NEED_NIGHTLY_E2E"
+          } >> "$GITHUB_OUTPUT"
+
   heavy:
     name: ci.sh フル実行
+    needs: scope
+    if: needs.scope.outputs.heavy == '1'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     services:
@@ -101,28 +144,10 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-      - name: 失敗時に Issue へエスカレーション
-        if: failure()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          gh label create ci-nightly --color d73a4a \
-            --description "nightly CI (ci.sh) の失敗" --force || true
-          existing=$(gh issue list --label ci-nightly --state open \
-            --json number --jq '.[0].number' || true)
-          body=$(printf '%s\n\n%s' \
-            "nightly CI が失敗しました: ${RUN_URL}" \
-            "SARIF / ログは run の ci-results アーティファクトを参照。原因分析は LESSONS.md の運用に従うこと。")
-          if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body "$body"
-          else
-            gh issue create --title "nightly CI 失敗 ($(date -u +%Y-%m-%d))" \
-              --label ci-nightly --body "$body"
-          fi
-
   e2e:
     name: backend-lifecycle E2E (Playwright)
+    needs: scope
+    if: needs.scope.outputs.e2e == '1'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -182,22 +207,66 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-      - name: 失敗時に Issue へエスカレーション
-        if: failure()
+  result:
+    name: nightly 結果集約
+    needs: [scope, heavy, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: 対象ジョブの結果を検証
+        shell: bash
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          HEAVY_REQUIRED: ${{ needs.scope.outputs.heavy }}
+          HEAVY_RESULT: ${{ needs.heavy.result }}
+          E2E_REQUIRED: ${{ needs.scope.outputs.e2e }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+        run: |
+          set -euo pipefail
+          printf 'scope=%s heavy(required=%s,result=%s) e2e(required=%s,result=%s)\n' \
+            "$SCOPE_RESULT" "$HEAVY_REQUIRED" "$HEAVY_RESULT" "$E2E_REQUIRED" "$E2E_RESULT"
+
+          if [[ "$SCOPE_RESULT" != "success" ]]; then
+            echo "nightly scope 判定が完了していません" >&2
+            exit 1
+          fi
+          if [[ "$HEAVY_REQUIRED" == "1" && "$HEAVY_RESULT" != "success" ]]; then
+            echo "必須の heavy ジョブが成功していません: $HEAVY_RESULT" >&2
+            exit 1
+          fi
+          if [[ "$E2E_REQUIRED" == "1" && "$E2E_RESULT" != "success" ]]; then
+            echo "必須の E2E ジョブが成功していません: $E2E_RESULT" >&2
+            exit 1
+          fi
+
+  notify-failure:
+    name: nightly 失敗通知
+    needs: result
+    if: >-
+      always() &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      needs.result.result == 'failure'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: ci-nightly Issue へエスカレーション
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           gh label create ci-nightly --color d73a4a \
-            --description "nightly CI (ci.sh) の失敗" --force || true
+            --description "nightly CI の失敗" --force || true
           existing=$(gh issue list --label ci-nightly --state open \
             --json number --jq '.[0].number' || true)
           body=$(printf '%s\n\n%s' \
-            "nightly E2E (backend-lifecycle) が失敗しました: ${RUN_URL}" \
-            "Playwright trace は run の e2e-results アーティファクトを参照。原因分析は LESSONS.md の運用に従うこと。")
+            "nightly CI が失敗しました: ${RUN_URL}" \
+            "SARIF / trace / ログは run のアーティファクトを参照。原因分析は LESSONS.md の運用に従うこと。")
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$body"
           else
-            gh issue create --title "nightly E2E 失敗 ($(date -u +%Y-%m-%d))" \
+            gh issue create --title "nightly CI 失敗 ($(date -u +%Y-%m-%d))" \
               --label ci-nightly --body "$body"
           fi
