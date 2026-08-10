@@ -9,7 +9,7 @@ import { describeApiError } from "@/lib/api-client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Calendar, Layers, Save, Tag } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
@@ -42,6 +42,44 @@ export function LotCreatePage() {
   const sections = (masters?.sections ?? []).filter((s) => s.departmentCode === departmentCode);
   const asOptions = (xs: Array<{ code: number; name: string }>): Array<[string, string]> =>
     xs.map((x) => [String(x.code), x.name]);
+  const mastersNormalized = useRef(false);
+
+  // マスター取得前の暫定値が実データに存在しない場合は、有効な階層の先頭へ揃える。
+  // DB seed やテスト fixture のコード値に依存せず、初回 submit を有効に保つ。
+  useEffect(() => {
+    if (!masters || mastersNormalized.current) return;
+    mastersNormalized.current = true;
+    const selectedDivision = masters.divisions.some((item) => item.code === divisionCode)
+      ? divisionCode
+      : masters.divisions[0]?.code;
+    if (selectedDivision === undefined) return;
+    if (selectedDivision !== divisionCode) {
+      setValue("divisionCode", selectedDivision);
+    }
+
+    const currentDepartment = form.getValues("departmentCode");
+    const validDepartments = masters.departments.filter(
+      (item) => item.divisionCode === selectedDivision,
+    );
+    const selectedDepartment = validDepartments.some((item) => item.code === currentDepartment)
+      ? currentDepartment
+      : validDepartments[0]?.code;
+    if (selectedDepartment === undefined) return;
+    if (selectedDepartment !== currentDepartment) {
+      setValue("departmentCode", selectedDepartment);
+    }
+
+    const currentSection = form.getValues("sectionCode");
+    const validSections = masters.sections.filter(
+      (item) => item.departmentCode === selectedDepartment,
+    );
+    const selectedSection = validSections.some((item) => item.code === currentSection)
+      ? currentSection
+      : validSections[0]?.code;
+    if (selectedSection !== undefined && selectedSection !== currentSection) {
+      setValue("sectionCode", selectedSection);
+    }
+  }, [divisionCode, form, masters, setValue]);
 
   // 事業部を変えたら配下の部・課を先頭候補にリセットする（階層の整合性を保つ）。
   const onDivisionAfter = (v: string) => {

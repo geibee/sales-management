@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: sales-management-batch-spring
+  main:
+    web-application-type: none
+  batch:
+    job:
+      enabled: false
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/sales_management}
+    username: ${DATABASE_USER:app}
+    password: ${DATABASE_PASSWORD:app}
+
+sales-management:
+  batch:
+    chunk-size: ${CHUNK_SIZE:1000}

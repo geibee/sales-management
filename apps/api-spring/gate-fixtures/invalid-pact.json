@@ -1,0 +1,5 @@
+{
+  "consumer": {"name": "frontend"},
+  "provider": {"name": "wrong-provider"},
+  "interactions": []
+}

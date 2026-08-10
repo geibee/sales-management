@@ -13,6 +13,17 @@ const backendServer = {
   timeout: 300_000,
 };
 
+// E2E_SPRING=1 は並行実装した Spring API を同じ frontend E2E へ差し替える。
+// 既定値は従来どおり F# のままで、Spring nightly だけが明示的に有効化する。
+const springBackendServer = {
+  command:
+    "env PORT=5000 MANAGEMENT_PORT=15001 CORS_ALLOWED_ORIGINS=http://localhost:5273 java -jar api/target/api-0.1.0-SNAPSHOT.jar",
+  cwd: "../api-spring",
+  url: "http://localhost:5000/health",
+  reuseExistingServer: !process.env.CI,
+  timeout: 120_000,
+};
+
 // E2E は既定の 5173 ではなく専用ポートで vite を起動する。
 // 5173 は他プロジェクトの dev サーバーが占有していることがあり、
 // reuseExistingServer がその「別物のアプリ」を黙って被検体にしてしまう
@@ -31,6 +42,8 @@ export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
+  // Vite の初回 lazy route 変換を含む cold start でも表示契約を安定して待つ。
+  expect: { timeout: 10_000 },
   retries: 0,
   workers: 1,
   reporter: [["list"]],
@@ -49,5 +62,9 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: process.env.E2E_BACKEND ? [backendServer, frontendServer] : [frontendServer],
+  webServer: process.env.E2E_SPRING
+    ? [springBackendServer, frontendServer]
+    : process.env.E2E_BACKEND
+      ? [backendServer, frontendServer]
+      : [frontendServer],
 });

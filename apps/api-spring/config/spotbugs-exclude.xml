@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+  <!-- OpenAPI Generator の mutable DTO は公開契約として生成され、手編集しない。 -->
+  <Match>
+    <Package name="com.example.salesmanagement.contracts.model"/>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+  </Match>
+
+  <!-- Spring/JDBC の lifecycle 管理対象を constructor injection で保持する箇所。 -->
+  <Match>
+    <Class name="~com\.example\.salesmanagement\.(api\.(ApiInvocationHandler|HttpSemanticsFilter|QueryGuardFilter|SalesManagementController)|application\.LotUseCases|batch\.BatchExecutionService|infrastructure\.(HttpExternalPricingGateway|JdbcCodeMasterQueries|JdbcLotQueries|JdbcLotRepository|JdbcOutboxProcessor|JdbcSalesCaseStore))"/>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+  </Match>
+</FindBugsFilter>

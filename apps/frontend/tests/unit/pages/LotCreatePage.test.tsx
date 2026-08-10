@@ -50,6 +50,55 @@ describe("<LotCreatePage> (FE-REQ-LOT-CREATE-* / FE-NAV-LOT-001)", () => {
     expect(labels).toEqual(expect.arrayContaining(["営業1部", "営業2部"]));
   });
 
+  it("FE-REQ-LOT-CREATE-004: 既定コードがマスター外なら有効な先頭階層へ正規化する", async () => {
+    authDisabled();
+    server.use(
+      http.post("/api/lots", () =>
+        HttpResponse.json({ status: "manufacturing", lotNumber: "2026-A-1", version: 1 }),
+      ),
+    );
+    renderWithRouter(<LotCreatePage />);
+    await waitFor(() => expect(requestsFor("/api/code-masters")).toHaveLength(1));
+
+    fireEvent.click(screen.getByRole("button", { name: /作成/ }));
+
+    await waitFor(() => expect(requestsFor("/api/lots")).toHaveLength(1));
+    expect(requestsFor("/api/lots")[0]!.body).toMatchObject({
+      divisionCode: 10,
+      departmentCode: 110,
+      sectionCode: 1110,
+    });
+  });
+
+  it("FE-REQ-LOT-CREATE-004: 既定コードが有効なら初期階層を保持する", async () => {
+    authDisabled();
+    server.use(
+      http.get("/api/code-masters", () =>
+        HttpResponse.json(
+          makeCodeMasters({
+            divisions: [{ code: 1, name: "既定事業部" }],
+            departments: [{ code: 1, name: "既定部", divisionCode: 1 }],
+            sections: [{ code: 1, name: "既定課", departmentCode: 1 }],
+          }),
+        ),
+      ),
+      http.post("/api/lots", () =>
+        HttpResponse.json({ status: "manufacturing", lotNumber: "2026-A-1", version: 1 }),
+      ),
+    );
+    renderWithRouter(<LotCreatePage />);
+    await waitFor(() => expect(requestsFor("/api/code-masters")).toHaveLength(1));
+
+    fireEvent.click(screen.getByRole("button", { name: /作成/ }));
+
+    await waitFor(() => expect(requestsFor("/api/lots")).toHaveLength(1));
+    expect(requestsFor("/api/lots")[0]!.body).toMatchObject({
+      divisionCode: 1,
+      departmentCode: 1,
+      sectionCode: 1,
+    });
+  });
+
   it("FE-REQ-LOT-CREATE-004: 事業部 → 部 → 課 の cascade 段階遷移 (絞り込み + 先頭自動選択)", async () => {
     // 事業部 20 の配下に部を 2 つ持たせ、部の切り替えでも課が連動することを検査する。
     // radix Select の選択操作は click で駆動する (item の pointerType 初期値が
@@ -103,10 +152,6 @@ describe("<LotCreatePage> (FE-REQ-LOT-CREATE-* / FE-NAV-LOT-001)", () => {
     fireEvent.click(within(listbox).getByRole("option", { name: "営業2部特販課" }));
 
     // cascade の最終結果は submit body で検査する
-    console.log(
-      "[debug] native selects:",
-      Array.from(document.querySelectorAll("select")).map((s) => s.value),
-    );
     fireEvent.click(screen.getByRole("button", { name: /作成/ }));
     await waitFor(() => expect(requestsFor("/api/lots")).toHaveLength(1));
     expect(requestsFor("/api/lots")[0]!.body).toMatchObject({
