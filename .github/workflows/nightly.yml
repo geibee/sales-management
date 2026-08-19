@@ -180,6 +180,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/frontend/pnpm-lock.yaml
 
+      - name: Ubuntu APT 取得を安定化
+        run: sudo bash scripts/configure-ubuntu-apt.sh
       - name: フロント依存をインストール
         working-directory: apps/frontend
         run: pnpm install --frozen-lockfile

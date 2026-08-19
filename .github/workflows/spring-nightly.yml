@@ -85,6 +85,8 @@ jobs:
           gitleaks version
           trivy --version
 
+      - name: Ubuntu APT 取得を安定化
+        run: sudo bash scripts/configure-ubuntu-apt.sh
       - name: frontend と Playwright を準備
         working-directory: apps/frontend
         run: |
