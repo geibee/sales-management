@@ -53,7 +53,7 @@ jobs:
           distribution: corretto
           java-version: "25"
           cache: maven
-          cache-dependency-path: apps/api-spring/pom.xml
+          cache-dependency-path: apps/api-spring/**/pom.xml
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -135,7 +135,6 @@ jobs:
           PACT_BROKER_URL: http://localhost:9292
           PACT_BROKER_USERNAME: pact
           PACT_BROKER_PASSWORD: pact
-          MAVEN_USER_HOME: /tmp/sales-management-spring-nightly-m2
         run: bash ci.sh
 
       - name: CodeQL 解析
