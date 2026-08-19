@@ -1,0 +1,403 @@
+{
+  "track": "C",
+  "contract": "../api-fsharp/openapi.yaml",
+  "expectedOperationCount": 35,
+  "operations": [
+    "healthCheck",
+    "getAuthConfig",
+    "listLots",
+    "createLot",
+    "exportLotsCsv",
+    "listAvailableLots",
+    "getCodeMasters",
+    "getLot",
+    "completeManufacturing",
+    "instructLotShipping",
+    "completeLotShipping",
+    "cancelManufacturingCompletion",
+    "instructItemConversion",
+    "cancelItemConversionInstruction",
+    "listSalesCases",
+    "createSalesCase",
+    "editCaseLots",
+    "getSalesCase",
+    "deleteSalesCase",
+    "createSalesAppraisal",
+    "updateSalesAppraisal",
+    "deleteSalesAppraisal",
+    "createSalesContract",
+    "deleteSalesContract",
+    "instructSalesCaseShipping",
+    "cancelSalesCaseShippingInstruction",
+    "completeSalesCaseShipping",
+    "createReservationPrice",
+    "confirmReservation",
+    "cancelReservationConfirmation",
+    "deliverReservation",
+    "designateConsignment",
+    "cancelConsignmentDesignation",
+    "registerConsignmentResult",
+    "externalPriceCheck"
+  ],
+  "components": ["api", "batch", "tools"],
+  "testCategories": [
+    {
+      "id": "SPRING-CATEGORY-ARCHITECTURE",
+      "fsharpCategory": "Architecture",
+      "fsharpPurpose": "依存方向と Domain/API の禁止依存を検査する",
+      "javaEvidence": "domain/src/test/java/com/example/salesmanagement/domain/SourceRuleTests.java;api/src/test/java/com/example/salesmanagement/api/ArchitectureRulesTest.java",
+      "component": "domain"
+    },
+    {
+      "id": "SPRING-CATEGORY-AUDIT-OTEL",
+      "fsharpCategory": "AuditAndOtel",
+      "fsharpPurpose": "監査ログ、trace ID、OpenTelemetry 設定を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-AUTH-CONFIG",
+      "fsharpCategory": "AuthConfigEndpoint",
+      "fsharpPurpose": "認証設定 endpoint の有効・無効レスポンスを検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/ApiInvocationHandlerTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-AUTHORIZATION",
+      "fsharpCategory": "Authorization",
+      "fsharpPurpose": "viewer/operator/admin の認可行列を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/AuthenticationHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-BATCH-CHUNK",
+      "fsharpCategory": "BatchChunkProgress",
+      "fsharpPurpose": "chunk checkpoint と再開時の副作用を検査する",
+      "javaEvidence": "batch/src/test/java/com/example/salesmanagement/batch/BatchExecutionServiceTest.java",
+      "component": "batch"
+    },
+    {
+      "id": "SPRING-CATEGORY-BATCH-INPUT",
+      "fsharpCategory": "BatchInputParser",
+      "fsharpPurpose": "CSV 入力と文字コード別名を検査する",
+      "javaEvidence": "batch/src/test/java/com/example/salesmanagement/batch/BatchExecutionServiceTest.java",
+      "component": "batch"
+    },
+    {
+      "id": "SPRING-CATEGORY-BATCH-LIFECYCLE",
+      "fsharpCategory": "BatchJobLifecycle",
+      "fsharpPurpose": "起動、重複拒否、失敗、再実行を検査する",
+      "javaEvidence": "batch/src/test/java/com/example/salesmanagement/batch/BatchExecutionServiceTest.java",
+      "component": "batch"
+    },
+    {
+      "id": "SPRING-CATEGORY-BATCH-LOG",
+      "fsharpCategory": "BatchJobLogFormat",
+      "fsharpPurpose": "batch 実行結果の構造化された件数と状態を検査する",
+      "javaEvidence": "batch/src/test/java/com/example/salesmanagement/batch/BatchExecutionServiceTest.java",
+      "component": "batch"
+    },
+    {
+      "id": "SPRING-CATEGORY-BATCH-MIGRATION",
+      "fsharpCategory": "BatchMigration",
+      "fsharpPurpose": "batch metadata migration と既存 schema の共存を検査する",
+      "javaEvidence": "infrastructure/src/test/java/com/example/salesmanagement/infrastructure/MigrationResourcesTest.java",
+      "component": "infrastructure"
+    },
+    {
+      "id": "SPRING-CATEGORY-BATCH-PARTITION",
+      "fsharpCategory": "BatchPartitioning",
+      "fsharpPurpose": "partition checkpoint と集計を検査する",
+      "javaEvidence": "batch/src/test/java/com/example/salesmanagement/batch/BatchExecutionServiceTest.java",
+      "component": "batch"
+    },
+    {
+      "id": "SPRING-CATEGORY-BATCH-SKIP",
+      "fsharpCategory": "BatchSkipPolicy",
+      "fsharpPurpose": "不正入力の skip policy と件数を検査する",
+      "javaEvidence": "batch/src/test/java/com/example/salesmanagement/batch/BatchExecutionServiceTest.java",
+      "component": "batch"
+    },
+    {
+      "id": "SPRING-CATEGORY-BATCH-STATE",
+      "fsharpCategory": "BatchStateMachine",
+      "fsharpPurpose": "batch execution の状態遷移と競合を検査する",
+      "javaEvidence": "batch/src/test/java/com/example/salesmanagement/batch/BatchExecutionServiceTest.java",
+      "component": "batch"
+    },
+    {
+      "id": "SPRING-CATEGORY-CONFIGURATION",
+      "fsharpCategory": "Configuration",
+      "fsharpPurpose": "環境設定の既定値と fail-closed 条件を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/AuthenticationHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-CORS",
+      "fsharpCategory": "Cors",
+      "fsharpPurpose": "許可 origin と公開 HTTP method を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/CorsConfigurationTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-DEV-TOKEN",
+      "fsharpCategory": "DevTokenMint",
+      "fsharpPurpose": "開発用 JWT の claim、role、TTL を検査する",
+      "javaEvidence": "tools/src/test/java/com/example/salesmanagement/tools/DevJwtMainTest.java",
+      "component": "tools"
+    },
+    {
+      "id": "SPRING-CATEGORY-EXTERNAL-PRICING",
+      "fsharpCategory": "ExternalPricing",
+      "fsharpPurpose": "外部価格 API の成功・timeout・上流障害を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/ApiInvocationHandlerTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-HEALTH-OPENAPI",
+      "fsharpCategory": "HealthAndOpenApi",
+      "fsharpPurpose": "health、OpenAPI 配信、operation 数を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java;api/src/test/java/com/example/salesmanagement/api/GeneratedOperationCoverageTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-HTTP-SEMANTICS",
+      "fsharpCategory": "HttpSemantics",
+      "fsharpPurpose": "405、415、413、未知 path と body 制限を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/HttpSemanticsFilterTest.java;api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-INTEGRATION",
+      "fsharpCategory": "Integration",
+      "fsharpPurpose": "HTTP 契約、DB 副作用、transaction を PostgreSQL 上で検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java;infrastructure/src/test/java/com/example/salesmanagement/infrastructure/DatabaseCompatibilityTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-JWT",
+      "fsharpCategory": "JwtAuthentication",
+      "fsharpPurpose": "JWT 署名、issuer、audience、期限と role を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/AuthenticationHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-LIST-ENDPOINTS",
+      "fsharpCategory": "ListEndpoints",
+      "fsharpPurpose": "ロット・案件一覧の filter、limit、並び順を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/ApiInvocationHandlerTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-LOT-CSV",
+      "fsharpCategory": "LotCsvExport",
+      "fsharpPurpose": "CSV header、BOM、escaping、filter を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-LOT-ERROR",
+      "fsharpCategory": "LotErrorHandling",
+      "fsharpPurpose": "ロットの 400、404、409 ProblemDetails を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-LOT-ID-MIGRATION",
+      "fsharpCategory": "LotIdMigration",
+      "fsharpPurpose": "複合ロット番号と内部 ID schema の互換性を検査する",
+      "javaEvidence": "infrastructure/src/test/java/com/example/salesmanagement/infrastructure/DatabaseCompatibilityTest.java",
+      "component": "infrastructure"
+    },
+    {
+      "id": "SPRING-CATEGORY-LOT-LIFECYCLE",
+      "fsharpCategory": "LotLifecycle",
+      "fsharpPurpose": "製造、出荷、品目変更の許可状態遷移を検査する",
+      "javaEvidence": "domain/src/test/java/com/example/salesmanagement/domain/LotWorkflowsTest.java;api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "domain"
+    },
+    {
+      "id": "SPRING-CATEGORY-MIGRATION",
+      "fsharpCategory": "Migration",
+      "fsharpPurpose": "migration 順序、checksum、冪等性、schema snapshot を検査する",
+      "javaEvidence": "infrastructure/src/test/java/com/example/salesmanagement/infrastructure/MigrationResourcesTest.java;infrastructure/src/test/java/com/example/salesmanagement/infrastructure/DatabaseCompatibilityTest.java",
+      "component": "infrastructure"
+    },
+    {
+      "id": "SPRING-CATEGORY-MISC-ENDPOINT",
+      "fsharpCategory": "MiscEndpoint",
+      "fsharpPurpose": "code master、available lot、補助 endpoint を検査する",
+      "javaEvidence": "infrastructure/src/test/java/com/example/salesmanagement/infrastructure/DatabaseCompatibilityTest.java;api/src/test/java/com/example/salesmanagement/api/ApiInvocationHandlerTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-OPENAPI-SCHEMA",
+      "fsharpCategory": "OpenApiSchema",
+      "fsharpPurpose": "OpenAPI schema と生成 interface のドリフトを検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/GeneratedOperationCoverageTest.java;api/src/test/java/com/example/salesmanagement/api/ProxyRoutingTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-OPTIMISTIC-LOCK",
+      "fsharpCategory": "OptimisticLockConflict",
+      "fsharpPurpose": "同時更新と stale version の rollback を検査する",
+      "javaEvidence": "infrastructure/src/test/java/com/example/salesmanagement/infrastructure/DatabaseCompatibilityTest.java",
+      "component": "infrastructure"
+    },
+    {
+      "id": "SPRING-CATEGORY-OUTBOX",
+      "fsharpCategory": "Outbox",
+      "fsharpPurpose": "業務更新と outbox event の同一 transaction を検査する",
+      "javaEvidence": "infrastructure/src/test/java/com/example/salesmanagement/infrastructure/DatabaseCompatibilityTest.java;api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "infrastructure"
+    },
+    {
+      "id": "SPRING-CATEGORY-OUTBOX-CONCURRENCY",
+      "fsharpCategory": "OutboxConcurrency",
+      "fsharpPurpose": "SKIP LOCKED claim と abandoned claim の reaper を検査する",
+      "javaEvidence": "infrastructure/src/test/java/com/example/salesmanagement/infrastructure/DatabaseCompatibilityTest.java",
+      "component": "infrastructure"
+    },
+    {
+      "id": "SPRING-CATEGORY-PBT",
+      "fsharpCategory": "PBT",
+      "fsharpPurpose": "値境界と状態遷移の不変条件を property-based に検査する",
+      "javaEvidence": "domain/src/test/java/com/example/salesmanagement/domain/ValueObjectsProperties.java;domain/src/test/java/com/example/salesmanagement/domain/LotWorkflowsTest.java;domain/src/test/java/com/example/salesmanagement/domain/SalesCaseWorkflowsTest.java",
+      "component": "domain"
+    },
+    {
+      "id": "SPRING-CATEGORY-PACT",
+      "fsharpCategory": "Pact",
+      "fsharpPurpose": "broker 不要で provider state と route を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/BrokerlessPactContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-PARAM",
+      "fsharpCategory": "Param",
+      "fsharpPurpose": "path/query/body parameter の境界値と未知 query を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/QueryGuardInterceptorTest.java;api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-PROBLEM-JSON",
+      "fsharpCategory": "ProblemJson",
+      "fsharpPurpose": "application/problem+json と errors 拡張を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-RATE-CACHE",
+      "fsharpCategory": "RateLimitAndCache",
+      "fsharpPurpose": "rate limit、Retry-After、cache hit と invalidation を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/FixedWindowRateLimitFilterTest.java;api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-SALES-DETAIL",
+      "fsharpCategory": "SalesCaseDetail",
+      "fsharpPurpose": "3 subtype の詳細と明示 null field を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-SALES-PROBLEM",
+      "fsharpCategory": "SalesCaseProblemDetails",
+      "fsharpPurpose": "案件操作の 400、404、409 ProblemDetails を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-SALES-RETRIEVAL",
+      "fsharpCategory": "SalesCaseRetrieval",
+      "fsharpPurpose": "案件取得と repository round-trip を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java;infrastructure/src/test/java/com/example/salesmanagement/infrastructure/DatabaseCompatibilityTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-SALES-SUBTYPE",
+      "fsharpCategory": "SalesCaseSubtypeRouting",
+      "fsharpPurpose": "direct/reservation/consignment 専用 route を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java;domain/src/test/java/com/example/salesmanagement/domain/SalesCaseWorkflowsTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-SECURITY-HEADER",
+      "fsharpCategory": "SecurityHeader",
+      "fsharpPurpose": "全公開 response の security header を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-SMART-CONSTRUCTOR",
+      "fsharpCategory": "SmartConstructor",
+      "fsharpPurpose": "値 object の境界と不正値拒否を検査する",
+      "javaEvidence": "domain/src/test/java/com/example/salesmanagement/domain/ValueObjectsTest.java;domain/src/test/java/com/example/salesmanagement/domain/ValueObjectsProperties.java",
+      "component": "domain"
+    },
+    {
+      "id": "SPRING-CATEGORY-SMOKE",
+      "fsharpCategory": "Smoke",
+      "fsharpPurpose": "health と主要 aggregate の最小疎通を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/ApiInvocationHandlerTest.java;api/src/test/java/com/example/salesmanagement/api/SalesCaseHttpContractTest.java",
+      "component": "api"
+    },
+    {
+      "id": "SPRING-CATEGORY-ZZ-SHUTDOWN",
+      "fsharpCategory": "ZZShutdown",
+      "fsharpPurpose": "rate-limit cleanup と test host shutdown の分離を検査する",
+      "javaEvidence": "api/src/test/java/com/example/salesmanagement/api/FixedWindowRateLimitFilterTest.java",
+      "component": "api"
+    }
+  ],
+  "gates": [
+    {
+      "id": "SPRING-GATE-COMPILE-001",
+      "fsharpPurpose": "型検査と警告ゼロ",
+      "javaTool": "Maven Compiler -Xlint:all -Werror / Enforcer",
+      "target": "全 module",
+      "redFixture": "gate-fixtures/compile-warning.java",
+      "evidence": "SourceRuleTests#compilerWarningsFixtureIsRejected / mvn verify"
+    },
+    {
+      "id": "SPRING-GATE-STYLE-001",
+      "fsharpPurpose": "Fantomas と FSharpLint",
+      "javaTool": "Spotless / Checkstyle",
+      "target": "main と test の Java source",
+      "redFixture": "gate-fixtures/style-violation.java",
+      "evidence": "SourceRuleTests#checkstyleFixtureIsRejected / spotless:check verify"
+    },
+    {
+      "id": "SPRING-GATE-ARCH-001",
+      "fsharpPurpose": "依存方向と禁止 source pattern",
+      "javaTool": "ArchUnit / verify-contracts.py source rules",
+      "target": "domain と api",
+      "redFixture": "gate-fixtures/domain-wall-clock.java;gate-fixtures/api-sql.java",
+      "evidence": "ArchitectureRulesTest / GateFixtureDetectionTest"
+    },
+    {
+      "id": "SPRING-GATE-CONTRACT-001",
+      "fsharpPurpose": "OpenAPI response と operation coverage",
+      "javaTool": "OpenAPI Generator / parity ledger validator",
+      "target": "35 operations",
+      "redFixture": "gate-fixtures/missing-operation.json",
+      "evidence": "verify-contracts.py / GeneratedContractTest"
+    },
+    {
+      "id": "SPRING-GATE-MIGRATION-001",
+      "fsharpPurpose": "migration と schema の互換性",
+      "javaTool": "SHA-256 / PostgreSQL Testcontainers",
+      "target": "17 migration scripts",
+      "redFixture": "gate-fixtures/migration-order.txt",
+      "evidence": "MigrationResourcesTest / DatabaseCompatibilityTest"
+    },
+    {
+      "id": "SPRING-GATE-TEST-001",
+      "fsharpPurpose": "unit、property、integration、brokerless Pact",
+      "javaTool": "JUnit 5 / jqwik / Testcontainers / Pact fixture",
+      "target": "domain、application、repository、API、batch、tools",
+      "redFixture": "gate-fixtures/invalid-pact.json",
+      "evidence": "Surefire XML / JaCoCo"
+    }
+  ]
+}

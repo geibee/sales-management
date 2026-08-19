@@ -1,0 +1,1 @@
+999_intentionally_invalid_migration.sql

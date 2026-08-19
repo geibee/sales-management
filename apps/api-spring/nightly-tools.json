@@ -1,0 +1,15 @@
+{
+  "tools": [
+    {"id": "spotbugs", "tool": "SpotBugs", "file": "spotbugs.sarif"},
+    {"id": "pit", "tool": "PIT", "file": "pit.sarif"},
+    {"id": "gitleaks", "tool": "gitleaks", "file": "gitleaks.sarif"},
+    {"id": "trivy", "tool": "Trivy", "file": "trivy.sarif"},
+    {"id": "cyclonedx", "tool": "CycloneDX", "file": "cyclonedx.sarif"},
+    {"id": "pact", "tool": "Pact Broker", "file": "pact.sarif"},
+    {"id": "parity", "tool": "F#/Spring parity", "file": "parity.sarif"},
+    {"id": "zap", "tool": "OWASP ZAP", "file": "zap.sarif"},
+    {"id": "schemathesis", "tool": "Schemathesis", "file": "schemathesis.sarif"},
+    {"id": "e2e", "tool": "Spring frontend E2E", "file": "e2e.sarif"},
+    {"id": "codeql", "tool": "CodeQL command-line toolchain", "file": "codeql.sarif"}
+  ]
+}

@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: sales-management-migrator-spring
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/sales_management}
+    username: ${DATABASE_USER:app}
+    password: ${DATABASE_PASSWORD:app}

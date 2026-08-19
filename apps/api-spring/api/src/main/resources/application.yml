@@ -1,0 +1,65 @@
+server:
+  port: ${PORT:8080}
+  servlet:
+    encoding:
+      charset: UTF-8
+      force-response: true
+  error:
+    whitelabel:
+      enabled: false
+spring:
+  application:
+    name: sales-management-api-spring
+  jackson:
+    default-property-inclusion: always
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/sales_management}
+    username: ${DATABASE_USER:app}
+    password: ${DATABASE_PASSWORD:app}
+  mvc:
+    problemdetails:
+      enabled: true
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+    export:
+      otlp:
+        enabled: ${OTLP_TRACING_EXPORT_ENABLED:false}
+  otlp:
+    metrics:
+      export:
+        enabled: ${OTLP_METRICS_EXPORT_ENABLED:false}
+logging:
+  structured:
+    format:
+      console: logstash
+    json:
+      rename:
+        "[@timestamp]": timestamp
+sales-management:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  authentication:
+    enabled: ${AUTHENTICATION_ENABLED:false}
+    authority: ${AUTHENTICATION_AUTHORITY:}
+    audience: ${AUTHENTICATION_AUDIENCE:sales-api}
+    signing-key: ${AUTHENTICATION_SIGNING_KEY:}
+  external-pricing:
+    base-url: ${EXTERNAL_PRICING_BASE_URL:http://localhost:8089}
+    timeout-milliseconds: ${EXTERNAL_PRICING_TIMEOUT_MILLISECONDS:2000}
+  http:
+    max-request-body-bytes: ${MAX_REQUEST_BODY_BYTES:1048576}
+  rate-limit:
+    permit-limit: ${RATE_LIMIT_PERMIT_LIMIT:100}
+    window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+  outbox:
+    poll-interval-milliseconds: ${OUTBOX_POLL_INTERVAL_MILLISECONDS:5000}
+    abandoned-after-milliseconds: ${OUTBOX_ABANDONED_AFTER_MILLISECONDS:300000}
+    batch-size: ${OUTBOX_BATCH_SIZE:100}

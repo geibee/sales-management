@@ -15,6 +15,11 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}", "tests/unit/**/*.test.{ts,tsx}"],
     exclude: ["tests/e2e/**", "node_modules/**", "dist/**"],
+    // jsdom + React の重い画面テストを無制限に並列化すると、個々のテストが既定の
+    // 5 秒を超えて不定に失敗する。CI と開発端末で同じ上限に固定する。
+    minWorkers: 1,
+    maxWorkers: 2,
+    testTimeout: 10_000,
     // FE-EVID-UNIT-001: CI では JUnit XML を artifact 用に出力する。
     // ローカルは default reporter のみ (出力ノイズを避ける)。
     reporters: process.env.CI ? ["default", "junit"] : ["default"],

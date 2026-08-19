@@ -1,0 +1,4 @@
+{
+  "description": "OpenAPI operation coverage の意図的な欠落",
+  "removeOperationId": "healthCheck"
+}

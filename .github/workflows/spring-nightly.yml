@@ -1,0 +1,180 @@
+# Spring バックエンド専用の重量ゲート。明示実行以外では起動しない。
+name: spring-nightly
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: spring-nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  nightly:
+    name: Spring nightly (fail-closed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: sales_management
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d sales_management"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      localstack:
+        image: localstack/localstack:4.8.1
+        env:
+          SERVICES: sqs
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd "curl -fsS http://localhost:4566/_localstack/health"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: "25"
+          cache: maven
+          cache-dependency-path: apps/api-spring/pom.xml
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - uses: pnpm/action-setup@v4.4.0
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+
+      - name: CodeQL 初期化
+        uses: github/codeql-action/init@v4
+        with:
+          languages: java-kotlin
+          queries: security-extended
+
+      - name: nightly CLI を導入
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz \
+            | tar -xz gitleaks
+          sudo install gitleaks /usr/local/bin/gitleaks
+          curl -fsSL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
+          gitleaks version
+          trivy --version
+
+      - name: frontend と Playwright を準備
+        working-directory: apps/frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+
+      - name: Pact Broker / WireMock を起動
+        env:
+          PGPASSWORD: app
+        run: |
+          set -euo pipefail
+          psql -h localhost -U app -d sales_management -c 'CREATE DATABASE pact_broker'
+          psql -h localhost -U app -d sales_management -c 'CREATE DATABASE sales_management_fsharp_parity'
+          docker run --rm -d --name spring-pact-broker --network host \
+            -e PACT_BROKER_DATABASE_ADAPTER=postgres \
+            -e PACT_BROKER_DATABASE_HOST=localhost \
+            -e PACT_BROKER_DATABASE_PORT=5432 \
+            -e PACT_BROKER_DATABASE_USERNAME=app \
+            -e PACT_BROKER_DATABASE_PASSWORD=app \
+            -e PACT_BROKER_DATABASE_NAME=pact_broker \
+            -e PACT_BROKER_BASIC_AUTH_USERNAME=pact \
+            -e PACT_BROKER_BASIC_AUTH_PASSWORD=pact \
+            -e PACT_BROKER_PUBLIC_HEARTBEAT=true \
+            -e PACT_BROKER_PORT=9292 \
+            pactfoundation/pact-broker:2.137.0-pactbroker2.118.0
+          docker run --rm -d --name spring-wiremock --network host \
+            -v "$PWD/apps/api-fsharp/wiremock:/home/wiremock:ro" \
+            wiremock/wiremock:3.13.2 --port 8089
+          for url in \
+            http://localhost:9292/diagnostic/status/heartbeat \
+            http://localhost:8089/__admin/health \
+            http://localhost:4566/_localstack/health; do
+            ready=0
+            for _ in $(seq 1 60); do
+              if curl -fsS --max-time 2 "$url" >/dev/null 2>&1; then ready=1; break; fi
+              sleep 1
+            done
+            [[ "$ready" == 1 ]] || { echo "service 起動失敗: $url" >&2; exit 1; }
+          done
+
+      - name: Spring nightly 実行
+        working-directory: apps/api-spring
+        env:
+          DATABASE_URL: jdbc:postgresql://localhost:5432/sales_management
+          DATABASE_USER: app
+          DATABASE_PASSWORD: app
+          EXTERNAL_PRICING_BASE_URL: http://localhost:8089
+          PACT_BROKER_URL: http://localhost:9292
+          PACT_BROKER_USERNAME: pact
+          PACT_BROKER_PASSWORD: pact
+          MAVEN_USER_HOME: /tmp/sales-management-spring-nightly-m2
+        run: bash ci.sh
+
+      - name: CodeQL 解析
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: spring-java
+          upload: never
+          output: apps/api-spring/ci-results/codeql-output
+
+      - name: CodeQL SARIF を監査対象へ固定
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t reports < <(find apps/api-spring/ci-results/codeql-output -type f -name '*.sarif' -print)
+          [[ "${#reports[@]}" -eq 1 ]] || {
+            echo "CodeQL SARIF は1件必須です: ${#reports[@]}" >&2
+            exit 1
+          }
+          cp "${reports[0]}" apps/api-spring/ci-results/sarif/codeql.sarif
+
+      - name: SARIF manifest / hash / error を監査
+        working-directory: apps/api-spring
+        run: |
+          python3 scripts/sarif-audit.py \
+            --spec nightly-tools.json \
+            --sarif-dir ci-results/sarif \
+            --manifest ci-results/sarif-manifest.json \
+            --merged ci-results/merged.sarif
+
+      - name: nightly 成果物を常時保存
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: spring-nightly-results
+          path: |
+            apps/api-spring/ci-results/
+            apps/api-spring/**/target/surefire-reports/
+            apps/api-spring/**/target/site/jacoco/
+            apps/api-spring/**/target/pit-reports/
+            apps/frontend/test-results/
+          retention-days: 14
+          if-no-files-found: warn

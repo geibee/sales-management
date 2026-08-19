@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# NEED_BACKEND / NEED_FRONTEND は source 元 (verify.sh / bats) が参照する
+# NEED_BACKEND / NEED_FRONTEND / NEED_SPRING は source 元 (verify.sh / bats) が参照する
 # shellcheck disable=SC2034
 # scope.sh — verify.sh のスコープ判定ロジック。
 #
@@ -14,17 +14,21 @@ classify_paths() {
     [[ -z "$path" ]] && continue
     case "$path" in
       apps/api-fsharp/openapi.yaml | .spectral.yaml)
-        # API 契約は両スコープに影響する (frontend 側で Spectral lint / 契約テストが走る)
-        NEED_BACKEND=1; NEED_FRONTEND=1 ;;
-      apps/api-fsharp/* | dsl/* | pacts/*)
+        # API 契約は F# / Spring / frontend の三者に影響する
+        NEED_BACKEND=1; NEED_FRONTEND=1; NEED_SPRING=1 ;;
+      apps/api-fsharp/migrations/* | dsl/* | pacts/*)
+        NEED_BACKEND=1; NEED_SPRING=1 ;;
+      apps/api-fsharp/*)
         NEED_BACKEND=1 ;;
+      apps/api-spring/*)
+        NEED_SPRING=1 ;;
       apps/frontend/*)
         NEED_FRONTEND=1 ;;
       docs/* | *.md)
         ;; # ドキュメントのみの変更は検証対象外
       *)
         # 分類できないパス (ルート設定 / .claude / scripts など) は全部検証する
-        NEED_BACKEND=1; NEED_FRONTEND=1 ;;
+        NEED_BACKEND=1; NEED_FRONTEND=1; NEED_SPRING=1 ;;
     esac
   done
 }
