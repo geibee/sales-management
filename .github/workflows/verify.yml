@@ -122,6 +122,12 @@ jobs:
     needs: scope
     if: needs.scope.outputs.frontend == '1'
     runs-on: ubuntu-latest
+    # ブラウザと OS 依存を同梱した公式イメージを使い、GitHub hosted runner の
+    # 不安定な APT ミラーに Playwright セットアップを依存させない。
+    # apps/frontend/pnpm-lock.yaml の @playwright/test と同じ版に固定する。
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+      options: --user 1001
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -135,11 +141,9 @@ jobs:
           cache-dependency-path: apps/frontend/pnpm-lock.yaml
       - name: ast-grep をインストール (禁止パターン検査)
         run: npm install -g @ast-grep/cli
-      - name: Playwright chromium をインストール (smoke E2E 用)
+      - name: フロント依存をインストール
         working-directory: apps/frontend
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
+        run: pnpm install --frozen-lockfile
       - name: 統合 verify (frontend スコープ)
         env:
           VERIFY_SCOPE: frontend
