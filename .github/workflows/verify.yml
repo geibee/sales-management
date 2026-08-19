@@ -57,8 +57,17 @@ jobs:
         run: go install github.com/oasdiff/oasdiff@latest && echo "$HOME/go/bin" >>"$GITHUB_PATH"
       - name: shellcheck / bats / actionlint インストール
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y -q shellcheck bats
+          # hosted runner 既定の Azure ミラーは応答停止が繰り返されたため、
+          # Ubuntu 公式 HTTPS ミラーだけを使用し、取得待機も有限にする。
+          printf '%s\n' 'https://archive.ubuntu.com/ubuntu' \
+            | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          apt_options=(
+            -o Acquire::Retries=3
+            -o Acquire::http::Timeout=20
+            -o Acquire::https::Timeout=20
+          )
+          sudo apt-get "${apt_options[@]}" update -q
+          sudo apt-get "${apt_options[@]}" install -y -q shellcheck bats
           bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
           sudo install ./actionlint /usr/local/bin/actionlint && rm -f ./actionlint
           actionlint -version
@@ -122,6 +131,12 @@ jobs:
     needs: scope
     if: needs.scope.outputs.frontend == '1'
     runs-on: ubuntu-latest
+    # ブラウザと OS 依存を同梱した公式イメージを使い、GitHub hosted runner の
+    # 不安定な APT ミラーに Playwright セットアップを依存させない。
+    # apps/frontend/pnpm-lock.yaml の @playwright/test と同じ版に固定する。
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+      options: --user 1001
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -135,11 +150,9 @@ jobs:
           cache-dependency-path: apps/frontend/pnpm-lock.yaml
       - name: ast-grep をインストール (禁止パターン検査)
         run: npm install -g @ast-grep/cli
-      - name: Playwright chromium をインストール (smoke E2E 用)
+      - name: フロント依存をインストール
         working-directory: apps/frontend
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
+        run: pnpm install --frozen-lockfile
       - name: 統合 verify (frontend スコープ)
         env:
           VERIFY_SCOPE: frontend

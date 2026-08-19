@@ -6,8 +6,9 @@ cd "$(dirname "$0")"
 
 RESULTS_DIR="$PWD/ci-results"
 SARIF_DIR="$RESULTS_DIR/sarif"
-MAVEN_USER_HOME="${MAVEN_USER_HOME:-${TMPDIR:-/tmp}/sales-management-spring-nightly-m2}"
-MAVEN_REPOSITORY="$MAVEN_USER_HOME/repository"
+# Trivy は Java 依存の POM を標準の ~/.m2/repository から探索する。
+# Maven も同じ場所を使い、ビルドで解決済みの依存を脆弱性スキャンで再利用する。
+MAVEN_REPOSITORY="${HOME:?HOME が設定されていません}/.m2/repository"
 PACT_BROKER_URL="${PACT_BROKER_URL:?PACT_BROKER_URL は必須です}"
 PACT_BROKER_USERNAME="${PACT_BROKER_USERNAME:?PACT_BROKER_USERNAME は必須です}"
 PACT_BROKER_PASSWORD="${PACT_BROKER_PASSWORD:?PACT_BROKER_PASSWORD は必須です}"
@@ -48,14 +49,14 @@ mkdir -p "$SARIF_DIR" "$MAVEN_REPOSITORY"
 
 echo "=== 軽量ゲート + package ==="
 python3 scripts/verify-contracts.py
-env MAVEN_USER_HOME="$MAVEN_USER_HOME" ./mvnw -B \
+./mvnw -B \
   -Dmaven.repo.local="$MAVEN_REPOSITORY" \
   -Pstatic-analysis,nightly \
   com.diffplug.spotless:spotless-maven-plugin:3.3.0:check install
 python3 scripts/verify-quality-ratchets.py
 
 echo "=== SpotBugs ==="
-env MAVEN_USER_HOME="$MAVEN_USER_HOME" ./mvnw -B \
+./mvnw -B \
   -Dmaven.repo.local="$MAVEN_REPOSITORY" \
   -Pnightly -Dspotbugs.xmlOutput=true spotbugs:spotbugs
 python3 scripts/report-to-sarif.py \
@@ -65,7 +66,7 @@ python3 scripts/report-to-sarif.py \
 
 echo "=== PIT mutation ==="
 for module in domain application; do
-  env MAVEN_USER_HOME="$MAVEN_USER_HOME" ./mvnw -B \
+  ./mvnw -B \
     -Dmaven.repo.local="$MAVEN_REPOSITORY" \
     -Pnightly -f "$module/pom.xml" \
     org.pitest:pitest-maven:mutationCoverage
@@ -87,7 +88,7 @@ trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL \
   --exit-code 1 --format sarif --output "$SARIF_DIR/trivy.sarif" .
 
 echo "=== CycloneDX SBOM ==="
-env MAVEN_USER_HOME="$MAVEN_USER_HOME" ./mvnw -B \
+./mvnw -B \
   -Dmaven.repo.local="$MAVEN_REPOSITORY" \
   -Pnightly org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom
 cp target/bom.json "$RESULTS_DIR/sbom-spring.cdx.json"
