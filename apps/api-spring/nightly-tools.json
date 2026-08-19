@@ -10,6 +10,6 @@
     {"id": "zap", "tool": "OWASP ZAP", "file": "zap.sarif"},
     {"id": "schemathesis", "tool": "Schemathesis", "file": "schemathesis.sarif"},
     {"id": "e2e", "tool": "Spring frontend E2E", "file": "e2e.sarif"},
-    {"id": "codeql", "tool": "CodeQL command-line toolchain", "file": "codeql.sarif"}
+    {"id": "codeql", "tool": "CodeQL", "file": "codeql.sarif"}
   ]
 }
