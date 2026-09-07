@@ -68,6 +68,7 @@
     <Compile Include="IntegrationTests/BatchInputParserTests.fs" />
     <Compile Include="IntegrationTests/LotRoutesParamTests.fs" />
     <Compile Include="IntegrationTests/StateTransitionParamTests.fs" />
+    <Compile Include="IntegrationTests/LotTransitionMatrixTests.fs" />
     <Compile Include="IntegrationTests/AppraisalContractParamTests.fs" />
     <Compile Include="IntegrationTests/SalesCaseShippingLifecycleTests.fs" />
     <Compile Include="IntegrationTests/SalesCaseAppraisalLifecycleTests.fs" />
@@ -80,6 +81,7 @@
     <None Include="xunit.runner.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="../../../../tests/fixtures/lot-transitions.json" Link="Fixtures/lot-transitions.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,17 @@
+{
+  "actions": {
+    "completeManufacturing": {"method": "POST", "path": "complete-manufacturing", "body": {"date": "2026-01-10"}},
+    "instructLotShipping": {"method": "POST", "path": "instruct-shipping", "body": {"deadline": "2026-01-20"}},
+    "completeLotShipping": {"method": "POST", "path": "complete-shipping", "body": {"date": "2026-01-18"}},
+    "cancelManufacturingCompletion": {"method": "POST", "path": "cancel-manufacturing-completion", "body": {}},
+    "instructItemConversion": {"method": "POST", "path": "instruct-item-conversion", "body": {"destinationItem": "別品目"}},
+    "cancelItemConversionInstruction": {"method": "DELETE", "path": "instruct-item-conversion", "body": {}}
+  },
+  "states": {
+    "manufacturing": {"setup": [], "allowed": {"completeManufacturing": "manufactured"}},
+    "manufactured": {"setup": ["completeManufacturing"], "allowed": {"instructLotShipping": "shipping_instructed", "cancelManufacturingCompletion": "manufacturing", "instructItemConversion": "conversion_instructed"}},
+    "shipping_instructed": {"setup": ["completeManufacturing", "instructLotShipping"], "allowed": {"completeLotShipping": "shipped"}},
+    "shipped": {"setup": ["completeManufacturing", "instructLotShipping", "completeLotShipping"], "allowed": {}},
+    "conversion_instructed": {"setup": ["completeManufacturing", "instructItemConversion"], "allowed": {"cancelItemConversionInstruction": "manufactured"}}
+  }
+}

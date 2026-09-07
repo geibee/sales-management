@@ -2,6 +2,7 @@ package com.example.salesmanagement.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.salesmanagement.contracts.api.DefaultApi;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
@@ -12,15 +13,21 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @SpringBootTest(
@@ -28,6 +35,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
         properties = {
             "management.server.port=0",
             "sales-management.authentication.enabled=true",
+            "sales-management.rate-limit.permit-limit=100000",
             "sales-management.authentication.signing-key=" + AuthenticationHttpContractTest.SIGNING_KEY,
             "sales-management.authentication.audience=" + AuthenticationHttpContractTest.AUDIENCE,
             "sales-management.authentication.authority=https://idp.example.com/realms/sales",
@@ -50,6 +58,46 @@ final class AuthenticationHttpContractTest {
 
     @LocalServerPort
     private int port;
+
+    static Stream<Arguments> authorizationCases() {
+        // OpenAPIから生成された全operationを対象にする。公開APIの例外だけ明示する。
+        return Arrays.stream(DefaultApi.class.getDeclaredMethods())
+                .map(method -> method.getAnnotation(RequestMapping.class))
+                .filter(mapping -> mapping != null)
+                .filter(mapping -> !List.of("/health", "/auth/config").contains(mapping.value()[0]))
+                .flatMap(mapping -> {
+                    String method = mapping.method()[0].name();
+                    String path = mapping.value()[0].replace("{id}", "9999-12-999");
+                    Stream<Arguments> denied = Stream.of(
+                            Arguments.of(method, path, "anonymous", 401, "unauthorized"),
+                            Arguments.of(method, path, "no-role", 403, "forbidden"));
+                    return method.equals("GET")
+                            ? denied
+                            : Stream.concat(denied, Stream.of(Arguments.of(method, path, "viewer", 403, "forbidden")));
+                });
+    }
+
+    @ParameterizedTest(name = "XR-AUTH-001 {0} {1} {2} → {3}")
+    @MethodSource("authorizationCases")
+    void xrAuth001EveryProtectedOperationRejectsUnauthorizedAccess(
+            String method, String path, String role, int status, String problemType) throws Exception {
+        var builder = HttpRequest.newBuilder(uri(path));
+        if (method.equals("GET")) {
+            builder.GET();
+        } else {
+            builder.header("Content-Type", "application/json")
+                    .method(method, HttpRequest.BodyPublishers.ofString("{}"));
+        }
+        String bearer =
+                role.equals("anonymous") ? null : token(role.equals("no-role") ? List.of() : List.of(role), 3600);
+        HttpResponse<String> response = send(builder, bearer);
+        assertThat(response.statusCode()).isEqualTo(status);
+        assertThat(response.headers().firstValue("Content-Type").orElse("")).startsWith("application/problem+json");
+        assertThat(response.body()).contains("\"type\":\"" + problemType + "\"");
+        if (status == 401) {
+            assertThat(response.headers().firstValue("WWW-Authenticate")).hasValue("Bearer");
+        }
+    }
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {

@@ -1,6 +1,7 @@
 module SalesManagement.Tests.Support.HttpHelpers
 
 open System.Net.Http
+open System.Net
 open System.Text
 open System.Text.Json
 open System.Threading.Tasks
@@ -34,8 +35,11 @@ let parseJson (body: string) : JsonElement =
     use doc = JsonDocument.Parse body
     doc.RootElement.Clone()
 
-/// モデルが失敗を予測した際に、実 API のレスポンスが予測と矛盾するかを返す。
-let contradictsExpectedFailure (resp: HttpResponseMessage) : bool = resp.IsSuccessStatusCode
+/// 存在するロット・案件への不正遷移は400または競合409で拒否される。
+/// 500や認証失敗を「期待どおりの拒否」と数えない。
+let contradictsExpectedFailure (resp: HttpResponseMessage) : bool =
+    resp.StatusCode <> HttpStatusCode.BadRequest
+    && resp.StatusCode <> HttpStatusCode.Conflict
 
 let withHeaders (headers: (string * string) list) (req: HttpRequestMessage) : HttpRequestMessage =
     for (k, v) in headers do
