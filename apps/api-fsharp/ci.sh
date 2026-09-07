@@ -3,109 +3,57 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# shellcheck source=scripts/artifact-filenames.sh
-source scripts/artifact-filenames.sh
-
-RESULTS_DIR="./ci-results"
+if [[ "${QUALITY_HEAVY_CHILD:-0}" != 1 ]]; then
+    exec bash ../../scripts/full-verify.sh fsharp
+fi
+RESULTS_DIR="${QUALITY_RUN_DIR:?全量検証の run directory が必要です}"
 SARIF_DIR="$RESULTS_DIR/sarif"
-mkdir -p "$RESULTS_DIR" "$SARIF_DIR"
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-FILENAME_TIMESTAMP=$(artifact_filename_timestamp "$TIMESTAMP")
-
-echo "=== Jaeger 起動チェック ==="
-# --max-time 3 で短期失敗。listen はあるが応答がない (詰まっている) 状態でも 3 秒で抜ける。
-if curl -fs --max-time 3 http://localhost:16686/api/services >/dev/null 2>&1; then
-    echo "Jaeger UP — エージェントトレースを送信できます"
-else
-    echo "Jaeger 未起動または無応答 (任意)"
-fi
-
-echo "=== マイグレーション ==="
-dotnet run --project tools/Migrator
-
-echo "=== ビルド ==="
-# F# コンパイラは /p:ErrorLog (Roslyn) をサポートしないため、SARIF 化は FSharpLint で代替する
-dotnet build src/SalesManagement --warnaserror
-dotnet build tools/Migrator --warnaserror
-dotnet build tools/BatchRunner --warnaserror
-dotnet build tools/DevTokenMint --warnaserror
-dotnet build tests/SalesManagement.Tests --warnaserror
-
-echo "=== フォーマットチェック ==="
-dotnet fantomas --check src/ tests/
-
-echo "=== リンター (SARIF) ==="
-LINT_TXT="$RESULTS_DIR/fsharplint.txt"
-LINT_OUTPUT=$(dotnet dotnet-fsharplint lint src/SalesManagement/SalesManagement.fsproj 2>&1)
-echo "$LINT_OUTPUT" | tee "$LINT_TXT"
-LINT_WARNINGS=$(echo "$LINT_OUTPUT" | grep -oE 'Summary: [0-9]+ warnings' | grep -oE '[0-9]+' | head -1 || true)
-LINT_WARNINGS=${LINT_WARNINGS:-0}
-printf '{"timestamp":"%s","lint_warnings":%s}\n' "$TIMESTAMP" "$LINT_WARNINGS" >> "$RESULTS_DIR/lint.json"
-python3 scripts/lint-to-sarif.py "$LINT_TXT" ci-results/sarif/fsharplint.sarif
-
-echo "=== 複雑度 ==="
-if ! command -v scc >/dev/null 2>&1; then
-    echo "scc が見つかりません (インストール: https://github.com/boyter/scc)" >&2
-    exit 1
-fi
-scc --by-file --format json src/ > "$RESULTS_DIR/scc_${FILENAME_TIMESTAMP}.json"
-
-echo "=== テスト + カバレッジ ==="
-rm -rf coverage
-dotnet test tests/SalesManagement.Tests \
-    --collect:"XPlat Code Coverage" \
-    --results-directory ./coverage
-
-COVERAGE_FILE=$(find coverage -name 'coverage.cobertura.xml' | head -1)
-COVERAGE=$(grep -oE 'line-rate="[0-9.]+"' "$COVERAGE_FILE" | head -1 | grep -oE '[0-9.]+' || true)
-COVERAGE=${COVERAGE:-0}
-printf '{"timestamp":"%s","coverage":%s}\n' "$TIMESTAMP" "$COVERAGE" >> "$RESULTS_DIR/coverage.json"
-
-echo "=== アーキテクチャ適合性 ==="
-dotnet test tests/SalesManagement.Tests \
-    --filter "Category=Architecture" \
-    --no-build
+mkdir -p "$SARIF_DIR"
+APP_PID=""
+finish() {
+    local original=$?
+    trap - EXIT
+    if [[ -n "$APP_PID" ]]; then
+        kill "$APP_PID" 2>/dev/null || true
+        wait "$APP_PID" 2>/dev/null || true
+    fi
+    # 失敗時にも生成済みネイティブレポートを保存・変換する。
+    if [[ -f "$RESULTS_DIR/zap-report.json" ]]; then
+        python3 scripts/zap-to-sarif.py "$RESULTS_DIR/zap-report.json" "$SARIF_DIR/zap.sarif" || original=1
+    fi
+    if [[ -f "$RESULTS_DIR/schemathesis-junit.xml" ]]; then
+        python3 scripts/junit-to-sarif.py "$RESULTS_DIR/schemathesis-junit.xml" "$SARIF_DIR/schemathesis.sarif" Schemathesis || original=1
+    fi
+    exit "$original"
+}
+trap finish EXIT
+for tool in dotnet python3 docker curl gitleaks trivy pnpm; do
+    command -v "$tool" >/dev/null || { echo "必須 tool 欠落: $tool" >&2; exit 1; }
+done
 
 echo "=== Pact Broker ヘルスチェック ==="
 PACT_BROKER_URL_DEFAULT="http://localhost:9292"
 PACT_BROKER_URL="${PACT_BROKER_URL:-$PACT_BROKER_URL_DEFAULT}"
-PACT_ENABLED=0
-if curl -fsu pact:pact --max-time 3 "$PACT_BROKER_URL/diagnostic/status/heartbeat" >/dev/null 2>&1; then
-    PACT_ENABLED=1
-    echo "Pact Broker UP at $PACT_BROKER_URL"
-    echo "=== Consumer Pact 公開 ==="
-    bash scripts/pact-publish.sh
-else
-    echo "Pact Broker 未起動 — Pact ステージをスキップします"
-    echo "  PACT_BROKER_URL を設定して再実行してください"
-fi
+PACT_ENABLED=1
+curl -fsu pact:pact --max-time 3 "$PACT_BROKER_URL/diagnostic/status/heartbeat" >/dev/null
+PACT_BROKER_URL="$PACT_BROKER_URL" bash scripts/pact-publish.sh
 
 echo "=== シークレット検出 (SARIF) ==="
-( cd ../.. && gitleaks detect --source . \
+( cd ../.. && gitleaks detect --source . --redact \
     --report-format sarif \
-    --report-path apps/api-fsharp/ci-results/sarif/gitleaks.sarif )
+    --report-path "$SARIF_DIR/gitleaks.sarif" )
 
 echo "=== パッケージ脆弱性スキャン (SARIF) ==="
-dotnet list src/SalesManagement/SalesManagement.fsproj package --vulnerable --include-transitive || true
-trivy fs --scanners vuln --severity HIGH,CRITICAL \
-    --format sarif --output ci-results/sarif/trivy.sarif .
+trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 \
+    --format sarif --output "$SARIF_DIR/trivy.sarif" .
 
 echo "=== SBOM 生成 (CycloneDX) ==="
 dotnet CycloneDX src/SalesManagement/SalesManagement.fsproj \
     --output-format Json \
-    --output ci-results \
+    --output "$RESULTS_DIR" \
     --filename sbom-fsharp.cdx.json
-python3 - <<'PY'
-import json, pathlib, sys
-p = pathlib.Path("ci-results/sbom-fsharp.cdx.json")
-data = json.loads(p.read_text())
-comps = data.get("components", []) or []
-tool = next(iter((data.get("metadata") or {}).get("tools", {}).get("components", []) or [{}]), {}).get("name", "?")
-print(f"SBOM: tool={tool} components={len(comps)}")
-if len(comps) < 1:
-    print("SBOM contains no components", file=sys.stderr)
-    sys.exit(1)
-PY
+python3 ../api-spring/scripts/report-to-sarif.py --tool CycloneDX --kind artifact \
+    --input "$RESULTS_DIR/sbom-fsharp.cdx.json" --output "$SARIF_DIR/cyclonedx.sarif"
 
 ZAP_ENABLED="${ZAP_ENABLED:-1}"
 SCHEMATHESIS_ENABLED="${SCHEMATHESIS_ENABLED:-1}"
@@ -130,11 +78,11 @@ if [ $NEED_APP -eq 1 ]; then
 
     if [ $PACT_ENABLED -eq 1 ]; then
         echo "=== Provider 検証 (Pact) ==="
-        PACT_BROKER_URL="$PACT_BROKER_URL" \
-        PACT_PROVIDER_URL="http://localhost:5000" \
-            dotnet test tests/SalesManagement.Tests \
-                --filter "Category=Pact" \
-                --no-build
+        python3 ../../scripts/quality-run.py step --directory "$RESULTS_DIR" --id pact --tool 'Pact provider' \
+            --test-report "$RESULTS_DIR/pact-results/pact.trx" --minimum-test-cases 1 -- \
+            env PACT_BROKER_URL="$PACT_BROKER_URL" \
+            dotnet test tests/SalesManagement.Tests --filter "Category=Pact" --no-build \
+            --logger:"trx;LogFileName=pact.trx" --results-directory "$RESULTS_DIR/pact-results"
     fi
 fi
 
@@ -165,7 +113,7 @@ if [ "$ZAP_ENABLED" = "1" ]; then
     # コンテナへ書込許可するのは専用の zap-wrk のみ。
     docker run --rm --network host \
         -v "$PWD/openapi.yaml:/zap/openapi.yaml:ro" \
-        -v "$PWD/$RESULTS_DIR/zap-wrk:/zap/wrk:rw" \
+        -v "$RESULTS_DIR/zap-wrk:/zap/wrk:rw" \
         -w /zap/wrk \
         "$ZAP_IMAGE" \
         zap-api-scan.py \
@@ -212,7 +160,7 @@ if [ "$SCHEMATHESIS_ENABLED" = "1" ]; then
         -e HOME=/tmp \
         -v "$PWD/openapi.yaml:/app/openapi.yaml:ro" \
         -v "$PWD/schemathesis-hooks.py:/app/schemathesis-hooks.py:ro" \
-        -v "$PWD/$RESULTS_DIR:/app/ci-results:rw" \
+        -v "$RESULTS_DIR:/app/ci-results:rw" \
         -e SCHEMATHESIS_HOOKS=/app/schemathesis-hooks.py \
         -w /tmp \
         schemathesis/schemathesis:4.24.3@sha256:dd1ebf7519958c34c276a65c20f9f2f808dbefb06c86163eb284ff5674c6a9f3 \
@@ -235,80 +183,6 @@ else
     SCHEMATHESIS_EXIT=0
     rm -f "$RESULTS_DIR/sarif/schemathesis.sarif" "$RESULTS_DIR/schemathesis-junit.xml" "$RESULTS_DIR/schemathesis.tar.gz"
 fi
-
-if [ $NEED_APP -eq 1 ]; then
-    kill $APP_PID 2>/dev/null || true
-    wait $APP_PID 2>/dev/null || true
-fi
-
-if [ "$ZAP_ENABLED" = "1" ]; then
-    echo "=== ZAP → SARIF 変換 ==="
-    if [ -f ci-results/zap-report.json ]; then
-        python3 scripts/zap-to-sarif.py ci-results/zap-report.json ci-results/sarif/zap.sarif
-    else
-        echo "ZAP JSON レポートが生成されませんでした。実行ログ:" >&2
-        cat ci-results/zap.out >&2
-        python3 scripts/zap-to-sarif.py \
-            --execution-error ci-results/zap.out ci-results/sarif/zap.sarif
-    fi
-fi
-
-if [ "$SCHEMATHESIS_ENABLED" = "1" ]; then
-    echo "=== Schemathesis → SARIF 変換 ==="
-    if [ -f ci-results/schemathesis-junit.xml ]; then
-        python3 scripts/junit-to-sarif.py ci-results/schemathesis-junit.xml ci-results/sarif/schemathesis.sarif Schemathesis
-    else
-        # JUnit 出力が無い (極端な早期失敗) でも空 SARIF を残しておくと merge / verify が落ちない
-        cat > ci-results/sarif/schemathesis.sarif <<'JSON'
-{
-  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
-  "version": "2.1.0",
-  "runs": [{"tool": {"driver": {"name": "Schemathesis", "informationUri": "https://schemathesis.readthedocs.io/"}}, "results": []}]
-}
-JSON
-    fi
-    echo "=== Schemathesis アーティファクト bundle ==="
-    TAR_EXTRA=()
-    [ -f ci-results/schemathesis-junit.xml ] && TAR_EXTRA+=(schemathesis-junit.xml)
-    tar -C ci-results -czf ci-results/schemathesis.tar.gz \
-        sarif/schemathesis.sarif "${TAR_EXTRA[@]}" 2>/dev/null || true
-fi
-
-echo "=== SARIF マージ ==="
-python3 scripts/sarif-merge.py ci-results/merged.sarif \
-    ci-results/sarif/gitleaks.sarif \
-    ci-results/sarif/trivy.sarif \
-    ci-results/sarif/fsharplint.sarif \
-    ci-results/sarif/zap.sarif \
-    ci-results/sarif/schemathesis.sarif
-
-echo "=== SARIF サマリ ==="
-python3 - <<'PY'
-import json, pathlib, sys
-p = pathlib.Path("ci-results/merged.sarif")
-if not p.exists():
-    print("merged.sarif not found", file=sys.stderr)
-    sys.exit(1)
-data = json.loads(p.read_text())
-runs = data.get("runs", [])
-print(f"merged runs: {len(runs)}")
-errors: list[dict] = []
-for run in runs:
-    name = run.get("tool", {}).get("driver", {}).get("name", "?")
-    results = run.get("results", []) or []
-    by_level: dict[str, int] = {}
-    for r in results:
-        by_level[r.get("level", "none")] = by_level.get(r.get("level", "none"), 0) + 1
-    print(f"  {name}: total={len(results)} levels={by_level}")
-    errors.extend(r for r in results if r.get("level") == "error")
-if errors:
-    print(f"SARIF errors: {len(errors)}", file=sys.stderr)
-    for e in errors[:5]:
-        rid = e.get("ruleId", "?")
-        msg = ((e.get("message") or {}).get("text") or "")[:100]
-        print(f"  - {rid}: {msg}", file=sys.stderr)
-    sys.exit(1)
-PY
 
 if [ "$ZAP_EXIT" -ne 0 ] && [ "$ZAP_EXIT" -ne 2 ]; then
     case "$ZAP_EXIT" in
@@ -333,15 +207,14 @@ if [ "$SCHEMATHESIS_ENABLED" = "1" ] && [ "$SCHEMATHESIS_EXIT" -ne 0 ]; then
     exit 1
 fi
 
-echo "=== Renovate 優先化 (Trivy SARIF → renovate.json) ==="
-python3 scripts/prioritize-from-trivy.py ci-results/sarif/trivy.sarif ../../renovate.json || true
-
-echo "=== Renovate dry-run ==="
-( cd ../.. && env LOG_LEVEL=info RENOVATE_PLATFORM=local RENOVATE_AUTODISCOVER=false \
-    npx --yes renovate --dry-run=full ) > "$RESULTS_DIR/renovate.log" 2>&1 || true
-grep -E "Dependency extraction complete|fileCount|depCount" "$RESULTS_DIR/renovate.log" | head -10 || true
-
-echo "=== AGENTS.md 自動更新差分 ==="
-git -C ../.. diff --stat AGENTS.md || true
-
-echo "=== CI完了 ==="
+kill "$APP_PID" 2>/dev/null || true
+wait "$APP_PID" 2>/dev/null || true
+APP_PID=""
+echo "=== 実 API E2E ==="
+(
+    cd ../frontend
+    PLAYWRIGHT_JUNIT_OUTPUT_NAME="$RESULTS_DIR/e2e-junit.xml" CI=true E2E_BACKEND=1 \
+        pnpm exec playwright test --reporter=junit
+)
+python3 ../api-spring/scripts/report-to-sarif.py --tool 'Backend E2E' --kind junit \
+    --input "$RESULTS_DIR/e2e-junit.xml" --output "$SARIF_DIR/e2e.sarif"

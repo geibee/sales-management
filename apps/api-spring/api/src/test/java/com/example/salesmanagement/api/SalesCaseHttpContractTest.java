@@ -2,6 +2,12 @@ package com.example.salesmanagement.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import au.com.dius.pact.provider.junit5.HttpTestTarget;
+import au.com.dius.pact.provider.junit5.PactVerificationContext;
+import au.com.dius.pact.provider.junit5.PactVerificationInvocationContextProvider;
+import au.com.dius.pact.provider.junitsupport.Provider;
+import au.com.dius.pact.provider.junitsupport.State;
+import au.com.dius.pact.provider.junitsupport.loader.PactFolder;
 import com.example.salesmanagement.contracts.api.DefaultApi;
 import com.example.salesmanagement.contracts.model.LotStatus;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -9,7 +15,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.opentelemetry.api.OpenTelemetry;
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
@@ -19,7 +24,10 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -55,7 +63,7 @@ final class SalesCaseHttpContractTest {
         DATABASE.start();
     }
 
-    private final HttpClient http = HttpClient.newHttpClient();
+    private final ContractHttpClient http = new ContractHttpClient();
 
     @Autowired
     private ObjectMapper json;
@@ -70,6 +78,40 @@ final class SalesCaseHttpContractTest {
     private int port;
 
     private static final AtomicInteger REVIEW_SEQUENCE = new AtomicInteger(96000);
+
+    @Nested
+    @Provider("sales-management")
+    @PactFolder("${pact.folder}")
+    class LocalPactTests {
+        @BeforeEach
+        void target(PactVerificationContext context) {
+            context.setTarget(new HttpTestTarget("localhost", port, "/"));
+        }
+
+        @TestTemplate
+        @ExtendWith(PactVerificationInvocationContextProvider.class)
+        void verifyLocalPact(PactVerificationContext context) {
+            context.verifyInteraction();
+        }
+
+        @State("lot 2026-PACT-001 が manufacturing 状態で存在する")
+        void providerState() throws Exception {
+            seedPactManufacturingLot();
+        }
+    }
+
+    void seedPactManufacturingLot() throws Exception {
+        Integer existing = jdbc.queryForObject(
+                "SELECT count(*) FROM lot WHERE lot_number_year=2026 AND lot_number_location='PACT' AND lot_number_seq=1",
+                Integer.class);
+        if (existing == 0) {
+            post("/lots", lotBody("PACT", 1));
+        } else {
+            // 各 interaction の前提を独立に復元する。通常テストのロットには触れない。
+            jdbc.update("UPDATE lot SET status='manufacturing', version=1, manufacturing_completed_date=NULL "
+                    + "WHERE lot_number_year=2026 AND lot_number_location='PACT' AND lot_number_seq=1");
+        }
+    }
 
     private static JsonNode transitionMatrix() throws IOException {
         return new ObjectMapper()
@@ -575,18 +617,20 @@ final class SalesCaseHttpContractTest {
 
     private String createLot(int sequence) throws Exception {
         String id = "2026-HTTP-" + sequence;
-        post(
-                "/lots",
-                """
-                {"lotNumber":{"year":2026,"location":"HTTP","seq":%d},
+        post("/lots", lotBody("HTTP", sequence));
+        return id;
+    }
+
+    private static String lotBody(String location, int sequence) {
+        return """
+                {"lotNumber":{"year":2026,"location":"%s","seq":%d},
                  "divisionCode":1,"departmentCode":10,"sectionCode":100,
                  "processCategory":1,"inspectionCategory":1,"manufacturingCategory":1,
                  "details":[{"itemCategory":"general","productCategoryCode":"v1",
                  "lengthSpecLower":1.0,"thicknessSpecLower":1.0,"thicknessSpecUpper":2.0,
                  "qualityGrade":"A","count":1,"quantity":1.0}]}
                 """
-                        .formatted(sequence));
-        return id;
+                .formatted(location, sequence);
     }
 
     private String createCase(String caseType, String lot) throws Exception {
@@ -630,7 +674,7 @@ final class SalesCaseHttpContractTest {
             }
             builder.method(method, HttpRequest.BodyPublishers.ofString(body));
         }
-        HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = http.send(builder.build());
         return new JsonResponse(
                 response.statusCode(),
                 response.headers().firstValue("Content-Type").orElse(""),
@@ -639,11 +683,9 @@ final class SalesCaseHttpContractTest {
     }
 
     private HttpResponse<String> rawGet(String path) throws IOException, InterruptedException {
-        return http.send(
-                HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
-                        .GET()
-                        .build(),
-                HttpResponse.BodyHandlers.ofString());
+        return http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .GET()
+                .build());
     }
 
     private record JsonResponse(int status, String contentType, java.net.http.HttpHeaders headers, JsonNode body) {

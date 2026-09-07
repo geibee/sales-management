@@ -1,10 +1,10 @@
 # nightly の重量ゲート。apps/api-fsharp/ci.sh をフル実行する
-# (build / fantomas / FSharpLint / 複雑度 / テスト+カバレッジ / アーキテクチャ適合性 /
-#  gitleaks / Trivy / SBOM / ZAP / Schemathesis / SARIF 集約 / Renovate dry-run)。
+# (軽量ゲート / Pact Broker / gitleaks / Trivy / SBOM / ZAP / Schemathesis /
+#  実 API E2E / 共通故障ケース / 証拠監査)。
 # あわせて e2e ジョブで backend-lifecycle E2E (Playwright + 実 F# API) を無人実行する。
 #
 # - push 時の軽量ゲートは verify.yml → scripts/verify.sh
-# - Pact Broker / Jaeger は runner に無いので ci.sh 側の判定で自動スキップされる
+# - 全量検証は Pact Broker を含む必須検査の欠落を失敗にする
 # - PR は関連パスの変更時だけ重量ジョブを実行し、結果集約を必須チェックにする
 # - schedule / workflow_dispatch の失敗時だけ ci-nightly Issue に通知する
 name: nightly
@@ -102,7 +102,7 @@ jobs:
           version: 10
       - uses: actions/setup-node@v6
         with:
-          node-version: 24 # Renovate dry-run (npx renovate) 用
+          node-version: 24
 
       - name: WireMock を起動 (price-check の外部 API スタブ。無いと fuzz が 502 で不安定)
         working-directory: apps/api-fsharp
@@ -115,10 +115,6 @@ jobs:
       - name: dotnet ローカルツールを復元 (fantomas / fsharplint / CycloneDX)
         working-directory: apps/api-fsharp
         run: dotnet tool restore
-      - name: scc をインストール (複雑度計測)
-        run: |
-          go install github.com/boyter/scc/v3@latest
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: gitleaks をインストール (シークレット検出)
         run: |
           curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
@@ -131,6 +127,42 @@ jobs:
             | sudo sh -s -- -b /usr/local/bin
           trivy --version
 
+      - name: 共通ゲートと E2E の CLI を準備
+        run: |
+          sudo bash scripts/configure-ubuntu-apt.sh
+          sudo apt-get install -y -q shellcheck bats
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          go install github.com/oasdiff/oasdiff@latest
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          pip install ruff pytest
+          npm install -g @ast-grep/cli
+      - name: frontend と Playwright を準備
+        working-directory: apps/frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: Pact Broker を起動
+        env:
+          PGPASSWORD: app
+        run: |
+          psql -h localhost -U app -d sales_management -c 'CREATE DATABASE pact_broker'
+          docker run --rm -d --name fsharp-pact-broker --network host \
+            -e PACT_BROKER_DATABASE_ADAPTER=postgres \
+            -e PACT_BROKER_DATABASE_HOST=localhost \
+            -e PACT_BROKER_DATABASE_USERNAME=app \
+            -e PACT_BROKER_DATABASE_PASSWORD=app \
+            -e PACT_BROKER_DATABASE_NAME=pact_broker \
+            -e PACT_BROKER_BASIC_AUTH_USERNAME=pact \
+            -e PACT_BROKER_BASIC_AUTH_PASSWORD=pact \
+            -e PACT_BROKER_PUBLIC_HEARTBEAT=true \
+            -e PACT_BROKER_PORT=9292 \
+            pactfoundation/pact-broker:2.137.0-pactbroker2.118.0
+          for _ in $(seq 1 60); do
+            if curl -fsS --max-time 2 http://localhost:9292/diagnostic/status/heartbeat; then break; fi
+            sleep 1
+          done
+          curl -fsS --max-time 2 http://localhost:9292/diagnostic/status/heartbeat
+
       - name: ci.sh 実行
         working-directory: apps/api-fsharp
         run: bash ci.sh
@@ -140,7 +172,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ci-results
-          path: apps/api-fsharp/ci-results/
+          path: |
+            ci-results/
+            apps/api-fsharp/ci-results/
           retention-days: 14
           if-no-files-found: warn
 

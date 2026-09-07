@@ -17,7 +17,7 @@ setup() {
 
   [[ "$zap_block" == *'mkdir -p "$RESULTS_DIR/zap-wrk"'* ]]
   [[ "$zap_block" == *'chmod 0777 "$RESULTS_DIR/zap-wrk"'* ]]
-  [[ "$zap_block" == *'-v "$PWD/$RESULTS_DIR/zap-wrk:/zap/wrk:rw"'* ]]
+  [[ "$zap_block" == *'-v "$RESULTS_DIR/zap-wrk:/zap/wrk:rw"'* ]]
   [[ "$zap_block" == *'-w /zap/wrk'* ]]
   [[ "$zap_block" == *'-T 5'* ]]
 }

@@ -1,0 +1,631 @@
+{
+  "version": 1,
+  "targets": [
+    "fsharp",
+    "spring"
+  ],
+  "guarantees": [
+    {
+      "id": "QG-CONTRACT",
+      "purpose": "同じ応答契約fixtureの正常・異常検出",
+      "tier": "light",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "test",
+            "selector": "*ContractValidationTests*#共通応答fixture*",
+            "minimumCases": 22
+          }
+        ],
+        "spring": [
+          {
+            "type": "test",
+            "selector": "*ContractValidationTest#validatesSharedResponseFixtures*",
+            "minimumCases": 22
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-LOT-MATRIX",
+      "purpose": "ロット全状態×操作と競合時の状態・DB・イベント不変",
+      "tier": "light",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "test",
+            "selector": "*LotTransitionMatrixTests*#XR-LOT-001*",
+            "minimumCases": 36
+          }
+        ],
+        "spring": [
+          {
+            "type": "test",
+            "selector": "*SalesCaseHttpContractTest#xrLot001*",
+            "minimumCases": 36
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-AUTH-DENY",
+      "purpose": "全保護操作で匿名・ロールなし・viewer更新を拒否",
+      "tier": "light",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "test",
+            "selector": "*AuthorizationMatrixTests*#未認証*",
+            "minimumCases": 33
+          },
+          {
+            "type": "test",
+            "selector": "*AuthorizationMatrixTests*#ロールなし*",
+            "minimumCases": 33
+          },
+          {
+            "type": "test",
+            "selector": "*AuthorizationMatrixTests*#viewer*",
+            "minimumCases": 25
+          }
+        ],
+        "spring": [
+          {
+            "type": "test",
+            "selector": "*AuthenticationHttpContractTest#xrAuth001*",
+            "minimumCases": 91
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-PBT-VALUES",
+      "purpose": "業務フローの値保持と取消",
+      "tier": "light",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "test",
+            "selector": "*SalesCasePropertyTests*#*",
+            "minimumCases": 1
+          },
+          {
+            "type": "test",
+            "selector": "*LotPropertyTests*#*",
+            "minimumCases": 1
+          }
+        ],
+        "spring": [
+          {
+            "type": "test",
+            "selector": "*WorkflowProperties#xrPbt*",
+            "minimumCases": 4
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-PBT-SEQUENCES",
+      "purpose": "操作列の禁止遷移・競合後の状態不変",
+      "tier": "light",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "test",
+            "selector": "*LotStateMachinePropertyTests*#*",
+            "minimumCases": 1
+          }
+        ],
+        "spring": [
+          {
+            "type": "test",
+            "selector": "*LotUseCasesProperties#xrPbt007*",
+            "minimumCases": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-MIGRATION",
+      "purpose": "空DB schemaと冪等migration",
+      "tier": "light",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "test",
+            "selector": "*MigrationTests*#マイグレーションは冪等*",
+            "minimumCases": 1
+          },
+          {
+            "type": "test",
+            "selector": "*MigrationTests*#空DBへの全適用*",
+            "minimumCases": 1
+          }
+        ],
+        "spring": [
+          {
+            "type": "test",
+            "selector": "*DatabaseCompatibilityTest#allMigrationsAreIdempotent*",
+            "minimumCases": 1
+          },
+          {
+            "type": "test",
+            "selector": "*DatabaseCompatibilityTest#actualSchemaExactly*",
+            "minimumCases": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-OUTBOX",
+      "purpose": "状態変更とイベントの同一transaction・配送",
+      "tier": "light",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "test",
+            "selector": "*OutboxTests*#complete-manufacturing inserts*",
+            "minimumCases": 1
+          },
+          {
+            "type": "test",
+            "selector": "*OutboxTests*#background processor*",
+            "minimumCases": 1
+          }
+        ],
+        "spring": [
+          {
+            "type": "test",
+            "selector": "*DatabaseCompatibilityTest#repositoryRoundTripOptimisticLockAndOutbox*",
+            "minimumCases": 1
+          },
+          {
+            "type": "test",
+            "selector": "*DatabaseCompatibilityTest#outboxProcessorClaims*",
+            "minimumCases": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-ARCHITECTURE",
+      "purpose": "依存方向とDomain副作用・API SQL禁止",
+      "tier": "light",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "test",
+            "selector": "*ArchitectureTests*#domain does not depend*",
+            "minimumCases": 2
+          },
+          {
+            "type": "test",
+            "selector": "*SourceRuleTests*#Domain*",
+            "minimumCases": 1
+          },
+          {
+            "type": "test",
+            "selector": "*SourceRuleTests*#Api*",
+            "minimumCases": 1
+          }
+        ],
+        "spring": [
+          {
+            "type": "test",
+            "selector": "*ArchitectureRulesTest#dependenciesPoint*",
+            "minimumCases": 1
+          },
+          {
+            "type": "test",
+            "selector": "*SourceRuleTests#domainDoesNot*",
+            "minimumCases": 1
+          },
+          {
+            "type": "test",
+            "selector": "*SourceRuleTests#apiDoesNot*",
+            "minimumCases": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-PACT-LOCAL",
+      "purpose": "ローカルPactを実プロバイダに再生",
+      "tier": "light",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "test",
+            "selector": "*PactLocalProviderTests*#provider satisfies local*",
+            "minimumCases": 1
+          }
+        ],
+        "spring": [
+          {
+            "type": "test",
+            "selector": "*SalesCaseHttpContractTest*LocalPactTests#verifyLocalPact*",
+            "minimumCases": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-LIGHT",
+      "purpose": "全moduleのビルド・書式・lint・ラチェット",
+      "tier": "light",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "sarif",
+            "toolId": "light"
+          }
+        ],
+        "spring": [
+          {
+            "type": "sarif",
+            "toolId": "light"
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-REPO",
+      "purpose": "repo共通の静的検査と互換性",
+      "tier": "heavy",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "sarif",
+            "toolId": "repo"
+          }
+        ],
+        "spring": [
+          {
+            "type": "sarif",
+            "toolId": "repo"
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-FRONTEND",
+      "purpose": "frontend軽量ゲート",
+      "tier": "heavy",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "sarif",
+            "toolId": "frontend"
+          }
+        ],
+        "spring": [
+          {
+            "type": "sarif",
+            "toolId": "frontend"
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-HEAVY",
+      "purpose": "重量検査全ステージの実行",
+      "tier": "heavy",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "sarif",
+            "toolId": "heavy"
+          }
+        ],
+        "spring": [
+          {
+            "type": "sarif",
+            "toolId": "heavy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-GITLEAKS",
+      "purpose": "秘密情報検出",
+      "tier": "heavy",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "sarif",
+            "toolId": "gitleaks"
+          }
+        ],
+        "spring": [
+          {
+            "type": "sarif",
+            "toolId": "gitleaks"
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-TRIVY",
+      "purpose": "依存脆弱性検出",
+      "tier": "heavy",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "sarif",
+            "toolId": "trivy"
+          }
+        ],
+        "spring": [
+          {
+            "type": "sarif",
+            "toolId": "trivy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-CYCLONEDX",
+      "purpose": "実依存を含むSBOM",
+      "tier": "heavy",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "sarif",
+            "toolId": "cyclonedx"
+          }
+        ],
+        "spring": [
+          {
+            "type": "sarif",
+            "toolId": "cyclonedx"
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-PACT",
+      "purpose": "Broker契約の実プロバイダ検証",
+      "tier": "heavy",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "sarif",
+            "toolId": "pact"
+          }
+        ],
+        "spring": [
+          {
+            "type": "sarif",
+            "toolId": "pact"
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-ZAP",
+      "purpose": "DAST",
+      "tier": "heavy",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "sarif",
+            "toolId": "zap"
+          }
+        ],
+        "spring": [
+          {
+            "type": "sarif",
+            "toolId": "zap"
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-SCHEMATHESIS",
+      "purpose": "API fuzz",
+      "tier": "heavy",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "sarif",
+            "toolId": "schemathesis"
+          }
+        ],
+        "spring": [
+          {
+            "type": "sarif",
+            "toolId": "schemathesis"
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-E2E",
+      "purpose": "実API接続E2E",
+      "tier": "heavy",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "sarif",
+            "toolId": "e2e"
+          }
+        ],
+        "spring": [
+          {
+            "type": "sarif",
+            "toolId": "e2e"
+          }
+        ]
+      }
+    },
+    {
+      "id": "QG-FAULTS",
+      "purpose": "共通故障ケースのテスト検出力",
+      "tier": "heavy",
+      "requiredTargets": [
+        "fsharp",
+        "spring"
+      ],
+      "evidence": {
+        "fsharp": [
+          {
+            "type": "sarif",
+            "toolId": "faults"
+          }
+        ],
+        "spring": [
+          {
+            "type": "sarif",
+            "toolId": "faults"
+          }
+        ]
+      }
+    }
+  ],
+  "metrics": [
+    {
+      "id": "lineCoverage",
+      "minimum": {
+        "fsharp": 88.1,
+        "spring": 69.875
+      }
+    },
+    {
+      "id": "branchCoverage",
+      "minimum": {
+        "fsharp": 50.5,
+        "spring": 0
+      }
+    },
+    {
+      "id": "operationCount",
+      "minimum": {
+        "fsharp": 35,
+        "spring": 35
+      }
+    }
+  ],
+  "tools": {
+    "fsharp": {
+      "light": "Light gates",
+      "repo": "Repository gates",
+      "frontend": "Frontend gates",
+      "heavy": "Heavy gates",
+      "gitleaks": "gitleaks",
+      "trivy": "Trivy",
+      "cyclonedx": "CycloneDX",
+      "pact": "Pact provider",
+      "zap": "OWASP ZAP",
+      "schemathesis": "Schemathesis",
+      "e2e": "Backend E2E",
+      "faults": "Fault detection"
+    },
+    "spring": {
+      "light": "Light gates",
+      "repo": "Repository gates",
+      "frontend": "Frontend gates",
+      "heavy": "Heavy gates",
+      "gitleaks": "gitleaks",
+      "trivy": "Trivy",
+      "cyclonedx": "CycloneDX",
+      "pact": "Pact provider",
+      "zap": "OWASP ZAP",
+      "schemathesis": "Schemathesis",
+      "e2e": "Backend E2E",
+      "faults": "Fault detection",
+      "spotbugs": "SpotBugs",
+      "pit": "PIT",
+      "codeql": "CodeQL",
+      "parity": "F#/Spring parity"
+    }
+  },
+  "additionalTools": {
+    "fsharp": [],
+    "spring": [
+      "spotbugs",
+      "pit",
+      "codeql",
+      "parity"
+    ]
+  }
+}

@@ -20,6 +20,7 @@
     <Compile Include="Support/Generators.fs" />
     <Compile Include="Support/PbtConfig.fs" />
     <Compile Include="Support/SmokeTest.fs" />
+    <Compile Include="ContractValidationTests.fs" />
     <Compile Include="SmartConstructorTests.fs" />
     <Compile Include="LotRepositoryRoundTripTests.fs" />
     <Compile Include="LotPropertyTests.fs" />
@@ -81,6 +82,7 @@
     <None Include="xunit.runner.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="../../../../tests/fixtures/response-contracts.json" Link="Fixtures/response-contracts.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../../../tests/fixtures/lot-transitions.json" Link="Fixtures/lot-transitions.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

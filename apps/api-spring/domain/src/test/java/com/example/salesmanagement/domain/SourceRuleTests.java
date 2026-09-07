@@ -92,9 +92,7 @@ final class SourceRuleTests {
     }
 
     private static void assertNoMatch(Path root, Pattern pattern) throws IOException {
-        if (!Files.exists(root)) {
-            return;
-        }
+        assertTrue(Files.isDirectory(root), "必須ソースディレクトリがありません: " + root);
         try (Stream<Path> files = Files.walk(root)) {
             List<Path> javaFiles =
                     files.filter(path -> path.toString().endsWith(".java")).toList();
@@ -103,6 +101,12 @@ final class SourceRuleTests {
                     javaFiles.stream().filter(path -> matches(path, pattern)).toList();
             assertTrue(violations.isEmpty(), "禁止 source pattern: " + violations);
         }
+    }
+
+    @Test
+    void missingSourceDirectoryIsRejected(@TempDir Path temporary) {
+        org.junit.jupiter.api.Assertions.assertThrows(
+                AssertionError.class, () -> assertNoMatch(temporary.resolve("missing"), DOMAIN_FORBIDDEN));
     }
 
     private static boolean matches(Path path, Pattern pattern) {

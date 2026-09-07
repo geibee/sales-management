@@ -9,7 +9,6 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
@@ -54,7 +53,7 @@ final class AuthenticationHttpContractTest {
         DATABASE.start();
     }
 
-    private final HttpClient http = HttpClient.newHttpClient();
+    private final ContractHttpClient http = new ContractHttpClient();
 
     @LocalServerPort
     private int port;
@@ -173,7 +172,7 @@ final class AuthenticationHttpContractTest {
         if (token != null) {
             builder.header("Authorization", "Bearer " + token);
         }
-        return http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        return http.send(builder.build());
     }
 
     private URI uri(String path) {

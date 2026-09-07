@@ -36,36 +36,29 @@ type PactLocalProviderTests(fixture: AuthOffFixture) =
 
         verifier.WithHttpEndpoint(Uri(sprintf "http://127.0.0.1:%d" fixture.Port)).WithFileSource(pactFile).Verify()
 
-/// Broker 経由の検証 (nightly / ci.sh 用)。PACT_BROKER_URL が設定された場合のみ
-/// 実行し、検証結果を Broker へ publish する。マージゲートとしては上の
-/// PactLocalProviderTests が常時実行されるため、こちらは「あれば使う」オプション。
-[<Fact>]
-[<Trait("Category", "Pact")>]
-let ``provider satisfies frontend pact via broker`` () =
-    let brokerUrl = Environment.GetEnvironmentVariable("PACT_BROKER_URL")
+/// 軽量実行では明示的に skip する。全量実行は Broker URL と成功した TRX を必須にする。
+type BrokerFactAttribute() as this =
+    inherit FactAttribute()
 
-    let providerUrl =
-        match Environment.GetEnvironmentVariable("PACT_PROVIDER_URL") with
-        | null
-        | "" -> "http://localhost:5000"
-        | v -> v
+    do
+        if String.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PACT_BROKER_URL")) then
+            this.Skip <- "Broker 検証は全量品質ゲートで実行する"
 
-    if String.IsNullOrEmpty(brokerUrl) then
-        // PACT_BROKER_URL 未設定 → smoke 環境としてスキップ扱い (テスト pass)。
-        // ローカル pact の検証は PactLocalProviderTests が常時カバーする。
-        ()
-    else
+/// Broker から取得した契約を、状態を準備した実プロバイダへ再生する。
+[<Collection("ApiAuthOff")>]
+type PactBrokerProviderTests(fixture: AuthOffFixture) =
+    do fixture.Reset()
+
+    [<BrokerFact>]
+    [<Trait("Category", "Pact")>]
+    member _.``provider satisfies frontend pact via broker``() =
+        let brokerUrl = Environment.GetEnvironmentVariable("PACT_BROKER_URL")
+        Assert.False(String.IsNullOrWhiteSpace brokerUrl, "全量検証には Pact Broker が必要です")
+        StateHandlers.setUpAll fixture
         let config = PactVerifierConfig()
         use verifier = new PactVerifier("sales-management", config)
 
         verifier
-            .WithHttpEndpoint(Uri(providerUrl))
-            .WithPactBrokerSource(
-                Uri(brokerUrl),
-                fun opts ->
-                    opts
-                        .BasicAuthentication("pact", "pact")
-                        .PublishResults("0.0.0-local", fun b -> b.ProviderBranch("main") |> ignore)
-                    |> ignore
-            )
+            .WithHttpEndpoint(Uri(sprintf "http://127.0.0.1:%d" fixture.Port))
+            .WithPactBrokerSource(Uri(brokerUrl), fun opts -> opts.BasicAuthentication("pact", "pact") |> ignore)
             .Verify()

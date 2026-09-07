@@ -11,7 +11,7 @@
 # 設計原則 (Loop Design Checklist / arXiv:2607.00038 の検証観点):
 #   - fail-closed: 必要なツールチェーンが無い場合は「スキップして合格」ではなく失敗させる。
 #     検証できなかったものを緑にしない (自動マージの前提が崩れるため)
-#   - スコープ判定で分類できないパスは両スコープを要求する (未知 = 全部検証)
+#   - 未知パスは本流の F# / frontend / repo 共通を検証する。Java は明示実行のみ
 #   - E2E (Playwright) と重量級検査 (ZAP / Schemathesis 等) は対象外。
 #     それらは apps/api-fsharp/ci.sh と `pnpm test:e2e` で別途実行する
 #
@@ -65,6 +65,8 @@ case "$SCOPE" in
       log "基準 ref '$BASE_REF' を解決できません — 全スコープを検証します"
       NEED_BACKEND=1; NEED_FRONTEND=1; NEED_SPRING=1
     fi
+    # Java は副実装。自動実行せず、spring / all の明示指定で検証する。
+    NEED_SPRING=0
     ;;
   *) fail "不明な VERIFY_SCOPE: $SCOPE (auto | all | backend | spring | frontend | repo)" ;;
 esac
@@ -197,7 +199,7 @@ verify_spring() {
   mkdir -p "$maven_repository"
   env MAVEN_USER_HOME="$maven_user_home" ./mvnw -B \
     -Dmaven.repo.local="$maven_repository" \
-    -Pstatic-analysis com.diffplug.spotless:spotless-maven-plugin:3.3.0:check verify
+    -Pstatic-analysis com.diffplug.spotless:spotless-maven-plugin:3.3.0:check clean verify
   python3 scripts/verify-quality-ratchets.py
 
   log "spring PASS"
@@ -221,11 +223,10 @@ verify_backend() {
 
   # 新規 worktree / CI ランナーではローカルツール (fantomas 等) が未復元
   dotnet tool restore
-  dotnet build src/SalesManagement --warnaserror
-  dotnet build tests/SalesManagement.Tests --warnaserror
+  dotnet build SalesManagement.slnx --warnaserror
   dotnet fantomas --check src/ tests/
 
-  # FSharpLint (nightly の SARIF 記録から exit code ゲートへ昇格。SARIF 出力は ci.sh のまま)
+  # FSharpLint は警告0件を必須とする。実行ログと成否は共通 light 証拠に保存する。
   local lint_out lint_warnings
   if ! lint_out=$(dotnet dotnet-fsharplint lint src/SalesManagement/SalesManagement.fsproj 2>&1); then
     echo "$lint_out"
@@ -247,7 +248,7 @@ verify_backend() {
   rm -rf coverage
   # フィルタなしの dotnet test はアーキテクチャテスト (Category=Architecture) と
   # Broker レス Pact 検証も含めて実行する = どちらもマージゲート
-  out=$(dotnet test tests/SalesManagement.Tests --collect:"XPlat Code Coverage" --results-directory ./coverage 2>&1) \
+  out=$(dotnet test tests/SalesManagement.Tests --collect:"XPlat Code Coverage" --logger:"trx;LogFileName=tests.trx" --results-directory ./coverage 2>&1) \
     || { echo "$out"; fail "backend テストが失敗しました"; }
   echo "$out"
 
@@ -319,9 +320,23 @@ verify_frontend() {
   popd >/dev/null
 }
 
+# 実行を囲んで失敗時にも証拠を監査する。子実行は元の検査関数を呼ぶ。
+verify_target() {
+  local scope="$1" target="$2" directory result=0
+  if [[ "${QUALITY_CHILD:-0}" == 1 ]]; then
+    if [[ "$scope" == backend ]]; then verify_backend; else verify_spring; fi
+    return
+  fi
+  directory=$(python3 scripts/quality-run.py init --target "$target" --profile light)
+  python3 scripts/quality-run.py step --directory "$directory" --id light --tool 'Light gates' -- \
+    env QUALITY_CHILD=1 VERIFY_SCOPE="$scope" bash scripts/verify.sh || result=$?
+  python3 scripts/quality-evidence.py --target "$target" --directory "$directory" --profile light || result=1
+  return "$result"
+}
+
 [[ $NEED_REPO     -eq 1 ]] && verify_repo
-[[ $NEED_BACKEND  -eq 1 ]] && verify_backend
-[[ $NEED_SPRING   -eq 1 ]] && verify_spring
+[[ $NEED_BACKEND  -eq 1 ]] && verify_target backend fsharp
+[[ $NEED_SPRING   -eq 1 ]] && verify_target spring spring
 [[ $NEED_FRONTEND -eq 1 ]] && verify_frontend
 
 log "PASS: 統合 verify 完了 (repo=$NEED_REPO backend=$NEED_BACKEND spring=$NEED_SPRING frontend=$NEED_FRONTEND)"

@@ -49,7 +49,7 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     baseURL: `http://localhost:${E2E_PORT}`,
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
     // playwright install できない環境 (システム提供の chromium を使う CI サンドボックス等)
     // では PW_CHROMIUM_PATH で実行バイナリを差し替えられる
     ...(process.env.PW_CHROMIUM_PATH
