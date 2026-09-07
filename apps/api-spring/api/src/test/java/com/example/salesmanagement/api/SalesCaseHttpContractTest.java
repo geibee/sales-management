@@ -2,6 +2,8 @@ package com.example.salesmanagement.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.salesmanagement.contracts.api.DefaultApi;
+import com.example.salesmanagement.contracts.model.LotStatus;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.opentelemetry.api.OpenTelemetry;
@@ -10,9 +12,18 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -22,6 +33,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @SpringBootTest(
@@ -29,6 +41,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
         properties = {
             "management.server.port=0",
             "sales-management.authentication.enabled=false",
+            "sales-management.rate-limit.permit-limit=100000",
             "sales-management.outbox.poll-interval-milliseconds=100"
         })
 @ExtendWith(OutputCaptureExtension.class)
@@ -55,6 +68,126 @@ final class SalesCaseHttpContractTest {
 
     @LocalServerPort
     private int port;
+
+    private static final AtomicInteger REVIEW_SEQUENCE = new AtomicInteger(96000);
+
+    private static JsonNode transitionMatrix() throws IOException {
+        return new ObjectMapper()
+                .readTree(Path.of(System.getProperty("repository.root"))
+                        .resolve("tests/fixtures/lot-transitions.json")
+                        .toFile());
+    }
+
+    static Stream<Arguments> transitionCases() throws IOException {
+        JsonNode matrix = transitionMatrix();
+        var cases = new ArrayList<Arguments>();
+        matrix.path("states")
+                .properties()
+                .forEach(state -> matrix.path("actions").fieldNames().forEachRemaining(action -> {
+                    cases.add(Arguments.of(state.getKey(), action, false));
+                    if (state.getValue().path("allowed").has(action)) {
+                        cases.add(Arguments.of(state.getKey(), action, true));
+                    }
+                }));
+        return cases.stream();
+    }
+
+    @Test
+    void xrLot000MatrixIncludesEveryContractStateAndTransition() throws IOException {
+        JsonNode matrix = transitionMatrix();
+        var states = matrix.path("states").properties().stream()
+                .map(entry -> entry.getKey())
+                .collect(Collectors.toSet());
+        assertThat(states)
+                .containsExactlyInAnyOrderElementsOf(Arrays.stream(LotStatus.values())
+                        .map(LotStatus::getValue)
+                        .toList());
+        var operations = Arrays.stream(DefaultApi.class.getDeclaredMethods())
+                .filter(method -> {
+                    var mapping = method.getAnnotation(RequestMapping.class);
+                    return mapping != null && mapping.value()[0].startsWith("/lots/{id}/");
+                })
+                .map(method -> method.getName())
+                .collect(Collectors.toSet());
+        var actions = matrix.path("actions").properties().stream()
+                .map(entry -> entry.getKey())
+                .collect(Collectors.toSet());
+        assertThat(actions).containsExactlyInAnyOrderElementsOf(operations);
+    }
+
+    @ParameterizedTest(name = "XR-LOT-001 {0} × {1} stale={2}")
+    @MethodSource("transitionCases")
+    void xrLot001EveryStateActionAndStaleVersionPreservesRejectedState(String state, String action, boolean stale)
+            throws Exception {
+        JsonNode matrix = transitionMatrix();
+        String lot = createLot(REVIEW_SEQUENCE.incrementAndGet());
+        JsonNode definition = matrix.path("states").path(state);
+        int version = 1;
+        // version=0の入力検証と競合検査を分離する。正の古いversionを用意する。
+        if (stale && state.equals("manufacturing")) {
+            assertThat(transition(matrix, lot, "completeManufacturing", version++)
+                            .status())
+                    .isEqualTo(200);
+            assertThat(transition(matrix, lot, "cancelManufacturingCompletion", version++)
+                            .status())
+                    .isEqualTo(200);
+        }
+        for (JsonNode setup : definition.path("setup")) {
+            JsonResponse response = transition(matrix, lot, setup.asText(), version++);
+            assertThat(response.status()).isEqualTo(200);
+        }
+        JsonNode before = get("/lots/" + lot);
+        assertThat(before.path("status").asText()).isEqualTo(state);
+        String beforeDatabase = lotSnapshot(lot);
+        boolean allowed = definition.path("allowed").has(action);
+        JsonResponse response = transition(matrix, lot, action, stale ? version - 1 : version);
+        JsonNode after = get("/lots/" + lot);
+        if (stale || !allowed) {
+            assertThat(response.status()).isEqualTo(stale ? 409 : 400);
+            assertThat(response.contentType()).startsWith("application/problem+json");
+            assertThat(response.body().path("type").asText())
+                    .isEqualTo(stale ? "optimistic-lock-conflict" : "invalid-state-transition");
+            assertThat(after).isEqualTo(before);
+            assertThat(lotSnapshot(lot)).isEqualTo(beforeDatabase);
+        } else {
+            assertThat(response.status()).isEqualTo(200);
+            assertThat(after.path("status").asText())
+                    .isEqualTo(definition.path("allowed").path(action).asText());
+            assertThat(after.path("version").asInt()).isEqualTo(version + 1);
+            for (String field : List.of("lotNumber", "division", "department", "section", "details")) {
+                assertThat(after.path(field)).as(field).isEqualTo(before.path(field));
+            }
+        }
+    }
+
+    private JsonResponse transition(JsonNode matrix, String lot, String action, int version) throws Exception {
+        JsonNode definition = matrix.path("actions").path(action);
+        var body = (com.fasterxml.jackson.databind.node.ObjectNode)
+                definition.path("body").deepCopy();
+        body.put("version", version);
+        return request(
+                definition.path("method").asText(),
+                "/lots/" + lot + "/" + definition.path("path").asText(),
+                body.toString());
+    }
+
+    private String lotSnapshot(String lot) {
+        // GETキャッシュに隠れた誤更新と、拒否した操作によるイベント追加も検査する。
+        int sequence = Integer.parseInt(lot.substring(lot.lastIndexOf('-') + 1));
+        return jdbc.queryForObject(
+                """
+                SELECT jsonb_build_object(
+                  'lot', (SELECT to_jsonb(l) FROM lot l
+                    WHERE lot_number_year=2026 AND lot_number_location='HTTP' AND lot_number_seq=?),
+                  'details', (SELECT jsonb_agg(to_jsonb(d) ORDER BY seq_no) FROM lot_detail d
+                    WHERE lot_number_year=2026 AND lot_number_location='HTTP' AND lot_number_seq=?),
+                  'events', (SELECT count(*) FROM outbox_events WHERE payload->>'lotId'=?))::text
+                """,
+                String.class,
+                sequence,
+                sequence,
+                lot);
+    }
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
@@ -435,6 +568,12 @@ final class SalesCaseHttpContractTest {
     }
 
     private String createManufacturedLot(int sequence) throws Exception {
+        String id = createLot(sequence);
+        post("/lots/" + id + "/complete-manufacturing", "{\"date\":\"2026-01-10\",\"version\":1}");
+        return id;
+    }
+
+    private String createLot(int sequence) throws Exception {
         String id = "2026-HTTP-" + sequence;
         post(
                 "/lots",
@@ -447,7 +586,6 @@ final class SalesCaseHttpContractTest {
                  "qualityGrade":"A","count":1,"quantity":1.0}]}
                 """
                         .formatted(sequence));
-        post("/lots/" + id + "/complete-manufacturing", "{\"date\":\"2026-01-10\",\"version\":1}");
         return id;
     }
 

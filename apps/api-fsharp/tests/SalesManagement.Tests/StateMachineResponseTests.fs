@@ -9,16 +9,21 @@ open SalesManagement.Tests.Support.HttpHelpers
 [<InlineData(200)>]
 [<InlineData(201)>]
 [<InlineData(204)>]
+[<InlineData(302)>]
+[<InlineData(401)>]
+[<InlineData(403)>]
+[<InlineData(404)>]
+[<InlineData(500)>]
+[<InlineData(503)>]
 [<Trait("Category", "PBT")>]
-let ``モデルが Error を予測した場合はすべての 2xx が矛盾になる`` (statusCode: int) =
+let ``XR-PBT-001 不正遷移は成功や認証失敗やサーバ障害で代替できない`` (statusCode: int) =
     use resp = new HttpResponseMessage(enum<HttpStatusCode> statusCode)
-    Assert.True(contradictsExpectedFailure resp, sprintf "HTTP %d を成功レスポンスとして拒否できませんでした" statusCode)
+    Assert.True(contradictsExpectedFailure resp, sprintf "HTTP %d を不正遷移の拒否と誤認しました" statusCode)
 
 [<Theory>]
 [<InlineData(400)>]
 [<InlineData(409)>]
-[<InlineData(500)>]
 [<Trait("Category", "PBT")>]
-let ``モデルが Error を予測した場合は非 2xx を矛盾としない`` (statusCode: int) =
+let ``XR-PBT-002 不正遷移の400と競合の409を受理する`` (statusCode: int) =
     use resp = new HttpResponseMessage(enum<HttpStatusCode> statusCode)
     Assert.False(contradictsExpectedFailure resp, sprintf "HTTP %d を成功レスポンスと誤判定しました" statusCode)

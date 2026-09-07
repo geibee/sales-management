@@ -413,6 +413,33 @@ module Tests =
         && delivered.DeterminedDate = determinedDate
         && delivered.DeliveryDate = deliveryDate
 
+    // Java の予約確定値保持を相互レビューし、金額・査定情報まで検査する。
+    [<ReplayableProperty>]
+    [<Trait("Category", "PBT")>]
+    let ``XR-PBT-003 予約納品後も確定金額と元の予約価格情報を保持する``
+        (common: SalesCaseCommon)
+        (reservationCommon: ReservationPriceCommon)
+        (determinedDate: DateOnly)
+        (deliveryDate: DateOnly)
+        (amountRaw: NonNegativeInt)
+        =
+        let amount = mustAmount amountRaw.Get
+        let before: BeforeReservationCase = { Common = common }
+
+        let reserved =
+            createReservationPrice (Provisional { Common = reservationCommon }) before
+
+        let confirmed = confirmReservation determinedDate amount reserved
+        let delivered = deliverReservation deliveryDate confirmed
+
+        match delivered.Appraisal with
+        | Confirmed appraisal ->
+            appraisal.Common = reservationCommon
+            && appraisal.DeterminedAmount = amount
+            && appraisal.DeterminedDate = determinedDate
+            && delivered.Common = common
+        | Provisional _ -> false
+
     [<ReplayableProperty>]
     [<Trait("Category", "PBT")>]
     let ``委託は3状態を順序通り遷移できる（順序性）``
