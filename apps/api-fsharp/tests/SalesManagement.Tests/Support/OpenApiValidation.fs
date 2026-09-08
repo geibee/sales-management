@@ -3,6 +3,7 @@ module SalesManagement.Tests.Support.OpenApiValidation
 open System
 open System.IO
 open System.Net.Http
+open System.Text
 open System.Text.Json
 open System.Text.RegularExpressions
 open System.Threading
@@ -323,10 +324,12 @@ let validateWithDocument
                     | _ -> failwithf "[openapi-validation] %s %s: 未記載の応答 %s" (string request.Method) template statusKey
 
             let specResponse = resolveResponse doc specResponse
-            let! body = response.Content.ReadAsStringAsync(ct)
+            // text/csv; charset=windows-31j など、実行環境にコードページが未登録でも
+            // Content-Type と body の有無は検証できる。JSON だけ後段で UTF-8 として解析する。
+            let! bodyBytes = response.Content.ReadAsByteArrayAsync(ct)
 
             if specResponse.Content.Count = 0 then
-                if body <> "" then
+                if bodyBytes.Length > 0 then
                     failwith "[openapi-validation] body 未定義の応答に body が存在する"
             else
                 let contentType =
@@ -343,10 +346,11 @@ let validateWithDocument
                 match media with
                 | None -> failwithf "[openapi-validation] %s %s: 未定義の Content-Type '%s'" template statusKey contentType
                 | Some media ->
-                    if String.IsNullOrWhiteSpace body then
+                    if bodyBytes.Length = 0 then
                         failwith "[openapi-validation] スキーマ定義があるのに body が空"
 
                     if contentType = "application/json" || contentType = "application/problem+json" then
+                        let body = Encoding.UTF8.GetString bodyBytes
                         use parsed = JsonDocument.Parse body
                         let errors = ResizeArray<string>()
                         validateSchema doc media.Schema parsed.RootElement "$" errors

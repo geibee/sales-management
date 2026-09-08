@@ -2,6 +2,7 @@
 """今回のネイティブレポートを保存し、共通保証の監査を実行する。"""
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import runpy
@@ -12,6 +13,15 @@ import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def deduplicate_reports(paths: list[Path]) -> list[Path]:
+    """VSTest が別ディレクトリへ複製した同一レポートを1件として扱う。"""
+    unique: dict[str, Path] = {}
+    for path in paths:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        unique.setdefault(digest, path)
+    return list(unique.values())
 
 
 def main() -> int:
@@ -49,7 +59,7 @@ def main() -> int:
         metrics = {}
         try:
             if args.target == "fsharp":
-                coverage = list(native.glob("coverage/**/coverage.cobertura.xml"))
+                coverage = deduplicate_reports(list(native.glob("coverage/**/coverage.cobertura.xml")))
                 if len(coverage) != 1:
                     raise ValueError(f"Cobertura は1件必須です: {len(coverage)}")
                 checker(coverage[0], context)

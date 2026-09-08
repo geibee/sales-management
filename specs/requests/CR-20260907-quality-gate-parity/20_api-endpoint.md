@@ -6,7 +6,7 @@
 | 対象 | 文書化する既存応答 | 条件 |
 |---|---|---|
 | 公開API以外 | 401 / 403 | 未認証 / ロール不足。既存 ProblemDetails |
-| レート制限対象 | 429 | 上限超過。Retry-After。F# は空body、Java は ProblemDetails のため、この表現差も明記する |
+| レート制限対象 | 429 | 上限超過。Retry-After。F# / Java とも空 body |
 | requestBody を持つ operation | 413 / 415 | 既存上限超過 / 非対応メディア |
 | health | 503 | 既存の status=DOWN 応答 |
 | externalPriceCheck | 502 / 503 | 上流失敗・タイムアウト・遮断。既存 ProblemDetails |
@@ -22,4 +22,4 @@
 
 ## 契約差分の承認
 
-依頼者の回答待ち。互換な応答追加に限る。新規 endpoint・破壊的変更を検出した場合は対象外とし、実装を進めない。
+2026-09-08 依頼者承認済み。互換な応答追加に限る。新規 endpoint・破壊的変更を検出した場合は対象外とする。

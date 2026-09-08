@@ -203,6 +203,19 @@ def test_trx_uses_test_definition_identity_and_outcome(load_script, tmp_path):
     assert mod.read_tests(report) == [("Domain.Tests#keeps values", True), ("Domain.Tests#keeps values", False)]
 
 
+def test_trx_falls_back_to_unit_test_name_when_adapter_omits_method_name(load_script, tmp_path):
+    mod = load_script("scripts/assurance-audit.py")
+    report = tmp_path / "tests.trx"
+    report.write_text('''<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+      <TestDefinitions><UnitTest id="a" name="Domain.Tests.generated case">
+        <TestMethod className="Domain.Tests.generated case"/>
+      </UnitTest></TestDefinitions>
+      <Results><UnitTestResult testId="a" outcome="Passed"/></Results>
+    </TestRun>''')
+
+    assert mod.read_tests(report) == [("Domain.Tests.generated case", True)]
+
+
 def test_current_run_rejects_old_evidence(load_script, tmp_path):
     mod = load_script("scripts/assurance-audit.py")
     report = tmp_path / "old.xml"

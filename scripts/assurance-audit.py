@@ -27,7 +27,12 @@ def read_tests(path: Path) -> list[tuple[str, bool]]:
         for test in root.findall(".//TestDefinitions/UnitTest"):
             method = test.find("TestMethod")
             if method is not None:
-                identities[test.attrib["id"]] = f"{method.attrib['className']}#{method.attrib['name']}"
+                method_name = method.attrib.get("name")
+                identities[test.attrib["id"]] = (
+                    f"{method.attrib['className']}#{method_name}"
+                    if method_name
+                    else test.attrib.get("name", method.attrib["className"])
+                )
         return [
             (identities[result.attrib["testId"]], result.attrib.get("outcome") == "Passed")
             for result in root.findall(".//Results/UnitTestResult")

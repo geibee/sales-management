@@ -17,6 +17,7 @@ import com.example.salesmanagement.contracts.model.CreatedSalesCaseResponse;
 import com.example.salesmanagement.contracts.model.DeliverReservationRequest;
 import com.example.salesmanagement.contracts.model.DesignateConsignmentRequest;
 import com.example.salesmanagement.contracts.model.EditCaseLotsRequest;
+import com.example.salesmanagement.contracts.model.HealthResponse;
 import com.example.salesmanagement.contracts.model.InstructItemConversionRequest;
 import com.example.salesmanagement.contracts.model.InstructLotShippingRequest;
 import com.example.salesmanagement.contracts.model.InstructSalesCaseShippingRequest;
@@ -185,7 +186,7 @@ public class SalesManagementController implements DefaultApi {
     }
 
     @Override
-    public ResponseEntity<Void> healthCheck() {
+    public ResponseEntity<HealthResponse> healthCheck() {
         return call("healthCheck");
     }
 

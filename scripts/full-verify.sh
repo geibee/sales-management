@@ -35,7 +35,7 @@ trap finish EXIT
 step repo 'Repository gates' env VERIFY_SCOPE=repo bash scripts/verify.sh || status=1
 step frontend 'Frontend gates' env VERIFY_SCOPE=frontend bash scripts/verify.sh || status=1
 if [[ "$target" == fsharp ]]; then
-  step setup 'Database setup' dotnet run --project apps/api-fsharp/tools/Migrator || status=1
+  step setup 'Database setup' bash -c 'cd apps/api-fsharp && exec dotnet run --project tools/Migrator' || status=1
 fi
 if step light 'Light gates' env QUALITY_CHILD=1 VERIFY_SCOPE="$scope" bash scripts/verify.sh; then
   python3 scripts/quality-evidence.py --target "$target" --directory "$QUALITY_RUN_DIR" --profile light --collect-only || status=1

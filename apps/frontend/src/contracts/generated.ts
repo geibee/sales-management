@@ -1,6 +1,14 @@
 import { makeApi, Zodios, type ZodiosOptions } from "@zodios/core";
 import { z } from "zod";
 
+const HealthResponse = z
+  .object({
+    status: z.enum(["UP", "DOWN"]),
+    checks: z
+      .object({ postgresql: z.enum(["UP", "DOWN"]), self: z.literal("UP") })
+      .passthrough(),
+  })
+  .passthrough();
 const AuthConfigResponse = z
   .object({
     enabled: z.boolean(),
@@ -415,6 +423,7 @@ const PriceCheckResponse = z
   .passthrough();
 
 export const schemas = {
+  HealthResponse,
   AuthConfigResponse,
   LotStatus,
   LotSummary,
@@ -488,6 +497,21 @@ const endpoints = makeApi([
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
+        schema: z.void(),
+      },
+      {
         status: 502,
         description: `上流 API がタイムアウト / 異常応答 / パース失敗`,
         schema: z.void(),
@@ -509,6 +533,13 @@ const endpoints = makeApi([
 `,
     requestFormat: "json",
     response: AuthConfigResponse,
+    errors: [
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
+        schema: z.void(),
+      },
+    ],
   },
   {
     method: "get",
@@ -519,13 +550,37 @@ const endpoints = makeApi([
 `,
     requestFormat: "json",
     response: CodeMastersResponse,
+    errors: [
+      {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
+        schema: z.void(),
+      },
+    ],
   },
   {
     method: "get",
     path: "/health",
     alias: "healthCheck",
     requestFormat: "json",
-    response: z.void(),
+    response: HealthResponse,
+    errors: [
+      {
+        status: 503,
+        description: `PostgreSQL に到達できずサービス利用不可`,
+        schema: HealthResponse,
+      },
+    ],
   },
   {
     method: "get",
@@ -567,6 +622,21 @@ const endpoints = makeApi([
         description: `不正リクエスト。RFC 9457 Problem Details 形式`,
         schema: z.void(),
       },
+      {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
+        schema: z.void(),
+      },
     ],
   },
   {
@@ -589,8 +659,33 @@ const endpoints = makeApi([
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -615,8 +710,28 @@ const endpoints = makeApi([
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
+        schema: z.void(),
+      },
+      {
+        status: 500,
+        description: `サーバー内部エラー。RFC 9457 Problem Details 形式`,
         schema: z.void(),
       },
     ],
@@ -648,6 +763,16 @@ const endpoints = makeApi([
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -655,6 +780,21 @@ const endpoints = makeApi([
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -688,6 +828,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -695,6 +845,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -724,6 +889,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -731,6 +906,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -760,6 +950,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -767,6 +967,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -798,6 +1013,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -805,6 +1030,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -834,6 +1074,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -841,6 +1091,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -868,6 +1133,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 400,
         description: `不正リクエスト。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -905,6 +1185,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 400,
         description: `不正リクエスト。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -946,6 +1241,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         description: `不正リクエスト。RFC 9457 Problem Details 形式`,
         schema: z.void(),
       },
+      {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
+        schema: z.void(),
+      },
     ],
   },
   {
@@ -968,8 +1278,33 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -997,8 +1332,23 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1023,8 +1373,23 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1054,6 +1419,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1061,6 +1436,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1090,6 +1480,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1097,6 +1497,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1128,6 +1543,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1135,6 +1560,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1164,6 +1604,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1171,6 +1621,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1202,6 +1667,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1209,6 +1684,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1238,6 +1728,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1245,6 +1745,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1274,6 +1789,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1281,6 +1806,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1312,6 +1852,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1319,6 +1869,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1352,6 +1917,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1359,6 +1934,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1388,6 +1978,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1395,6 +1995,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1424,6 +2039,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1431,6 +2056,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1462,6 +2102,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1469,6 +2119,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1498,6 +2163,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1505,6 +2180,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1534,6 +2224,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1541,6 +2241,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1570,6 +2285,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1577,6 +2302,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
@@ -1608,6 +2348,16 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
         schema: z.void(),
       },
       {
+        status: 401,
+        description: `認証が必要。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 403,
+        description: `必要なロールがない。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
         status: 404,
         description: `リソースなし。RFC 9457 Problem Details 形式`,
         schema: z.void(),
@@ -1615,6 +2365,21 @@ affected rows &#x3D; 0 の場合は 409 Conflict を返す。
       {
         status: 409,
         description: `楽観的ロック競合（リクエストの version が現在値と一致しない）。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 413,
+        description: `リクエストボディが上限を超過。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 415,
+        description: `リクエストの Content-Type が非対応。RFC 9457 Problem Details 形式`,
+        schema: z.void(),
+      },
+      {
+        status: 429,
+        description: `レート制限超過。レスポンスボディは返さない`,
         schema: z.void(),
       },
     ],
