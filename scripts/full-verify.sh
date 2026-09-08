@@ -2,6 +2,7 @@
 # F# 自動 / Java 手動の両経路が呼ぶ全量検証。途中失敗でも最後に監査する。
 set -euo pipefail
 cd "$(dirname "$0")/.."
+export VERIFY_BASE_REF="${VERIFY_BASE_REF:-origin/main}"
 
 target="${1:?fsharp または spring を指定してください}"
 case "$target" in

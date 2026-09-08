@@ -9,3 +9,9 @@ setup() {
 
   [[ "$setup_line" == *"bash -c 'cd apps/api-fsharp && exec dotnet run --project tools/Migrator'"* ]]
 }
+
+@test "全量検証は PR checkout でも解決できる origin/main を既定基準にする" {
+  run grep -F 'export VERIFY_BASE_REF="${VERIFY_BASE_REF:-origin/main}"' scripts/full-verify.sh
+
+  [ "$status" -eq 0 ]
+}
