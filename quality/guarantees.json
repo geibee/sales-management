@@ -122,7 +122,7 @@
     },
     {
       "id": "QG-PBT-SEQUENCES",
-      "purpose": "操作列の禁止遷移・競合後の状態不変",
+      "purpose": "操作列のモデル照合と禁止遷移・競合後の状態不変",
       "tier": "light",
       "requiredTargets": [
         "fsharp",
@@ -134,6 +134,11 @@
             "type": "test",
             "selector": "*LotStateMachinePropertyTests*#*",
             "minimumCases": 1
+          },
+          {
+            "type": "test",
+            "selector": "*SalesCaseStateMachinePropertyTests*#*",
+            "minimumCases": 3
           }
         ],
         "spring": [
@@ -141,6 +146,11 @@
             "type": "test",
             "selector": "*LotUseCasesProperties#xrPbt007*",
             "minimumCases": 1
+          },
+          {
+            "type": "test",
+            "selector": "*HttpStateMachineProperties#xrPbtHttp*",
+            "minimumCases": 4
           }
         ]
       }
