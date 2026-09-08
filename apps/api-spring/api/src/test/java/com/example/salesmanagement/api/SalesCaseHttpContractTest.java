@@ -1,15 +1,25 @@
 package com.example.salesmanagement.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
+import au.com.dius.pact.provider.junit5.HttpTestTarget;
+import au.com.dius.pact.provider.junit5.PactVerificationContext;
+import au.com.dius.pact.provider.junit5.PactVerificationInvocationContextProvider;
+import au.com.dius.pact.provider.junitsupport.Provider;
+import au.com.dius.pact.provider.junitsupport.State;
+import au.com.dius.pact.provider.junitsupport.loader.PactFolder;
+import com.example.salesmanagement.application.ExternalPricingGateway;
+import com.example.salesmanagement.application.ExternalPricingGateway.PriceQuote;
 import com.example.salesmanagement.contracts.api.DefaultApi;
 import com.example.salesmanagement.contracts.model.LotStatus;
+import com.example.salesmanagement.domain.Result;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.opentelemetry.api.OpenTelemetry;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
@@ -19,7 +29,10 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -33,6 +46,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
@@ -55,7 +69,7 @@ final class SalesCaseHttpContractTest {
         DATABASE.start();
     }
 
-    private final HttpClient http = HttpClient.newHttpClient();
+    private final ContractHttpClient http = new ContractHttpClient();
 
     @Autowired
     private ObjectMapper json;
@@ -66,10 +80,48 @@ final class SalesCaseHttpContractTest {
     @Autowired
     private OpenTelemetry openTelemetry;
 
+    @MockitoBean
+    private ExternalPricingGateway externalPricing;
+
     @LocalServerPort
     private int port;
 
     private static final AtomicInteger REVIEW_SEQUENCE = new AtomicInteger(96000);
+
+    @Nested
+    @Provider("sales-management")
+    @PactFolder("${pact.folder}")
+    class LocalPactTests {
+        @BeforeEach
+        void target(PactVerificationContext context) {
+            context.setTarget(new HttpTestTarget("localhost", port, "/"));
+        }
+
+        @TestTemplate
+        @ExtendWith(PactVerificationInvocationContextProvider.class)
+        void verifyLocalPact(PactVerificationContext context) {
+            context.verifyInteraction();
+        }
+
+        @State("lot 2026-PACT-001 が manufacturing 状態で存在する")
+        void providerState() throws Exception {
+            seedPactManufacturingLot();
+        }
+    }
+
+    void seedPactManufacturingLot() throws Exception {
+        Integer existing = jdbc.queryForObject(
+                "SELECT count(*) FROM lot WHERE lot_number_year=2026 "
+                        + "AND lot_number_location='PACT' AND lot_number_seq=1",
+                Integer.class);
+        if (existing == 0) {
+            post("/lots", lotBody("PACT", 1));
+        } else {
+            // 各 interaction の前提を独立に復元する。通常テストのロットには触れない。
+            jdbc.update("UPDATE lot SET status='manufacturing', version=1, manufacturing_completed_date=NULL "
+                    + "WHERE lot_number_year=2026 AND lot_number_location='PACT' AND lot_number_seq=1");
+        }
+    }
 
     private static JsonNode transitionMatrix() throws IOException {
         return new ObjectMapper()
@@ -286,6 +338,151 @@ final class SalesCaseHttpContractTest {
         JsonNode consignmentDetail = get("/sales-cases/" + consignment);
         assertThat(consignmentDetail.at("/consignor/consignorName").asText()).isEqualTo("Acme");
         assertThat(consignmentDetail.at("/result/resultAmount").asInt()).isEqualTo(480000);
+    }
+
+    @Test
+    void reachesEverySuccessfulOperationRequiredByTheContractGate() throws Exception {
+        assertThat(request("GET", "/lots/export?format=csv", null).status()).isEqualTo(200);
+        assertThat(request("GET", "/code-masters", null).status()).isEqualTo(200);
+
+        String firstLot = createManufacturedLot(98001);
+        String replacementLot = createManufacturedLot(98002);
+        String deletedLot = createManufacturedLot(98003);
+
+        JsonNode direct = post(
+                "/sales-cases",
+                """
+                {"lots":["%s"],"divisionCode":1,"salesDate":"2026-03-01","caseType":"direct"}
+                """
+                        .formatted(firstLot));
+        String directId = direct.get("salesCaseNumber").asText();
+        JsonNode edited = request(
+                        "PUT",
+                        "/sales-cases/" + directId + "/lots",
+                        "{\"lots\":[\"%s\"],\"version\":%d}"
+                                .formatted(replacementLot, direct.get("version").asInt()))
+                .body();
+
+        JsonNode deleted = post(
+                "/sales-cases",
+                """
+                {"lots":["%s"],"divisionCode":1,"salesDate":"2026-03-02","caseType":"direct"}
+                """
+                        .formatted(deletedLot));
+        assertThat(request(
+                                "DELETE",
+                                "/sales-cases/" + deleted.get("salesCaseNumber").asText(),
+                                null)
+                        .status())
+                .isEqualTo(204);
+
+        JsonNode appraised = post(
+                "/sales-cases/" + directId + "/appraisals",
+                appraisalBody(replacementLot, edited.get("version").asInt(), 100000));
+        JsonNode updated = request(
+                        "PUT",
+                        "/sales-cases/" + directId + "/appraisals",
+                        appraisalBody(replacementLot, appraised.get("version").asInt(), 110000))
+                .body();
+        assertThat(request(
+                                "DELETE",
+                                "/sales-cases/" + directId + "/appraisals",
+                                "{\"version\":%d}"
+                                        .formatted(updated.get("version").asInt()))
+                        .status())
+                .isEqualTo(204);
+
+        JsonNode afterAppraisalDelete = get("/sales-cases/" + directId);
+        JsonNode appraisedAgain = post(
+                "/sales-cases/" + directId + "/appraisals",
+                appraisalBody(
+                        replacementLot, afterAppraisalDelete.get("version").asInt(), 100000));
+        JsonNode contracted = post(
+                "/sales-cases/" + directId + "/contracts",
+                contractBody(appraisedAgain.get("version").asInt()));
+        assertThat(request(
+                                "DELETE",
+                                "/sales-cases/" + directId + "/contracts",
+                                "{\"version\":%d}"
+                                        .formatted(contracted.get("version").asInt()))
+                        .status())
+                .isEqualTo(204);
+
+        JsonNode afterContractDelete = get("/sales-cases/" + directId);
+        JsonNode contractedAgain = post(
+                "/sales-cases/" + directId + "/contracts",
+                contractBody(afterContractDelete.get("version").asInt()));
+        JsonNode shipping = post(
+                "/sales-cases/" + directId + "/shipping-instruction",
+                "{\"date\":\"2026-03-10\",\"version\":%d}"
+                        .formatted(contractedAgain.get("version").asInt()));
+        assertThat(request(
+                                "DELETE",
+                                "/sales-cases/" + directId + "/shipping-instruction",
+                                "{\"version\":%d}"
+                                        .formatted(shipping.get("version").asInt()))
+                        .status())
+                .isEqualTo(204);
+        JsonNode afterShippingCancel = get("/sales-cases/" + directId);
+        JsonNode shippingAgain = post(
+                "/sales-cases/" + directId + "/shipping-instruction",
+                "{\"date\":\"2026-03-10\",\"version\":%d}"
+                        .formatted(afterShippingCancel.get("version").asInt()));
+        post(
+                "/sales-cases/" + directId + "/shipping-completion",
+                "{\"date\":\"2026-03-20\",\"version\":%d}"
+                        .formatted(shippingAgain.get("version").asInt()));
+
+        String reservationLot = createManufacturedLot(98004);
+        JsonNode reservation = post(
+                "/sales-cases",
+                """
+                {"lots":["%s"],"divisionCode":1,"salesDate":"2026-03-03","caseType":"reservation"}
+                """
+                        .formatted(reservationLot));
+        String reservationId = reservation.get("salesCaseNumber").asText();
+        JsonNode reservationPrice = post(
+                "/sales-cases/" + reservationId + "/reservation/appraisals",
+                "{\"appraisalDate\":\"2026-03-04\",\"reservedLotInfo\":\"reserved\","
+                        + "\"reservedAmount\":500000,\"version\":1}");
+        JsonNode confirmed = post(
+                "/sales-cases/" + reservationId + "/reservation/determine",
+                "{\"determinedDate\":\"2026-03-05\",\"determinedAmount\":480000,\"version\":%d}"
+                        .formatted(reservationPrice.get("version").asInt()));
+        assertThat(request(
+                                "DELETE",
+                                "/sales-cases/" + reservationId + "/reservation/determination",
+                                "{\"version\":%d}"
+                                        .formatted(confirmed.get("version").asInt()))
+                        .status())
+                .isEqualTo(200);
+
+        String consignmentLot = createManufacturedLot(98005);
+        JsonNode consignment = post(
+                "/sales-cases",
+                """
+                {"lots":["%s"],"divisionCode":1,"salesDate":"2026-03-06","caseType":"consignment"}
+                """
+                        .formatted(consignmentLot));
+        String consignmentId = consignment.get("salesCaseNumber").asText();
+        JsonNode designated = post(
+                "/sales-cases/" + consignmentId + "/consignment/designate",
+                "{\"consignorName\":\"Acme\",\"consignorCode\":\"ACME\","
+                        + "\"designatedDate\":\"2026-03-07\",\"version\":1}");
+        assertThat(request(
+                                "DELETE",
+                                "/sales-cases/" + consignmentId + "/consignment/designation",
+                                "{\"version\":%d}"
+                                        .formatted(designated.get("version").asInt()))
+                        .status())
+                .isEqualTo(200);
+
+        when(externalPricing.fetch(firstLot))
+                .thenReturn(Result.success(
+                        new PriceQuote(new BigDecimal("10000"), new BigDecimal("1.05"), "external-pricing-api")));
+        assertThat(request("GET", "/api/external/price-check?lotId=" + firstLot, null)
+                        .status())
+                .isEqualTo(200);
     }
 
     private static void assertExplicitNulls(JsonNode detail, String... fieldNames) {
@@ -575,18 +772,44 @@ final class SalesCaseHttpContractTest {
 
     private String createLot(int sequence) throws Exception {
         String id = "2026-HTTP-" + sequence;
-        post(
-                "/lots",
-                """
-                {"lotNumber":{"year":2026,"location":"HTTP","seq":%d},
+        post("/lots", lotBody("HTTP", sequence));
+        return id;
+    }
+
+    private static String lotBody(String location, int sequence) {
+        return """
+                {"lotNumber":{"year":2026,"location":"%s","seq":%d},
                  "divisionCode":1,"departmentCode":10,"sectionCode":100,
                  "processCategory":1,"inspectionCategory":1,"manufacturingCategory":1,
                  "details":[{"itemCategory":"general","productCategoryCode":"v1",
                  "lengthSpecLower":1.0,"thicknessSpecLower":1.0,"thicknessSpecUpper":2.0,
                  "qualityGrade":"A","count":1,"quantity":1.0}]}
                 """
-                        .formatted(sequence));
-        return id;
+                .formatted(location, sequence);
+    }
+
+    private static String appraisalBody(String lot, int version, int estimatedTotal) {
+        return """
+                {"type":"normal","appraisalDate":"2026-03-03","deliveryDate":"2026-03-15",
+                 "salesMarket":"market","baseUnitPriceDate":"2026-03-01",
+                 "periodAdjustmentRateDate":"2026-03-01","counterpartyAdjustmentRateDate":"2026-03-01",
+                 "taxExcludedEstimatedTotal":%d,
+                 "lotAppraisals":[{"lotNumber":"%s","detailAppraisals":[{"detailIndex":1,
+                 "baseUnitPrice":1000,"periodAdjustmentRate":1.0,"counterpartyAdjustmentRate":1.0}]}],
+                 "version":%d}
+                """
+                .formatted(estimatedTotal, lot, version);
+    }
+
+    private static String contractBody(int version) {
+        return """
+                {"contractDate":"2026-03-08","person":"person","buyer":{"customerNumber":"C98001"},
+                 "salesType":1,"item":"item","deliveryMethod":"method",
+                 "paymentDeferralCondition":"","salesMethod":1,"usage":"",
+                 "taxExcludedContractAmount":100000,"consumptionTax":10000,
+                 "taxExcludedPaymentAmount":100000,"paymentConsumptionTax":10000,"version":%d}
+                """
+                .formatted(version);
     }
 
     private String createCase(String caseType, String lot) throws Exception {
@@ -630,7 +853,7 @@ final class SalesCaseHttpContractTest {
             }
             builder.method(method, HttpRequest.BodyPublishers.ofString(body));
         }
-        HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = http.send(builder.build());
         return new JsonResponse(
                 response.statusCode(),
                 response.headers().firstValue("Content-Type").orElse(""),
@@ -639,11 +862,9 @@ final class SalesCaseHttpContractTest {
     }
 
     private HttpResponse<String> rawGet(String path) throws IOException, InterruptedException {
-        return http.send(
-                HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
-                        .GET()
-                        .build(),
-                HttpResponse.BodyHandlers.ofString());
+        return http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .GET()
+                .build());
     }
 
     private record JsonResponse(int status, String contentType, java.net.http.HttpHeaders headers, JsonNode body) {

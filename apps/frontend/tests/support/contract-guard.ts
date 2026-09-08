@@ -27,7 +27,7 @@ interface EndpointDef {
   method: string;
   path: string;
   response: z.ZodType;
-  errors?: { status: number }[];
+  errors?: { status: number; schema: z.ZodType }[];
 }
 
 // Zodios インスタンスは `.api` に makeApi() の endpoint 定義をそのまま持つ
@@ -82,11 +82,11 @@ async function validate(request: Request, response: Response): Promise<void> {
   let schema: z.ZodType;
   if (response.status >= 400) {
     // spec が当該 status を宣言している operation のみ検証する (backend 側の
-    // OpenApiValidationHandler と同ポリシー)。宣言済みエラーは実 API では常に
-    // RFC 9457 Problem Details なので ProblemJsonSchema で照合する
-    // (/health の 503 など独自 JSON を返す spec 未宣言 status は対象外)
-    if (!endpoint.errors?.some((e) => e.status === response.status)) return;
-    schema = ProblemJsonSchema;
+    // OpenApiValidationHandler と同ポリシー)。生成器が参照 response を z.void()
+    // にする場合は Problem Details、health 503 のように具体型があればそれを使う。
+    const error = endpoint.errors?.find((e) => e.status === response.status);
+    if (!error) return;
+    schema = error.schema instanceof z.ZodVoid ? ProblemJsonSchema : error.schema;
   } else {
     schema = endpoint.response;
   }

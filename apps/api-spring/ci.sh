@@ -4,7 +4,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-RESULTS_DIR="$PWD/ci-results"
+if [[ "${QUALITY_HEAVY_CHILD:-0}" != 1 ]]; then
+  exec bash ../../scripts/full-verify.sh spring
+fi
+RESULTS_DIR="${QUALITY_RUN_DIR:?全量検証の run directory が必要です}"
 SARIF_DIR="$RESULTS_DIR/sarif"
 # Trivy は Java 依存の POM を標準の ~/.m2/repository から探索する。
 # Maven も同じ場所を使い、ビルドで解決済みの依存を脆弱性スキャンで再利用する。
@@ -25,6 +28,16 @@ APP_PID=""
 FSHARP_PID=""
 
 finish() {
+  local original=$?
+  trap - EXIT
+  if [[ -f "$RESULTS_DIR/schemathesis-junit.xml" ]]; then
+    python3 scripts/report-to-sarif.py --tool Schemathesis --kind junit \
+      --input "$RESULTS_DIR/schemathesis-junit.xml" --output "$SARIF_DIR/schemathesis.sarif" || original=1
+  fi
+  if [[ -f "$RESULTS_DIR/e2e-junit.xml" ]]; then
+    python3 scripts/report-to-sarif.py --tool 'Backend E2E' --kind junit \
+      --input "$RESULTS_DIR/e2e-junit.xml" --output "$SARIF_DIR/e2e.sarif" || original=1
+  fi
   if [[ -n "$FSHARP_PID" ]]; then
     kill "$FSHARP_PID" 2>/dev/null || true
     wait "$FSHARP_PID" 2>/dev/null || true
@@ -33,6 +46,7 @@ finish() {
     kill "$APP_PID" 2>/dev/null || true
     wait "$APP_PID" 2>/dev/null || true
   fi
+  exit "$original"
 }
 trap finish EXIT
 
@@ -44,16 +58,10 @@ for tool in java dotnet python3 psql docker curl gitleaks trivy pnpm; do
 done
 [[ -x ./mvnw ]] || { echo "Maven Wrapper が実行できません" >&2; exit 1; }
 
-rm -rf "$RESULTS_DIR"
 mkdir -p "$SARIF_DIR" "$MAVEN_REPOSITORY"
 
-echo "=== 軽量ゲート + package ==="
-python3 scripts/verify-contracts.py
-./mvnw -B \
-  -Dmaven.repo.local="$MAVEN_REPOSITORY" \
-  -Pstatic-analysis,nightly \
-  com.diffplug.spotless:spotless-maven-plugin:3.3.0:check install
-python3 scripts/verify-quality-ratchets.py
+echo "=== 検証済み module を nightly ツール向けに install ==="
+./mvnw -B -Dmaven.repo.local="$MAVEN_REPOSITORY" -DskipTests install
 
 echo "=== SpotBugs ==="
 ./mvnw -B \
@@ -107,10 +115,14 @@ curl -fsS -u "$PACT_BROKER_USERNAME:$PACT_BROKER_PASSWORD" \
   --data-binary @../../pacts/frontend-sales-management.json "$PACT_URL" >/dev/null
 curl -fsS -u "$PACT_BROKER_USERNAME:$PACT_BROKER_PASSWORD" \
   -H 'Accept: application/hal+json' "$PACT_URL" >"$RESULTS_DIR/pact.json"
-python3 scripts/report-to-sarif.py \
-  --tool 'Pact Broker' --kind artifact \
-  --input "$RESULTS_DIR/pact.json" \
-  --output "$SARIF_DIR/pact.sarif"
+mkdir -p "$RESULTS_DIR/broker-pacts"
+cp "$RESULTS_DIR/pact.json" "$RESULTS_DIR/broker-pacts/frontend-sales-management.json"
+python3 ../../scripts/quality-run.py step --directory "$RESULTS_DIR" --id pact --tool 'Pact provider' \
+  --test-report 'api/target/surefire-reports/TEST-*SalesCaseHttpContractTest$LocalPactTests.xml' \
+  --minimum-test-cases 2 -- \
+  ./mvnw -B -Dmaven.repo.local="$MAVEN_REPOSITORY" -pl api -am \
+  -Dpact.folder="$RESULTS_DIR/broker-pacts" \
+  '-Dtest=SalesCaseHttpContractTest$LocalPactTests' -Dsurefire.failIfNoSpecifiedTests=false test
 
 echo "=== API 起動 ==="
 EXTERNAL_PRICING_BASE_URL="$EXTERNAL_PRICING_BASE_URL" \
@@ -201,14 +213,14 @@ docker run --rm --network host \
   --report-junit-path /app/ci-results/schemathesis-junit.xml
 SCHEMATHESIS_EXIT=$?
 set -e
-[[ "$SCHEMATHESIS_EXIT" -eq 0 ]] || {
-  echo "Schemathesis 契約違反: exit=$SCHEMATHESIS_EXIT" >&2
-  exit 1
-}
 python3 scripts/report-to-sarif.py \
   --tool Schemathesis --kind junit \
   --input "$RESULTS_DIR/schemathesis-junit.xml" \
   --output "$SARIF_DIR/schemathesis.sarif"
+[[ "$SCHEMATHESIS_EXIT" -eq 0 ]] || {
+  echo "Schemathesis 契約違反: exit=$SCHEMATHESIS_EXIT" >&2
+  exit 1
+}
 
 echo "=== frontend E2E (Spring 接続) ==="
 (
@@ -218,7 +230,7 @@ echo "=== frontend E2E (Spring 接続) ==="
     pnpm exec playwright test --reporter=junit
 )
 python3 scripts/report-to-sarif.py \
-  --tool 'Spring frontend E2E' --kind junit \
+  --tool 'Backend E2E' --kind junit \
   --input "$RESULTS_DIR/e2e-junit.xml" \
   --output "$SARIF_DIR/e2e.sarif"
 

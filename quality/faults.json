@@ -1,0 +1,66 @@
+[
+  {
+    "id": "date-preservation",
+    "fsharp": {
+      "file": "apps/api-fsharp/src/SalesManagement/Domain/LotWorkflows.fs",
+      "before": "ManufacturingCompletedDate = lot.ManufacturingCompletedDate\n      ShippingDeadlineDate = deadline",
+      "after": "ManufacturingCompletedDate = deadline\n      ShippingDeadlineDate = deadline",
+      "filter": "FullyQualifiedName~LotPropertyTests"
+    },
+    "spring": {
+      "file": "apps/api-spring/domain/src/main/java/com/example/salesmanagement/domain/LotWorkflows.java",
+      "before": "new ShippingInstructedLot(lot.common(), lot.manufacturingCompletedDate(), deadline)",
+      "after": "new ShippingInstructedLot(lot.common(), deadline, deadline)",
+      "filter": "WorkflowProperties",
+      "module": "domain"
+    }
+  },
+  {
+    "id": "amount-preservation",
+    "fsharp": {
+      "file": "apps/api-fsharp/src/SalesManagement/Domain/ReservationCaseWorkflows.fs",
+      "before": "DeterminedAmount = amount",
+      "after": "DeterminedAmount = u.Common.ReservedAmount",
+      "filter": "FullyQualifiedName~SalesCasePropertyTests"
+    },
+    "spring": {
+      "file": "apps/api-spring/domain/src/main/java/com/example/salesmanagement/domain/SalesCaseWorkflows.java",
+      "before": "salesCase.common(), salesCase.reservationPriceReference(), date, amount",
+      "after": "salesCase.common(), salesCase.reservationPriceReference(), date, Amount.create(0).value().orElseThrow()",
+      "filter": "WorkflowProperties",
+      "module": "domain"
+    }
+  },
+  {
+    "id": "optimistic-lock",
+    "fsharp": {
+      "file": "apps/api-fsharp/src/SalesManagement/Infrastructure/LotRepository.fs",
+      "before": "AND version = @expected_version",
+      "after": "AND @expected_version = @expected_version",
+      "filter": "FullyQualifiedName~LotTransitionMatrixTests"
+    },
+    "spring": {
+      "file": "apps/api-spring/infrastructure/src/main/java/com/example/salesmanagement/infrastructure/JdbcLotRepository.java",
+      "before": "AND version = ?",
+      "after": "AND version >= ?",
+      "filter": "SalesCaseHttpContractTest#xrLot001*",
+      "module": "api"
+    }
+  },
+  {
+    "id": "rejected-event",
+    "fsharp": {
+      "file": "apps/api-fsharp/src/SalesManagement/Api/LotRoutes.fs",
+      "before": "        | Error e ->\n            tx.Rollback()\n            Error e\n        | Ok newVersion ->",
+      "after": "        | Error e ->\n            match makeEvent updated with\n            | Some evt -> OutboxRepository.insertEventTx tx (DomainEvent.eventType evt) (DomainEvent.payloadJson evt) |> ignore\n            | None -> ()\n            tx.Commit()\n            Error e\n        | Ok newVersion ->",
+      "filter": "FullyQualifiedName~LotTransitionMatrixTests"
+    },
+    "spring": {
+      "file": "apps/api-spring/infrastructure/src/main/java/com/example/salesmanagement/infrastructure/JdbcLotRepository.java",
+      "before": "            if (changed == 0) {\n                status.setRollbackOnly();\n                return SaveResult.conflict();\n            }",
+      "after": "            if (changed == 0) {\n                events.forEach(this::insertOutbox);\n                return SaveResult.conflict();\n            }",
+      "filter": "SalesCaseHttpContractTest#xrLot001*",
+      "module": "api"
+    }
+  }
+]

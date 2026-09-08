@@ -3,7 +3,9 @@ module SalesManagement.Tests.Support.OpenApiValidation
 open System
 open System.IO
 open System.Net.Http
+open System.Text
 open System.Text.Json
+open System.Text.RegularExpressions
 open System.Threading
 open System.Threading.Tasks
 open Microsoft.OpenApi.Any
@@ -17,11 +19,8 @@ open Microsoft.OpenApi.Readers
 /// Schemathesis がステートフル系エンドポイントを hooks で除外している穴を、
 /// 既存統合テストのトラフィックで埋めるのが目的。
 ///
-/// 検証ポリシー (決定的にできる範囲を段階導入する):
-///   - spec に存在しない path / method / status code は対象外 (skip)。
-///     status code の全数documentation 強制は Schemathesis error 昇格 (Tier2) で扱う
-///   - JSON 系 (application/json / application/problem+json) のみ検証。CSV 等は対象外
-///   - 適合しない場合は例外を投げ、そのリクエストを発行したテストを失敗させる
+/// 未定義の応答・不正なスキーマ・Content-Type は失敗にする。
+/// spec 外の開発用 path / 未定義 method は HTTP セマンティクステストが担う。
 
 // ---------------------------------------------------------------- spec 読込
 
@@ -143,25 +142,19 @@ let rec private validateSchema
             for sub in schema.AllOf do
                 validateSchema doc sub node path errors
 
-            // oneOf / anyOf: 少なくとも 1 分岐に適合すること
-            // (discriminator の厳密な単一適合までは要求しない)
-            let branches =
-                if schema.OneOf.Count > 0 then Some(schema.OneOf, "oneOf")
-                elif schema.AnyOf.Count > 0 then Some(schema.AnyOf, "anyOf")
-                else None
+            // oneOf は厳密に1分岐、anyOf は1分岐以上に適合する必要がある。
+            for branches, exact, kind in [ schema.OneOf, true, "oneOf"; schema.AnyOf, false, "anyOf" ] do
+                if branches.Count > 0 then
+                    let matches =
+                        branches
+                        |> Seq.filter (fun sub ->
+                            let branchErrors = ResizeArray<string>()
+                            validateSchema doc sub node path branchErrors
+                            branchErrors.Count = 0)
+                        |> Seq.length
 
-            match branches with
-            | Some(subs, kind) ->
-                let anyMatch =
-                    subs
-                    |> Seq.exists (fun sub ->
-                        let branchErrors = ResizeArray<string>()
-                        validateSchema doc sub node path branchErrors
-                        branchErrors.Count = 0)
-
-                if not anyMatch then
-                    errors.Add(sprintf "%s: どの %s 分岐にも適合しない" path kind)
-            | None -> ()
+                    if matches = 0 || (exact && matches <> 1) then
+                        errors.Add(sprintf "%s: %s の適合分岐数が不正: %d" path kind matches)
 
             if schema.Enum.Count > 0 && not (enumContains schema.Enum node) then
                 errors.Add(sprintf "%s: enum に含まれない値: %s" path (node.GetRawText()))
@@ -184,6 +177,14 @@ let rec private validateSchema
                 if node.ValueKind <> JsonValueKind.Array then
                     errors.Add(sprintf "%s: array を期待したが %A" path node.ValueKind)
                 else
+                    let length = node.GetArrayLength()
+
+                    if schema.MinItems.HasValue && length < schema.MinItems.Value then
+                        errors.Add(sprintf "%s: minItems 未満" path)
+
+                    if schema.MaxItems.HasValue && length > schema.MaxItems.Value then
+                        errors.Add(sprintf "%s: maxItems 超過" path)
+
                     let mutable i = 0
 
                     for item in node.EnumerateArray() do
@@ -192,10 +193,25 @@ let rec private validateSchema
             | "string" ->
                 if node.ValueKind <> JsonValueKind.String then
                     errors.Add(sprintf "%s: string を期待したが %A" path node.ValueKind)
-                elif schema.Format = "date" then
-                    match DateOnly.TryParseExact(node.GetString(), "yyyy-MM-dd") with
-                    | true, _ -> ()
-                    | _ -> errors.Add(sprintf "%s: format: date (yyyy-MM-dd) に適合しない: %s" path (node.GetString()))
+                else
+                    let value = node.GetString()
+
+                    if schema.MinLength.HasValue && value.Length < schema.MinLength.Value then
+                        errors.Add(sprintf "%s: minLength 未満" path)
+
+                    if schema.MaxLength.HasValue && value.Length > schema.MaxLength.Value then
+                        errors.Add(sprintf "%s: maxLength 超過" path)
+
+                    if
+                        not (String.IsNullOrEmpty schema.Pattern)
+                        && not (Regex.IsMatch(value, schema.Pattern))
+                    then
+                        errors.Add(sprintf "%s: pattern 不一致" path)
+
+                    if schema.Format = "date" then
+                        match DateOnly.TryParseExact(value, "yyyy-MM-dd") with
+                        | true, _ -> ()
+                        | _ -> errors.Add(sprintf "%s: format: date に適合しない: %s" path value)
             | "integer" ->
                 let isInteger =
                     node.ValueKind = JsonValueKind.Number
@@ -212,6 +228,24 @@ let rec private validateSchema
                 if node.ValueKind <> JsonValueKind.True && node.ValueKind <> JsonValueKind.False then
                     errors.Add(sprintf "%s: boolean を期待したが %A" path node.ValueKind)
             | _ -> () // type 未指定 (allOf/oneOf のみのラッパ等) は上で処理済み
+
+            if node.ValueKind = JsonValueKind.Number then
+                match node.TryGetDecimal() with
+                | true, value ->
+                    if
+                        schema.Minimum.HasValue
+                        && (value < schema.Minimum.Value
+                            || (schema.ExclusiveMinimum.GetValueOrDefault() && value = schema.Minimum.Value))
+                    then
+                        errors.Add(sprintf "%s: minimum 違反" path)
+
+                    if
+                        schema.Maximum.HasValue
+                        && (value > schema.Maximum.Value
+                            || (schema.ExclusiveMaximum.GetValueOrDefault() && value = schema.Maximum.Value))
+                    then
+                        errors.Add(sprintf "%s: maximum 違反" path)
+                | _ -> errors.Add(sprintf "%s: 数値の範囲外" path)
 
 // ---------------------------------------------------------------- operation 解決
 
@@ -267,79 +301,62 @@ let private tryFindOperation
 
 // ---------------------------------------------------------------- ハンドラ本体
 
-let private validateResponse
+let validateWithDocument
+    (doc: OpenApiDocument)
     (request: HttpRequestMessage)
     (response: HttpResponseMessage)
     (ct: CancellationToken)
     : Task =
     task {
-        let doc = document.Value
         let path = request.RequestUri.AbsolutePath
 
         match tryFindOperation doc request.Method path with
         | None -> () // spec 外の path / method は対象外 (dev 用エンドポイント等)
         | Some(template, operation) ->
-            if int response.StatusCode >= 200 && int response.StatusCode < 300 then
-                recordOperationHit operation.OperationId
-
             let statusKey = string (int response.StatusCode)
 
-            match operation.Responses.TryGetValue statusKey with
-            | false, _ -> () // spec 未記載の status。全数documentation の強制は Tier2 (Schemathesis error 昇格)
-            | true, specResponse ->
-                let specResponse = resolveResponse doc specResponse
+            let specResponse =
+                match operation.Responses.TryGetValue statusKey with
+                | true, found -> found
+                | _ ->
+                    match operation.Responses.TryGetValue "default" with
+                    | true, found -> found
+                    | _ -> failwithf "[openapi-validation] %s %s: 未記載の応答 %s" (string request.Method) template statusKey
 
+            let specResponse = resolveResponse doc specResponse
+            // text/csv; charset=windows-31j など、実行環境にコードページが未登録でも
+            // Content-Type と body の有無は検証できる。JSON だけ後段で UTF-8 として解析する。
+            let! bodyBytes = response.Content.ReadAsByteArrayAsync(ct)
+
+            if specResponse.Content.Count = 0 then
+                if bodyBytes.Length > 0 then
+                    failwith "[openapi-validation] body 未定義の応答に body が存在する"
+            else
                 let contentType =
                     match response.Content.Headers.ContentType with
                     | null -> ""
-                    | header ->
-                        match header.MediaType with
-                        | null -> ""
-                        | media -> media
+                    | header -> header.MediaType
 
-                let isJson =
-                    contentType = "application/json" || contentType = "application/problem+json"
+                let media =
+                    specResponse.Content
+                    |> Seq.tryFind (fun (KeyValue(k, _)) ->
+                        String.Equals(k, contentType, StringComparison.OrdinalIgnoreCase))
+                    |> Option.map (fun (KeyValue(_, v)) -> v)
 
-                if isJson && specResponse.Content.Count > 0 then
-                    let mediaSchema =
-                        specResponse.Content
-                        |> Seq.tryFind (fun (KeyValue(k, _)) ->
-                            String.Equals(k, contentType, StringComparison.OrdinalIgnoreCase))
-                        |> Option.map (fun (KeyValue(_, v)) -> v.Schema)
+                match media with
+                | None -> failwithf "[openapi-validation] %s %s: 未定義の Content-Type '%s'" template statusKey contentType
+                | Some media ->
+                    if bodyBytes.Length = 0 then
+                        failwith "[openapi-validation] スキーマ定義があるのに body が空"
 
-                    match mediaSchema with
-                    | None ->
-                        failwithf
-                            "[openapi-validation] %s %s → %s: Content-Type '%s' は spec (%s) に未定義"
-                            (string request.Method)
-                            path
-                            statusKey
-                            contentType
-                            template
-                    | Some schema ->
-                        // ReadAsStringAsync は内容をバッファするため、後段のテスト本体からの再読込も可能
-                        let! body = response.Content.ReadAsStringAsync(ct)
+                    if contentType = "application/json" || contentType = "application/problem+json" then
+                        let body = Encoding.UTF8.GetString bodyBytes
+                        use parsed = JsonDocument.Parse body
+                        let errors = ResizeArray<string>()
+                        validateSchema doc media.Schema parsed.RootElement "$" errors
 
-                        if String.IsNullOrWhiteSpace body then
-                            failwithf
-                                "[openapi-validation] %s %s → %s: スキーマ定義があるのにボディが空"
-                                (string request.Method)
-                                path
-                                statusKey
-                        else
-                            use parsed = JsonDocument.Parse body
-                            let errors = ResizeArray<string>()
-                            validateSchema doc schema parsed.RootElement "$" errors
-
-                            if errors.Count > 0 then
-                                failwithf
-                                    "[openapi-validation] %s %s → %s が openapi.yaml (%s) に適合しない:\n  %s\nbody: %s"
-                                    (string request.Method)
-                                    path
-                                    statusKey
-                                    template
-                                    (String.concat "\n  " errors)
-                                    body
+                        if errors.Count > 0 then
+                            failwithf "[openapi-validation] %s %s: %s" template statusKey (String.concat "; " errors)
     }
 
 /// ApiFixture.NewClient に差し込む DelegatingHandler。
@@ -355,6 +372,12 @@ type OpenApiValidationHandler(inner: HttpMessageHandler) =
 
         task {
             let! response = responseTask
-            do! validateResponse request response cancellationToken
+            do! validateWithDocument document.Value request response cancellationToken
+
+            if response.IsSuccessStatusCode then
+                match tryFindOperation document.Value request.Method request.RequestUri.AbsolutePath with
+                | Some(_, operation) -> recordOperationHit operation.OperationId
+                | None -> ()
+
             return response
         }

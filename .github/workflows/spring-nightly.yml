@@ -3,6 +3,14 @@ name: spring-nightly
 
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: 検証範囲（full は軽量・重量・共通保証監査の全量）
+        type: choice
+        default: full
+        options:
+          - full
+          - light
 
 permissions:
   contents: read
@@ -68,7 +76,18 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/frontend/pnpm-lock.yaml
 
+      - name: repo 共通ゲートの CLI を準備
+        run: |
+          sudo bash scripts/configure-ubuntu-apt.sh
+          sudo apt-get install -y -q shellcheck bats
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          go install github.com/oasdiff/oasdiff@latest
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          pip install ruff pytest
+          npm install -g @ast-grep/cli
+
       - name: CodeQL 初期化
+        if: inputs.profile == 'full'
         uses: github/codeql-action/init@v4
         with:
           languages: java-kotlin
@@ -93,7 +112,18 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chromium
 
+      - name: 共通・frontend ゲート
+        if: inputs.profile == 'light'
+        run: |
+          VERIFY_SCOPE=repo bash scripts/verify.sh
+          VERIFY_SCOPE=frontend bash scripts/verify.sh
+
+      - name: Spring 軽量ゲート
+        if: inputs.profile == 'light'
+        run: VERIFY_SCOPE=spring bash scripts/verify.sh
+
       - name: Pact Broker / WireMock を起動
+        if: inputs.profile == 'full'
         env:
           PGPASSWORD: app
         run: |
@@ -128,6 +158,7 @@ jobs:
           done
 
       - name: Spring nightly 実行
+        if: inputs.profile == 'full'
         working-directory: apps/api-spring
         env:
           DATABASE_URL: jdbc:postgresql://localhost:5432/sales_management
@@ -137,34 +168,22 @@ jobs:
           PACT_BROKER_URL: http://localhost:9292
           PACT_BROKER_USERNAME: pact
           PACT_BROKER_PASSWORD: pact
+          QUALITY_DEFER_AUDIT: "1"
         run: bash ci.sh
 
       - name: CodeQL 解析
+        if: always() && inputs.profile == 'full'
         uses: github/codeql-action/analyze@v4
         with:
           category: spring-java
           upload: never
           output: apps/api-spring/ci-results/codeql-output
 
-      - name: CodeQL SARIF を監査対象へ固定
-        shell: bash
+      - name: 全量保証を常時監査
+        if: always() && inputs.profile == 'full'
         run: |
-          set -euo pipefail
-          mapfile -t reports < <(find apps/api-spring/ci-results/codeql-output -type f -name '*.sarif' -print)
-          [[ "${#reports[@]}" -eq 1 ]] || {
-            echo "CodeQL SARIF は1件必須です: ${#reports[@]}" >&2
-            exit 1
-          }
-          cp "${reports[0]}" apps/api-spring/ci-results/sarif/codeql.sarif
-
-      - name: SARIF manifest / hash / error を監査
-        working-directory: apps/api-spring
-        run: |
-          python3 scripts/sarif-audit.py \
-            --spec nightly-tools.json \
-            --sarif-dir ci-results/sarif \
-            --manifest ci-results/sarif-manifest.json \
-            --merged ci-results/merged.sarif
+          python3 scripts/finalize-quality.py --target spring \
+            --codeql-directory apps/api-spring/ci-results/codeql-output
 
       - name: nightly 成果物を常時保存
         if: always()
@@ -172,6 +191,7 @@ jobs:
         with:
           name: spring-nightly-results
           path: |
+            ci-results/
             apps/api-spring/ci-results/
             apps/api-spring/**/target/surefire-reports/
             apps/api-spring/**/target/site/jacoco/

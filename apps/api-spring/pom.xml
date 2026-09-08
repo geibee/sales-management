@@ -28,6 +28,7 @@
 
   <properties>
     <java.version>25</java.version>
+    <pact.folder>${maven.multiModuleProjectDirectory}/../../pacts</pact.folder>
     <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -96,6 +97,8 @@
             </includes>
             <systemPropertyVariables>
               <repository.root>${maven.multiModuleProjectDirectory}/../..</repository.root>
+              <pact.folder>${pact.folder}</pact.folder>
+              <pact_do_not_track>true</pact_do_not_track>
             </systemPropertyVariables>
           </configuration>
         </plugin>

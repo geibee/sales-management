@@ -27,6 +27,31 @@ def test_mutation_report_missing_is_fail_closed(load_script, tmp_path, monkeypat
         mod.mutation_score()
 
 
+def test_operation_count_uses_http_evidence_not_ledger(load_script, tmp_path, monkeypatch):
+    mod = load_script("apps/api-spring/scripts/verify-quality-ratchets.py")
+    monkeypatch.setattr(mod, "ROOT", tmp_path)
+    (tmp_path / "parity-ledger.json").write_text(json.dumps({"operations": ["a", "b"]}))
+    with pytest.raises(SystemExit):
+        mod.operation_coverage()
+    evidence = tmp_path / "api/target/operation-coverage.json"
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text('["a"]')
+    with pytest.raises(SystemExit):
+        mod.operation_coverage()
+    evidence.write_text('["a", "b"]')
+    assert mod.operation_coverage() == 2
+
+
+def test_test_count_does_not_count_failed_cases(load_script, tmp_path, monkeypatch):
+    mod = load_script("apps/api-spring/scripts/verify-quality-ratchets.py")
+    monkeypatch.setattr(mod, "ROOT", tmp_path)
+    report = tmp_path / "api/target/surefire-reports/TEST-fixture.xml"
+    report.parent.mkdir(parents=True)
+    report.write_text('<testsuite tests="2"><testcase name="ok"/><testcase name="bad"><failure/></testcase></testsuite>')
+    with pytest.raises(SystemExit):
+        mod.test_count()
+
+
 def sarif(tool: str, *, level: str | None = None, skipped: bool = False) -> dict:
     result = [] if level is None else [{"ruleId": "fixture", "level": level}]
     return {
