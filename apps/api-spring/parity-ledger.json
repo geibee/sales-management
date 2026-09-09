@@ -262,7 +262,7 @@
       "id": "SPRING-CATEGORY-PBT",
       "fsharpCategory": "PBT",
       "fsharpPurpose": "値境界と状態遷移の不変条件を property-based に検査する",
-      "javaEvidence": "domain/src/test/java/com/example/salesmanagement/domain/ValueObjectsProperties.java;domain/src/test/java/com/example/salesmanagement/domain/LotWorkflowsTest.java;domain/src/test/java/com/example/salesmanagement/domain/SalesCaseWorkflowsTest.java",
+      "javaEvidence": "domain/src/test/java/com/example/salesmanagement/domain/ValueObjectsProperties.java;domain/src/test/java/com/example/salesmanagement/domain/WorkflowProperties.java;application/src/test/java/com/example/salesmanagement/application/LotUseCasesProperties.java;api/src/test/java/com/example/salesmanagement/api/HttpStateMachineProperties.java",
       "component": "domain"
     },
     {
