@@ -7,6 +7,7 @@ open System.Net.Http
 open System.Text
 open System.Text.Json
 open System.Threading
+open Microsoft.OpenApi.Models
 open Microsoft.OpenApi.Readers
 open Xunit
 open SalesManagement.Tests.Support.OpenApiValidation
@@ -68,3 +69,19 @@ let ``共通応答fixtureの契約適合を検査する`` (_id: string) (json: s
     else
         Assert.NotNull error
 }
+
+[<Fact>]
+let ``OpenAPI読込は既存の操作と共有エラー応答を保持する`` () =
+    let document = specDocument ()
+    let lots = document.Paths.["/lots"]
+    let get = lots.Operations.[OperationType.Get]
+    let post = lots.Operations.[OperationType.Post]
+    Assert.Equal("listLots", get.OperationId)
+    Assert.Equal("createLot", post.OperationId)
+    Assert.True(post.RequestBody.Required)
+    Assert.True(post.RequestBody.Content.ContainsKey "application/json")
+    let badRequest = get.Responses.["400"]
+    Assert.True(badRequest.Content.ContainsKey "application/problem+json")
+    let schema = badRequest.Content.["application/problem+json"].Schema
+    Assert.True(schema.Properties.ContainsKey "status")
+    Assert.True(schema.Properties.ContainsKey "detail")
