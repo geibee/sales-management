@@ -95,7 +95,7 @@
     <PackageReference Include="FsCheck.Xunit" Version="3.3.3" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <!-- 統合テスト全レスポンスの openapi.yaml 照合 (Support/OpenApiValidation.fs) -->
-    <PackageReference Include="Microsoft.OpenApi.Readers" Version="1.6.29" />
+    <PackageReference Include="Microsoft.OpenApi.Readers" Version="1.6.30" />
     <PackageReference Include="PactNet" Version="5.0.1" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.7.0" />
     <!-- Testcontainers 4.7.0 の推移依存を非脆弱版へ固定 (GHSA-q939-rpr3-3284 は 2026.0.0 で修正) -->
