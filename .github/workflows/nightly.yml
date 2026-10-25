@@ -72,7 +72,8 @@ jobs:
     name: ci.sh フル実行
     needs: scope
     if: needs.scope.outputs.heavy == '1'
-    runs-on: ubuntu-latest
+    # Playwright 1.59.1 が対応する OS に固定し、ubuntu-latest の更新で壊れないようにする。
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     services:
       # tools/Migrator と src/SalesManagement (ZAP / Schemathesis の標的) が使う DB。
@@ -182,7 +183,8 @@ jobs:
     name: backend-lifecycle E2E (Playwright)
     needs: scope
     if: needs.scope.outputs.e2e == '1'
-    runs-on: ubuntu-latest
+    # heavy と同じ Playwright 対応 OS を使う。
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       # playwright.config.ts の webServer が tools/Migrator → src/SalesManagement を
